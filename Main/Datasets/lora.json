@@ -1,0 +1,17 @@
+{
+  "default": "Examplerealism.safetensors",
+  "available_loras": [
+    {
+      "name": "Realism",
+      "add_prompt": "example prompt",
+      "file": "Examplerealism.safetensors",
+      "weight": 0.5
+    },
+    {
+      "name": "Example Lora",
+      "add_prompt": "example prompt",
+      "file": "example_lora.safetensors",
+      "weight": 0.5
+    }
+  ]
+}

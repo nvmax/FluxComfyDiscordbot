@@ -1,7 +1,7 @@
 ﻿
 
 <p align="center">
-  <img src="Comfyuidiscordbot.png" alt="Alt text" class="responsive-image">
+  <img src="Comfyuidiscordbotflux.png" alt="Alt text" class="responsive-image">
 </p>
 
 Welcome to the world of AI-powered imagination with My Comfyui Discord Bot! This fantastic bot is your gateway to transforming text into stunning visuals, bringing your wildest ideas to life with just a few keystrokes, and share with your friends in discord.  

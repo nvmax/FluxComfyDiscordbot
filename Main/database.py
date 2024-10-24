@@ -46,8 +46,8 @@ def add_to_history(user_id, prompt, workflow, image_filename, resolution, loras,
     if existing_entry:
         logger.debug(f"Skipping duplicate entry for user_id={user_id}, prompt={prompt}")
     else:
-        # Ensure loras is a list of up to 4 items
-        loras_list = loras[:4] if isinstance(loras, list) else [loras]
+        # Ensure loras is a list of up to 25 items
+        loras_list = loras[:25] if isinstance(loras, list) else [loras]
         loras_json = json.dumps(loras_list)
         
         c.execute("INSERT INTO image_history (user_id, prompt, workflow, image_filename, resolution, loras, upscale_factor) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -119,7 +119,7 @@ def update_image_info(image_filename, new_prompt=None, new_resolution=None, new_
     
     if new_loras is not None:
         update_fields.append("loras = ?")
-        new_loras_list = new_loras[:4] if isinstance(new_loras, list) else [new_loras]
+        new_loras_list = new_loras[:25] if isinstance(new_loras, list) else [new_loras]
         update_values.append(json.dumps(new_loras_list))
     
     if new_upscale_factor is not None:

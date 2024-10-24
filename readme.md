@@ -36,7 +36,8 @@ So, are you ready to dive into a world where your words paint pictures? Where yo
 
 
     #### prerequisite 
-    1. [Comfyui](https://github.com/comfyanonymous/ComfyUI) please install and configure for use. 
+    1. [Comfyui](https://github.com/comfyanonymous/ComfyUI) please install and configure for use.
+    - Please enable --listen on your comfyui server. 
     2. Flux required files:
         *Flux.1 Dev and associated files in correct folders in comfyui please refer to [Comfyui Wiki Manual](https://comfyui-wiki.com/tutorial/advanced/flux1-comfyui-guide-workflow-and-examples) for this. 
         - Note: the bot will not work without these files.

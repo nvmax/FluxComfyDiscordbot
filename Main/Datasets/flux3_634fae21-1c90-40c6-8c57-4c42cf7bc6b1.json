@@ -1,0 +1,220 @@
+{
+    "8": {
+        "inputs": {
+            "samples": [
+                "198:6",
+                0
+            ],
+            "vae": [
+                "152",
+                0
+            ]
+        },
+        "class_type": "VAEDecode",
+        "_meta": {
+            "title": "VAE Decode"
+        }
+    },
+    "9": {
+        "inputs": {
+            "filename_prefix": "FLUX_Output/Basic/Flux_gen",
+            "images": [
+                "264",
+                0
+            ]
+        },
+        "class_type": "SaveImage",
+        "_meta": {
+            "title": "Save Image"
+        }
+    },
+    "69": {
+        "inputs": {
+            "prompt": "a cat (Timestamp: 1729785730)"
+        },
+        "class_type": "CR Prompt Text",
+        "_meta": {
+            "title": "⚙️ CR Prompt Text"
+        }
+    },
+    "152": {
+        "inputs": {
+            "vae_name": "ae.sft"
+        },
+        "class_type": "VAELoader",
+        "_meta": {
+            "title": "Load VAE"
+        }
+    },
+    "153": {
+        "inputs": {
+            "clip_name1": "t5xxl_fp8_e4m3fn.safetensors",
+            "clip_name2": "clip_l.safetensors",
+            "type": "flux"
+        },
+        "class_type": "DualCLIPLoader",
+        "_meta": {
+            "title": "DualCLIPLoader"
+        }
+    },
+    "154": {
+        "inputs": {
+            "unet_name": "flux1-dev.sft",
+            "weight_dtype": "fp8_e4m3fn"
+        },
+        "class_type": "UNETLoader",
+        "_meta": {
+            "title": "Load Diffusion Model"
+        }
+    },
+    "258": {
+        "inputs": {
+            "ratio_selected": "4:3 [1024x768 square]",
+            "batch_size": 1
+        },
+        "class_type": "Empty Latent Ratio Select SDXL",
+        "_meta": {
+            "title": "Empty Latent Ratio Select SDXL (Mikey)"
+        }
+    },
+    "264": {
+        "inputs": {
+            "upscale_method": "nearest-exact",
+            "scale_by": 1,
+            "image": [
+                "8",
+                0
+            ]
+        },
+        "class_type": "ImageScaleBy",
+        "_meta": {
+            "title": "Upscale Image By"
+        }
+    },
+    "271": {
+        "inputs": {
+            "PowerLoraLoaderHeaderWidget": {
+                "type": "PowerLoraLoaderHeaderWidget"
+            },
+            "➕ Add Lora": "",
+            "model": [
+                "154",
+                0
+            ],
+            "clip": [
+                "153",
+                0
+            ]
+        },
+        "class_type": "Power Lora Loader (rgthree)",
+        "_meta": {
+            "title": "Power Lora Loader (rgthree)"
+        }
+    },
+    "198:0": {
+        "inputs": {
+            "sampler_name": "euler"
+        },
+        "class_type": "KSamplerSelect",
+        "_meta": {
+            "title": "KSamplerSelect"
+        }
+    },
+    "198:2": {
+        "inputs": {
+            "noise_seed": 21317686
+        },
+        "class_type": "RandomNoise",
+        "_meta": {
+            "title": "RandomNoise"
+        }
+    },
+    "198:1": {
+        "inputs": {
+            "scheduler": "simple",
+            "steps": 20,
+            "denoise": 1,
+            "model": [
+                "271",
+                0
+            ]
+        },
+        "class_type": "BasicScheduler",
+        "_meta": {
+            "title": "BasicScheduler"
+        }
+    },
+    "198:3": {
+        "inputs": {
+            "text": [
+                "69",
+                0
+            ],
+            "clip": [
+                "271",
+                1
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "CLIP Text Encode (Prompt)"
+        }
+    },
+    "198:4": {
+        "inputs": {
+            "guidance": 3.5,
+            "conditioning": [
+                "198:3",
+                0
+            ]
+        },
+        "class_type": "FluxGuidance",
+        "_meta": {
+            "title": "FluxGuidance"
+        }
+    },
+    "198:5": {
+        "inputs": {
+            "model": [
+                "271",
+                0
+            ],
+            "conditioning": [
+                "198:4",
+                0
+            ]
+        },
+        "class_type": "BasicGuider",
+        "_meta": {
+            "title": "BasicGuider"
+        }
+    },
+    "198:6": {
+        "inputs": {
+            "noise": [
+                "198:2",
+                0
+            ],
+            "guider": [
+                "198:5",
+                0
+            ],
+            "sampler": [
+                "198:0",
+                0
+            ],
+            "sigmas": [
+                "198:1",
+                0
+            ],
+            "latent_image": [
+                "258",
+                0
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "SamplerCustomAdvanced"
+        }
+    }
+}

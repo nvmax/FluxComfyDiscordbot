@@ -127,7 +127,7 @@ async def setup_commands(bot: discord.Client):
 
     @bot.tree.command(name="reboot", description="Reboot the bot (Restricted to specific admin)")
     async def reboot(interaction: discord.Interaction):
-        if interaction.user.id == 291345887211421696:
+        if interaction.user.id == BOT_MANAGER_ROLE_ID:
             await interaction.response.send_message("Rebooting bot...", ephemeral=True)
             await bot.close()
             os.execv(sys.executable, ['python'] + sys.argv)

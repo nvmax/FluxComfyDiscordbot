@@ -11,11 +11,10 @@ import time
 from Main.database import add_to_history
 from Main.utils import generate_random_seed, load_json, save_json
 import re
-
+from config import server_address
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-server_address = "127.0.0.1:8188"
 client_id = str(uuid.uuid4())
 
 def open_workflow(workflow_filename):
@@ -84,7 +83,7 @@ def queue_prompt(prompt):
     p = {"prompt": prompt, "client_id": client_id}
     data = json.dumps(p).encode('utf-8')
     logger.debug(f"Sending workflow to ComfyUI: {data.decode('utf-8')}")
-    req = urllib.request.Request(f"http://{server_address}/prompt", data=data, method="POST")
+    req = urllib.request.Request(f"http://{server_address}:8188/prompt", data=data, method="POST")
     req.add_header('Content-Type', 'application/json')
     try:
         with urllib.request.urlopen(req, timeout=30) as response:
@@ -98,7 +97,7 @@ def queue_prompt(prompt):
 def get_image(filename, subfolder, folder_type):
     data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
     url_values = urllib.parse.urlencode(data)
-    url = f"http://{server_address}/view?{url_values}"
+    url = f"http://{server_address}:8188/view?{url_values}"
     try:
         with urllib.request.urlopen(url, timeout=30) as response:
             return response.read(), filename
@@ -107,7 +106,7 @@ def get_image(filename, subfolder, folder_type):
         raise
 
 def get_history(prompt_id):
-    url = f"http://{server_address}/history/{prompt_id}"
+    url = f"http://{server_address}:8188/history/{prompt_id}"
     try:
         with urllib.request.urlopen(url, timeout=30) as response:
             return json.loads(response.read())
@@ -191,7 +190,7 @@ def send_progress_update(request_id, progress):
         'progress': progress
     }
     try:
-        response = requests.post("http://localhost:8080/update_progress", json=data, timeout=10)
+        response = requests.post(f"http://{server_address}:8080/update_progress", json=data, timeout=10)
         logger.debug(f"Progress update sent: {progress}%. Response: {response.text}")
     except Exception as e:
         logger.error(f"Error sending progress update: {str(e)}")
@@ -239,8 +238,8 @@ if __name__ == "__main__":
 
         logger.debug(f"Updated workflow content: {json.dumps(workflow, indent=2)}")
 
-        logger.debug(f"Connecting to WebSocket at ws://{server_address}/ws?clientId={client_id}")
-        ws = websocket.create_connection(f"ws://{server_address}/ws?clientId={client_id}", timeout=30)
+        logger.debug(f"Connecting to WebSocket at ws://{server_address}:8188/ws?clientId={client_id}")
+        ws = websocket.create_connection(f"ws://{server_address}:8188/ws?clientId={client_id}", timeout=30)
         
         logger.debug("WebSocket connected. Clearing cache and sending workflow to get images.")
         clear_cache(ws)
@@ -278,7 +277,7 @@ if __name__ == "__main__":
                 'seed': seed
             }
             logger.debug(f"Sending request to web server with data: {data}")
-            response = requests.post("http://localhost:8080/send_image", data=data, files=files, timeout=30)
+            response = requests.post(f"http://{server_address}:8080/send_image", data=data, files=files, timeout=30)
             logger.debug(f"Response from web server: {response.text}")
             print(response.text)
             

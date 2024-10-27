@@ -6,6 +6,8 @@ import io
 from Main.database import add_to_history
 from Main.utils import load_json
 from Main.custom_commands.views import ImageControlView
+from typing import Dict, Any
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -13,100 +15,238 @@ async def handle_generated_image(request):
     try:
         logger.debug("Received request to handle_generated_image")
         reader = await request.multipart()
-        request_id = None
-        user_id = None
-        channel_id = None
-        interaction_id = None
-        original_message_id = None
-        prompt = None
-        resolution = None
-        upscaled_resolution = None
-        loras = None
-        upscale_factor = None
-        seed = None
-        image_data = None
+        request_data = {
+            'request_id': None,
+            'user_id': None,
+            'channel_id': None,
+            'interaction_id': None,
+            'original_message_id': None,
+            'prompt': None,
+            'resolution': None,
+            'upscaled_resolution': None,
+            'loras': None,
+            'upscale_factor': None,
+            'seed': None,
+            'image_data': None
+        }
 
         async for part in reader:
-            if part.name == 'request_id':
-                request_id = await part.text()
-            elif part.name == 'user_id':
-                user_id = await part.text()
-            elif part.name == 'channel_id':
-                channel_id = await part.text()
-            elif part.name == 'interaction_id':
-                interaction_id = await part.text()
-            elif part.name == 'original_message_id':
-                original_message_id = await part.text()
-            elif part.name == 'prompt':
-                prompt = await part.text()
-            elif part.name == 'resolution':
-                resolution = await part.text()
-            elif part.name == 'upscaled_resolution':
-                upscaled_resolution = await part.text()
+            if part.name == 'image_data':
+                request_data['image_data'] = await part.read(decode=False)
             elif part.name == 'loras':
-                loras = json.loads(await part.text())
+                request_data['loras'] = json.loads(await part.text())
             elif part.name == 'upscale_factor':
-                upscale_factor = int(await part.text())
-            elif part.name == 'seed':
-                seed = await part.text()
-            elif part.name == 'image_data':
-                image_data = await part.read(decode=False)
+                request_data['upscale_factor'] = int(await part.text())
+            else:
+                request_data[part.name] = await part.text()
 
-        if all([request_id, user_id, image_data, channel_id, interaction_id, original_message_id, prompt, resolution, loras is not None, upscale_factor is not None, seed]):
-            if request_id not in request.app['bot'].pending_requests:
-                logger.warning(f"Received response for unknown request_id: {request_id}")
-                return web.Response(text="Unknown request", status=404)
+        # Validate required fields
+        required_fields = [
+            'request_id', 'user_id', 'channel_id', 'interaction_id',
+            'original_message_id', 'prompt', 'resolution', 'image_data'
+        ]
+        
+        missing_fields = [field for field in required_fields if not request_data[field]]
+        if missing_fields:
+            logger.warning(f"Missing required fields: {', '.join(missing_fields)}")
+            return web.Response(text="Missing required data", status=400)
 
-            del request.app['bot'].pending_requests[request_id]
-            image_filename = f'generated_image_{request_id}.png'
+        # Check if request is still pending
+        if request_data['request_id'] not in request.app['bot'].pending_requests:
+            logger.warning(f"Received response for unknown request_id: {request_data['request_id']}")
+            return web.Response(text="Unknown request", status=404)
 
-            user = await request.app['bot'].fetch_user(int(user_id))
-            user_name = user.display_name if user else "Unknown User"
+        # Remove request from pending
+        del request.app['bot'].pending_requests[request_data['request_id']]
 
-            channel = await request.app['bot'].fetch_channel(int(channel_id))
+        # Generate image filename
+        image_filename = f"generated_image_{request_data['request_id']}.png"
+
+        try:
+            # Fetch user and guild information
+            user = await request.app['bot'].fetch_user(int(request_data['user_id']))
+            channel = await request.app['bot'].fetch_channel(int(request_data['channel_id']))
             guild = channel.guild
-            member = await guild.fetch_member(int(user_id))
+            member = await guild.fetch_member(int(request_data['user_id']))
+            
+            user_name = user.display_name if user else "Unknown User"
             user_color = member.color.value if member.color.value != 0 else 0x5DADEC
 
-            lora_config = load_json('lora.json')
-            lora_names = [next((lora['name'] for lora in lora_config['available_loras'] if lora['file'] == lora_file), lora_file) for lora_file in loras]
+            # Create embed
+            embed = discord.Embed(
+                title=f"Image generated by {user_name}",
+                description=request_data['prompt'],
+                color=user_color
+            )
 
-            embed = discord.Embed(title=f"Image generated by {user_name}", description=prompt, color=user_color)
-            if upscaled_resolution and upscaled_resolution != "Unknown":
-                embed.add_field(name="Resolution", value=f"{resolution} → {upscaled_resolution}", inline=True)
+            # Add resolution field with CR Upscaler info
+            if request_data['upscale_factor'] > 1:
+                if request_data['upscaled_resolution'] and request_data['upscaled_resolution'] != "Unknown":
+                    embed.add_field(
+                        name="Resolution",
+                        value=f"{request_data['resolution']} → {request_data['upscaled_resolution']} (CR Upscaled {request_data['upscale_factor']}x)",
+                        inline=True
+                    )
+                else:
+                    embed.add_field(
+                        name="Resolution",
+                        value=f"{request_data['resolution']} (CR Upscaled {request_data['upscale_factor']}x)",
+                        inline=True
+                    )
             else:
-                embed.add_field(name="Resolution", value=resolution, inline=True)
-            embed.add_field(name="LoRAs", value=", ".join(lora_names) if lora_names else "None", inline=True)
-            embed.add_field(name="Upscale Factor", value=str(upscale_factor), inline=True)
-            embed.add_field(name="Seed", value=seed, inline=True)
+                embed.add_field(name="Resolution", value=request_data['resolution'], inline=True)
 
-            image_file = discord.File(io.BytesIO(image_data), image_filename)
-            view = ImageControlView(request.app['bot'], prompt, image_filename, resolution, loras, upscale_factor, seed)
+            # Add LoRA information
+            lora_config = load_json('lora.json')
+            lora_names = [
+                next((lora['name'] for lora in lora_config['available_loras'] 
+                     if lora['file'] == lora_file), lora_file)
+                for lora_file in (request_data['loras'] or [])
+            ]
+            embed.add_field(
+                name="LoRAs",
+                value=", ".join(lora_names) if lora_names else "None",
+                inline=True
+            )
 
+            # Add upscale factor with x suffix
+            if request_data['upscale_factor']:
+                embed.add_field(name="CR Upscale", value=f"{request_data['upscale_factor']}x", inline=True)
+            
+            if request_data['seed']:
+                embed.add_field(name="Seed", value=request_data['seed'], inline=True)
+
+            # Create image file and view
+            image_file = discord.File(io.BytesIO(request_data['image_data']), image_filename)
+            view = ImageControlView(
+                request.app['bot'],
+                request_data['prompt'],
+                image_filename,
+                request_data['resolution'],
+                request_data['loras'],
+                request_data['upscale_factor'],
+                request_data['seed']
+            )
+
+            # Update the original message
             try:
-                channel = await request.app['bot'].fetch_channel(int(channel_id))
-                original_message = await channel.fetch_message(int(original_message_id))
+                channel = await request.app['bot'].fetch_channel(int(request_data['channel_id']))
+                original_message = await channel.fetch_message(int(request_data['original_message_id']))
                 await original_message.edit(content=None, embed=embed, attachments=[image_file], view=view)
                 request.app['bot'].add_view(view, message_id=original_message.id)
             except discord.errors.NotFound:
-                logger.warning(f"Channel {channel_id} or message {original_message_id} not found")
+                logger.warning(f"Channel {request_data['channel_id']} or message {request_data['original_message_id']} not found")
+                return web.Response(text="Channel or message not found", status=404)
             except discord.errors.Forbidden:
-                logger.warning(f"Bot doesn't have permission to send messages in channel {channel_id}")
-            except Exception as e:
-                logger.error(f"Error sending image to channel {channel_id}: {str(e)}")
+                logger.warning(f"Bot doesn't have permission to send messages in channel {request_data['channel_id']}")
+                return web.Response(text="Permission denied", status=403)
 
-            add_to_history(user_id, prompt, None, image_filename, resolution, loras, upscale_factor)
-            
-            logger.info(f"Image sent to channel for user {user_id}")
-            return web.Response(text="Image sent to channel.")
-        else:
-            missing_fields = [field for field in ['request_id', 'user_id', 'channel_id', 'interaction_id', 
-                                                'original_message_id', 'prompt', 'resolution', 'loras', 
-                                                'upscale_factor', 'seed', 'image_data'] 
-                            if locals().get(field) is None]
-            logger.warning(f"Missing fields: {', '.join(missing_fields)}")
-            return web.Response(text="Missing required data.", status=400)
-    
+            # Add to history
+            add_to_history(
+                request_data['user_id'],
+                request_data['prompt'],
+                None,  # workflow
+                image_filename,
+                request_data['resolution'],
+                request_data['loras'],
+                request_data['upscale_factor']
+            )
+
+            logger.info(f"Image successfully sent to channel for user {request_data['user_id']}")
+            return web.Response(text="Image sent to channel")
+
+        except Exception as e:
+            logger.error(f"Error processing image request: {str(e)}", exc_info=True)
+            return web.Response(text=f"Error processing request: {str(e)}", status=500)
+
     except Exception as e:
         logger.error(f"Error in handle_generated_image: {str(e)}", exc_info=True)
         return web.Response(text="Internal server error", status=500)
+
+async def update_progress(request):
+    try:
+        data = await request.json()
+        request_id = data.get('request_id')
+        progress_data = data.get('progress_data', {})
+        
+        if not request_id:
+            return web.Response(text="Missing request_id", status=400)
+            
+        if request_id not in request.app['bot'].pending_requests:
+            return web.Response(text="Unknown request_id", status=404)
+            
+        request_item = request.app['bot'].pending_requests[request_id]
+        await update_progress_message(request.app['bot'], request_item, progress_data)
+        
+        return web.Response(text="Progress updated")
+    except Exception as e:
+        logger.error(f"Error in update_progress: {str(e)}", exc_info=True)
+        return web.Response(text="Internal server error", status=500)
+
+async def update_progress_message(bot, request_item, progress_data: Dict[str, Any]):
+    try:
+        channel = await bot.fetch_channel(int(request_item.channel_id))
+        message = await channel.fetch_message(int(request_item.original_message_id))
+        
+        status = progress_data.get('status', '')
+        progress_message = progress_data.get('message', 'Processing...')
+        
+        emoji_map = {
+            'starting': '🔄',
+            'loading': '⚙️',
+            'generating': '🎨',
+            'upscaling': '📐',
+            'complete': '✅',
+            'error': '❌',
+            'cached': '📦'
+        }
+        
+        emoji = emoji_map.get(status, '⏳')
+        
+        # Format the message based on the status
+        if status == 'loading':
+            formatted_message = f"{emoji} {progress_message}"
+        elif status == 'generating':
+            progress = progress_data.get('progress', 0)
+            formatted_message = f"{emoji} {progress_message} [{progress}%]"
+            
+            # Add progress bar
+            bar_length = 20
+            filled = int(bar_length * progress / 100)
+            bar = '█' * filled + '░' * (bar_length - filled)
+            formatted_message = f"{formatted_message}\n{bar}"
+        elif status == 'upscaling':
+            formatted_message = f"{emoji} Upscaling image with CR Upscaler ({request_item.upscale_factor}x)..."
+        elif status == 'error':
+            formatted_message = f"{emoji} Error: {progress_message}"
+        else:
+            formatted_message = f"{emoji} {progress_message}"
+
+        await message.edit(content=formatted_message)
+        logger.debug(f"Updated progress message: {formatted_message}")
+        
+    except discord.errors.NotFound:
+        logger.warning(f"Message {request_item.original_message_id} not found")
+    except discord.errors.Forbidden:
+        logger.warning("Bot lacks permission to edit message")
+    except Exception as e:
+        logger.error(f"Error updating progress message: {str(e)}", exc_info=True)
+
+async def check_timeout(bot, request_id: str, timeout: int = 300):
+    """
+    Monitor request for timeout
+    """
+    try:
+        await asyncio.sleep(timeout)
+        if request_id in bot.pending_requests:
+            request_item = bot.pending_requests[request_id]
+            try:
+                channel = await bot.fetch_channel(int(request_item.channel_id))
+                message = await channel.fetch_message(int(request_item.original_message_id))
+                await message.edit(content="⚠️ Generation timed out after 5 minutes")
+            except Exception as e:
+                logger.error(f"Error handling timeout: {str(e)}")
+            finally:
+                del bot.pending_requests[request_id]
+    except Exception as e:
+        logger.error(f"Error in timeout checker: {str(e)}")

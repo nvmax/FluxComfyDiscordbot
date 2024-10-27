@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands as discord_commands
+from Main.custom_commands import views
 from config import BOT_MANAGER_ROLE_ID, CHANNEL_IDS
 import logging
 import os
@@ -10,6 +11,7 @@ import time
 import sqlite3
 from typing import Optional
 from config import BOT_MANAGER_ROLE_ID, CHANNEL_IDS
+from config import fluxversion
 
 from Main.database import (
     DB_NAME, ban_user, unban_user, 
@@ -58,7 +60,7 @@ async def setup_commands(bot: discord.Client):
         app_commands.Choice(name=str(i), value=i) for i in range(1, 5)
     ])
     async def comfy(interaction: discord.Interaction, prompt: str, resolution: str, 
-                   upscale_factor: int = 1, seed: Optional[int] = None):
+                upscale_factor: int = 1, seed: Optional[int] = None):
         try:
             is_banned, ban_message = check_banned(str(interaction.user.id), prompt)
             if is_banned:
@@ -70,13 +72,18 @@ async def setup_commands(bot: discord.Client):
             view = LoRAView(interaction.client)
             msg = await interaction.followup.send("Please select LoRAs to use:", view=view, ephemeral=True)
             
-            timeout = await view.wait()
-            if timeout:
-                await msg.delete()
-                return
-
+            # Wait for the view to finish
+            await view.wait()
+            
+            # Get selected LoRAs from the view instance
             selected_loras = view.selected_loras
+            
+            # Clean up the selection message
             await msg.delete()
+            
+            if not hasattr(view, 'has_confirmed'):
+                logger.debug("LoRA selection was cancelled or timed out")
+                return
 
             additional_prompts = []
             lora_config = load_json('lora.json')
@@ -90,16 +97,16 @@ async def setup_commands(bot: discord.Client):
             if seed is None:
                 seed = generate_random_seed()
 
-            workflow = load_json('flux3.json')
+            workflow = load_json(fluxversion)
             request_uuid = str(uuid.uuid4())
             current_timestamp = int(time.time())
             
             workflow = update_workflow(workflow, 
-                                   f"{full_prompt} (Timestamp: {current_timestamp})", 
-                                   resolution, 
-                                   selected_loras, 
-                                   upscale_factor,
-                                   seed)
+                                f"{full_prompt} (Timestamp: {current_timestamp})", 
+                                resolution, 
+                                selected_loras, 
+                                upscale_factor,
+                                seed)
 
             workflow_filename = f'flux3_{request_uuid}.json'
             save_json(workflow_filename, workflow)
@@ -217,7 +224,7 @@ async def setup_commands(bot: discord.Client):
             await interaction.followup.send(f"Synced {len(synced)} commands.")
             logger.info(f"Synced {len(synced)} commands")
         except discord.app_commands.errors.CheckFailure as e:
-            logger.error(f"Check failure in sync_commands: {str(e)}")
+            logger.error(f"Check failure in sync_commands: {str(e)}", exc_info=True)
             await interaction.response.send_message("You don't have permission to use this command.", 
                                                   ephemeral=True)
         except Exception as e:
@@ -229,27 +236,27 @@ async def setup_commands(bot: discord.Client):
     async def reload_options_command(interaction: discord.Interaction):
         try:
             await bot.reload_options()
-            await interaction.response.send_message("LoRA and Resolution options have been reloaded.", 
+            await interaction.response.send_message("LoRA and Resolution options have been reloaded.",
                                                   ephemeral=True)
         except Exception as e:
-            logger.error(f"Error reloading options: {str(e)}", exc_info=True)
+            logger.error(f"Error reloading options: {str(e)}", exc_info=True, stack_info=True)
             await interaction.response.send_message(f"Error reloading options: {str(e)}", ephemeral=True)
 
     @bot.tree.error
     async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CommandOnCooldown):
             await interaction.response.send_message(
-                f"This command is on cooldown. Try again in {error.retry_after:.2f}s", 
+                f"This command is on cooldown. Try again in {error.retry_after:.2f}s",
                 ephemeral=True
             )
         elif isinstance(error, app_commands.MissingPermissions):
             await interaction.response.send_message(
-                "You don't have permission to use this command.", 
+                "You don't have permission to use this command.",
                 ephemeral=True
             )
         else:
             logger.error(f"Command error: {str(error)}", exc_info=True)
-            await interaction.response.send_message(
+            await interaction.response.send_message( 
                 f"An error occurred while executing the command: {str(error)}", 
                 ephemeral=True
             )

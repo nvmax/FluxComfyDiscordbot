@@ -1,6 +1,7 @@
 from aiohttp import web
-from Main.custom_commands.web_handlers import handle_generated_image
+from Main.custom_commands.web_handlers import handle_generated_image, update_progress
 import logging
+from config import server_address
 
 logger = logging.getLogger(__name__)
 
@@ -9,26 +10,51 @@ async def start_web_server(bot):
     app['bot'] = bot
     app.router.add_post('/send_image', handle_generated_image)
     app.router.add_post('/update_progress', update_progress)
+    
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, 'localhost', 8080)
+    site = web.TCPSite(runner, host=server_address, port=8080)
     await site.start()
+    logger.info(f"Web server started on {server_address}:8080")
 
 async def update_progress(request):
-    data = await request.json()
-    request_id = data['request_id']
-    progress = data['progress']
-    if request_id in request.app['bot'].pending_requests:
+    try:
+        data = await request.json()
+        request_id = data.get('request_id')
+        progress_data = data.get('progress_data', {})
+        
+        if not request_id:
+            return web.Response(text="Missing request_id", status=400)
+            
+        if request_id not in request.app['bot'].pending_requests:
+            return web.Response(text="Unknown request_id", status=404)
+            
         request_item = request.app['bot'].pending_requests[request_id]
-        await update_progress_message(request.app['bot'], request_item, progress)
-    return web.Response(text="Progress updated")
+        await update_progress_message(request.app['bot'], request_item, progress_data)
+        
+        return web.Response(text="Progress updated")
+    except Exception as e:
+        logger.error(f"Error in update_progress: {str(e)}", exc_info=True)
+        return web.Response(text=f"Error: {str(e)}", status=500)
 
-async def update_progress_message(bot, request_item, progress):
+async def update_progress_message(bot, request_item, progress_data):
     try:
         channel = await bot.fetch_channel(int(request_item.channel_id))
         message = await channel.fetch_message(int(request_item.original_message_id))
         
-        if progress % 10 == 0:
-            await message.edit(content=f"Generating image... {progress}% complete")
+        if isinstance(progress_data, dict):
+            status = progress_data.get('status', 'processing')
+            msg = progress_data.get('message', 'Processing...')
+            progress = progress_data.get('progress', 0)
+        else:
+            status = 'generating'
+            progress = int(progress_data)
+            msg = f'Generating image... {progress}% complete'
+
+
+        if progress % 10 == 0 or status != 'generating':
+            await message.edit(content=msg)
+            logger.debug(f"Updated progress message: {msg}")
+            
     except Exception as e:
         logger.error(f"Error updating progress message: {str(e)}")

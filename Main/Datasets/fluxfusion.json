@@ -15,22 +15,9 @@
       "title": "VAE Decode"
     }
   },
-  "9": {
-    "inputs": {
-      "filename_prefix": "FLUX_Output/Basic/Flux_gen",
-      "images": [
-        "264",
-        0
-      ]
-    },
-    "class_type": "SaveImage",
-    "_meta": {
-      "title": "Save Image"
-    }
-  },
   "69": {
     "inputs": {
-      "prompt": "Comfyui Discord Bot\n"
+      "prompt": "\n"
     },
     "class_type": "CR Prompt Text",
     "_meta": {
@@ -48,7 +35,7 @@
   },
   "153": {
     "inputs": {
-      "clip_name1": "t5xxl_fp8_e4m3fn.safetensors",
+      "clip_name1": "t5xxl_fp16.safetensors",
       "clip_name2": "clip_l.safetensors",
       "type": "flux"
     },
@@ -59,7 +46,7 @@
   },
   "154": {
     "inputs": {
-      "unet_name": "flux1-dev.sft",
+      "unet_name": "fluxFusionV24StepsGGUFNF4_V2Fp16.safetensors",
       "weight_dtype": "fp8_e4m3fn"
     },
     "class_type": "UNETLoader",
@@ -77,29 +64,10 @@
       "title": "Empty Latent Ratio Select SDXL (Mikey)"
     }
   },
-  "264": {
-    "inputs": {
-      "upscale_method": "nearest-exact",
-      "scale_by": 2,
-      "image": [
-        "8",
-        0
-      ]
-    },
-    "class_type": "ImageScaleBy",
-    "_meta": {
-      "title": "Upscale Image By"
-    }
-  },
   "271": {
     "inputs": {
       "PowerLoraLoaderHeaderWidget": {
         "type": "PowerLoraLoaderHeaderWidget"
-      },
-      "lora_1": {
-        "on": true,
-        "lora": "example_lora.safetensors",
-        "strength": 0.5
       },
       "➕ Add Lora": "",
       "model": [
@@ -116,6 +84,52 @@
       "title": "Power Lora Loader (rgthree)"
     }
   },
+  "279": {
+    "inputs": {
+      "upscale_model": "4x-ClearRealityV1.pth",
+      "mode": "rescale",
+      "rescale_factor": 1,
+      "resize_width": 1024,
+      "resampling_method": "lanczos",
+      "supersample": "true",
+      "rounding_modulus": 8,
+      "image": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "CR Upscale Image",
+    "_meta": {
+      "title": "🔍 CR Upscale Image"
+    }
+  },
+  "286": {
+    "inputs": {
+      "output_path": "FLUX_Output/Basic/Flux_gen",
+      "filename_prefix": "Flux_gen",
+      "filename_delimiter": "_",
+      "filename_number_padding": 5,
+      "filename_number_start": "false",
+      "extension": "jpeg",
+      "dpi": 2400,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "false",
+      "show_history": "false",
+      "show_history_by_prefix": "false",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "279",
+        0
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "Image Save"
+    }
+  },
   "198:0": {
     "inputs": {
       "sampler_name": "euler"
@@ -127,7 +141,7 @@
   },
   "198:2": {
     "inputs": {
-      "noise_seed": 663377009963607
+      "noise_seed": 192170290962240
     },
     "class_type": "RandomNoise",
     "_meta": {
@@ -137,7 +151,7 @@
   "198:1": {
     "inputs": {
       "scheduler": "simple",
-      "steps": 20,
+      "steps": 4,
       "denoise": 1,
       "model": [
         "271",

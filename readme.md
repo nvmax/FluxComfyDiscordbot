@@ -46,6 +46,9 @@ So, are you ready to dive into a world where your words paint pictures? Where yo
             * t5xxl_fp8_e4m3fn.safetensors
             * clip_l.safetensors
             * ae.sft
+          - For faster generations look at using [Flux Fusion V2](https://civitai.com/models/630820/flux-fusion-v2-4-steps-gguf-nf4-fp8fp16) download the FP15 or FP8 version.
+           - place in your comfyui/models/unet folder.
+              - 
     3. [Required Files](#requiredfiles)
 
 ## Installation

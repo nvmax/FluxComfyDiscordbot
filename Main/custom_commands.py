@@ -15,6 +15,7 @@ from custom_commands.banned_utils import check_banned
 from custom_commands.workflow_utils import update_workflow
 from utils import load_json, save_json, generate_random_seed
 from aiohttp import web
+from config import fluxversion
 
 
 logger = logging.getLogger(__name__)
@@ -92,7 +93,7 @@ async def comfy(interaction: discord.Interaction, prompt: str, resolution: str, 
         if seed is None:
             seed = generate_random_seed()
 
-        workflow = load_json('flux3.json')
+        workflow = load_json(fluxversion)
         request_uuid = str(uuid.uuid4())
         current_timestamp = int(time.time())
         

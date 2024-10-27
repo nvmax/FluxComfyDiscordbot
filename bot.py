@@ -70,7 +70,7 @@ class MyBot(discord_commands.Bot):
                 await asyncio.sleep(5)
 
                 subprocess.Popen([
-                    'python', 'comfygen.py',  # Now in root
+                    'python', 'comfygen.py',  
                     request_id,
                     request_item.user_id,
                     request_item.channel_id,

@@ -9,6 +9,7 @@ import json
 import re
 from Main.utils import load_json, save_json, generate_random_seed
 from .workflow_utils import update_workflow
+from config import fluxversion
 
 logger = logging.getLogger(__name__)
 
@@ -21,26 +22,38 @@ class LoRASelectMenu(discord.ui.Select):
         super().__init__(
             placeholder="Select LoRAs...",
             min_values=0,
-            max_values=len(options),
+            max_values=min(len(options), 25),  # Discord limit
             options=options
         )
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        self.view.selected_loras = self.values
 
 class LoRAView(discord.ui.View):
     def __init__(self, bot):
         super().__init__(timeout=300)
         self.selected_loras = []
+        self.has_confirmed = False
         self.lora_select = LoRASelectMenu(bot)
         self.add_item(self.lora_select)
 
-        self.confirm = discord.ui.Button(label="Confirm Selection", style=discord.ButtonStyle.primary)
-        self.confirm.callback = self.confirm_callback
-        self.add_item(self.confirm)
+        confirm_button = discord.ui.Button(label="Confirm Selection", style=discord.ButtonStyle.primary)
+        confirm_button.callback = self.confirm_callback
+        self.add_item(confirm_button)
+
+        cancel_button = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.secondary)
+        cancel_button.callback = self.cancel_callback
+        self.add_item(cancel_button)
 
     async def confirm_callback(self, interaction: discord.Interaction):
+        self.selected_loras = self.lora_select.values
+        self.has_confirmed = True
+        self.stop()
+        await interaction.response.defer()
+
+    async def cancel_callback(self, interaction: discord.Interaction):
+        self.selected_loras = []
+        self.has_confirmed = False
         self.stop()
         await interaction.response.defer()
 
@@ -149,7 +162,7 @@ class ImageControlView(ui.View):
         try:
             await interaction.response.defer(ephemeral=False)
             
-            workflow = load_json('flux3.json')
+            workflow = load_json(fluxversion)
             request_uuid = str(uuid.uuid4())
             new_seed = generate_random_seed()
             
@@ -251,7 +264,7 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
            except ValueError:
                seed = None
 
-           workflow = load_json('flux3.json')
+           workflow = load_json(fluxversion)
            request_uuid = str(uuid.uuid4())
            current_timestamp = int(time.time())
            

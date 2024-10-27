@@ -48,8 +48,9 @@ So, are you ready to dive into a world where your words paint pictures? Where yo
             * ae.sft
           - For faster generations look at using [Flux Fusion V2](https://civitai.com/models/630820/flux-fusion-v2-4-steps-gguf-nf4-fp8fp16) download the FP15 or FP8 version.
            - place in your comfyui/models/unet folder.
-              - 
-    3. [Required Files](#requiredfiles)
+              - use fluxfusion.json for the FluxFusion V2 model.
+    3. copy over the 4x-ClearRealityV1.pth into your comfyui/models/upscale_models folder.
+    4. [Required Files](#requiredfiles)
 
 ## Installation
 
@@ -168,6 +169,8 @@ Required Files folder, these are critical and needed to make sure the bot works 
  - this is the workflow for comfyui to use for image generations, the bot uses the api format of this file.
 2. ratios.json - this is a edit of mikey_nodes to add more resolutions that his nodes did not have that flux supports, location  ```ComfyUI_windows_portable\ComfyUI\custom_nodes\mikey_nodes```
   - replace exsisting ratios.json with one provided.
+3. copy over the 4x-ClearRealityV1.pth into your comfyui/models/upscale_models folder.
+4. if using FluxFusion V2 4 steps GGUF NF4 FP8FP16.safetensors please download and place in your comfyui/models/checkpoints folder.
 
 
 

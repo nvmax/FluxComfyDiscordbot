@@ -123,7 +123,9 @@ configured it.
       - Case: if your friend you trust wants to be able to ban specific users or words or even reboot the server this would give him the permissions to do so but not give him Admin privileges on your discord server.
 	  
       - There is no Admin role since all intents are pulled from discord, Discord Admins already have the rights and intents for all options to admin the bot. 
-6. Set the `server_address` to the address of your comfyui server. if its running on the same machine as the bot just use 127.0.0.1 if its on another machine please use the ip address of the machine running comfyui.
+6. Set the `BOT_SERVER` to the IP address of the machine running the bot.
+7. Set the `COMFY_SERVER` to the IP address of the machine running ComfyUI.
+8. Set the `server_address` to the IP address of the machine running ComfyUI. (so those running locally vs remotely can be used)
 	  
 #### LoRA (Low-Rank Adaptation) models Config
 

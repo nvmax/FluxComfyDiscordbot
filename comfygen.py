@@ -11,7 +11,12 @@ import time
 from Main.database import add_to_history
 from Main.utils import generate_random_seed, load_json, save_json
 import re
-from config import server_address
+from dotenv import load_dotenv
+from config import server_address, BOT_SERVER
+
+# Load environment variables
+load_dotenv()
+
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -66,10 +71,11 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
             else:
                 logger.warning(f"LoRA {lora} not found in lora.json")
 
-    if '264' in workflow:
-        workflow['264']['inputs']['scale_by'] = upscale_factor
+    if '279' in workflow:
+        workflow['279']['inputs']['rescale_factor'] = upscale_factor
+        logger.debug(f"Updated rescale factor to: {upscale_factor}")
     else:
-        logger.warning("Node 264 not found in workflow")
+        logger.warning("Node 279 not found in workflow")
 
     if '198:2' in workflow:
         workflow['198:2']['inputs']['noise_seed'] = seed
@@ -118,6 +124,42 @@ def clear_cache(ws):
     clear_message = json.dumps({"type": "clear_cache"})
     ws.send(clear_message)
     logger.debug("Sent clear_cache message to ComfyUI")
+
+def send_progress_update(request_id, progress_data):
+    try:
+        # Get the bot's web server address from environment or config
+        bot_server = os.getenv('BOT_SERVER', BOT_SERVER)
+        retries = 3
+        retry_delay = 1  # seconds
+
+        data = {
+            'request_id': request_id,
+            'progress_data': progress_data
+        }
+
+        for attempt in range(retries):
+            try:
+                response = requests.post(
+                    f"http://{bot_server}:8080/update_progress",
+                    json=data,
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    logger.debug(f"Progress update sent: {progress_data}")
+                    return
+                else:
+                    logger.warning(f"Progress update failed with status {response.status_code}: {response.text}")
+            except requests.exceptions.RequestException as e:
+                if attempt < retries - 1:
+                    logger.warning(f"Attempt {attempt + 1} failed, retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    logger.error(f"All retry attempts failed: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error sending progress update: {str(e)}")
+        # Continue execution even if update fails
+        pass
 
 def get_images(ws, workflow, progress_callback):
     try:
@@ -173,7 +215,6 @@ def get_images(ws, workflow, progress_callback):
                             "message": f"Loading LoRA: {current_lora}"
                         })
                     
-                    # Check if execution is complete
                     if data['node'] is None and data['prompt_id'] == prompt_id:
                         break
                 
@@ -229,17 +270,14 @@ def get_images(ws, workflow, progress_callback):
 
 def calculate_upscaled_resolution(resolution, upscale_factor):
     try:
-        
         ratios_config = load_json('ratios.json')
         
-    
         if resolution not in ratios_config['ratios']:
             raise ValueError(f"Resolution {resolution} not found in ratios configuration")
             
         base_res = ratios_config['ratios'][resolution]
         width = base_res['width']
         height = base_res['height']
-
         
         final_width = width * upscale_factor
         final_height = height * upscale_factor
@@ -249,26 +287,53 @@ def calculate_upscaled_resolution(resolution, upscale_factor):
         logger.error(f"Error calculating upscaled resolution: {str(e)}")
         raise ValueError(f"Unable to calculate upscaled resolution: {str(e)}")
 
-def send_progress_update(request_id, progress_data):
+def send_final_image(request_id, user_id, channel_id, interaction_id, original_message_id, 
+                    prompt, resolution, upscaled_resolution, loras, upscale_factor, 
+                    seed, image_data, filename):
     try:
+        bot_server = os.getenv('BOT_SERVER', BOT_SERVER)
+        retries = 3
+        retry_delay = 1  # seconds
+
+        files = {'image_data': (filename, image_data)}
         data = {
             'request_id': request_id,
-            'progress_data': progress_data
+            'user_id': user_id,
+            'channel_id': channel_id,
+            'interaction_id': interaction_id,
+            'original_message_id': original_message_id,
+            'prompt': prompt,
+            'resolution': resolution,
+            'upscaled_resolution': upscaled_resolution,
+            'loras': json.dumps(loras),
+            'upscale_factor': upscale_factor,
+            'seed': seed
         }
-        response = requests.post(f"http://{server_address}:8080/update_progress", json=data, timeout=10)
-        if response.status_code != 200:
-            logger.warning(f"Progress update failed with status {response.status_code}: {response.text}")
-        else:
-            logger.debug(f"Progress update sent: {progress_data}")
-    except Exception as e:
-        logger.error(f"Error sending progress update: {str(e)}")
 
-# And update the get_images function's progress callback usage:
-progress_callback = lambda progress: send_progress_update(request_id, {
-    'status': 'generating' if isinstance(progress, int) else progress.get('status', 'processing'),
-    'message': progress.get('message', f'Generating image... {progress}% complete') if isinstance(progress, dict) else f'Generating image... {progress}% complete',
-    'progress': progress if isinstance(progress, int) else progress.get('progress', 0)
-})
+        for attempt in range(retries):
+            try:
+                response = requests.post(
+                    f"http://{bot_server}:8080/send_image",
+                    data=data,
+                    files=files,
+                    timeout=30
+                )
+                if response.status_code == 200:
+                    logger.debug("Successfully sent final image")
+                    return response
+                else:
+                    logger.warning(f"Failed to send image, status code: {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                if attempt < retries - 1:
+                    logger.warning(f"Attempt {attempt + 1} failed, retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    logger.error(f"All retry attempts failed: {str(e)}")
+                    raise
+    except Exception as e:
+        logger.error(f"Error sending final image: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     try:
@@ -342,18 +407,29 @@ if __name__ == "__main__":
             logger.error(f"Error calculating upscaled resolution: {str(e)}")
             upscaled_resolution = "Unknown"
 
-        # Connect to WebSocket
-        try:
-            send_progress_update(request_id, {
-                'status': 'loading',
-                'message': 'Connecting to ComfyUI...',
-                'progress': 15
-            })
-            logger.debug(f"Connecting to WebSocket at ws://{server_address}:8188/ws?clientId={client_id}")
-            ws = websocket.create_connection(f"ws://{server_address}:8188/ws?clientId={client_id}", timeout=30)
-        except Exception as e:
-            logger.error(f"Error connecting to WebSocket: {str(e)}")
-            raise
+        # Connect to WebSocket with retries
+        max_retries = 3
+        retry_delay = 2
+        ws = None
+        
+        for attempt in range(max_retries):
+            try:
+                send_progress_update(request_id, {
+                    'status': 'loading',
+                    'message': f'Connecting to ComfyUI (attempt {attempt + 1})...',
+                    'progress': 15
+                })
+                logger.debug(f"Connecting to WebSocket at ws://{server_address}:8188/ws?clientId={client_id}")
+                ws = websocket.create_connection(f"ws://{server_address}:8188/ws?clientId={client_id}", timeout=30)
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"WebSocket connection attempt {attempt + 1} failed: {str(e)}")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    logger.error(f"All WebSocket connection attempts failed: {str(e)}")
+                    raise
 
         try:
             # Clear cache and prepare for generation
@@ -384,33 +460,21 @@ if __name__ == "__main__":
 
             if final_image:
                 image_data, filename = final_image
-                files = {'image_data': (filename, image_data)}
-                data = {
-                    'request_id': request_id,
-                    'user_id': user_id,
-                    'channel_id': channel_id,
-                    'interaction_id': interaction_id,
-                    'original_message_id': original_message_id,
-                    'prompt': full_prompt,
-                    'resolution': resolution,
-                    'upscaled_resolution': upscaled_resolution,
-                    'loras': json.dumps(loras),
-                    'upscale_factor': upscale_factor,
-                    'seed': seed
-                }
-                
-                send_progress_update(request_id, {
-                    'status': 'finalizing',
-                    'message': 'Sending generated image...',
-                    'progress': 95
-                })
-
-                logger.debug(f"Sending request to web server with data: {data}")
-                response = requests.post(f"http://{server_address}:8080/send_image", 
-                                      data=data, 
-                                      files=files, 
-                                      timeout=30)
-                logger.debug(f"Response from web server: {response.text}")
+                response = send_final_image(
+                    request_id=request_id,
+                    user_id=user_id,
+                    channel_id=channel_id,
+                    interaction_id=interaction_id,
+                    original_message_id=original_message_id,
+                    prompt=full_prompt,
+                    resolution=resolution,
+                    upscaled_resolution=upscaled_resolution,
+                    loras=loras,
+                    upscale_factor=upscale_factor,
+                    seed=seed,
+                    image_data=image_data,
+                    filename=filename
+                )
                 
                 send_progress_update(request_id, {
                     'status': 'complete',
@@ -418,7 +482,8 @@ if __name__ == "__main__":
                     'progress': 100
                 })
                 
-                print(response.text)
+                logger.debug(f"Response from web server: {response.text if response else 'No response'}")
+                print(response.text if response else "No response received")
 
                 # Add to history
                 add_to_history(user_id, full_prompt, workflow, filename, resolution, loras, upscale_factor)
@@ -442,8 +507,9 @@ if __name__ == "__main__":
         finally:
             # Clean up
             try:
-                ws.close()
-                logger.debug("WebSocket connection closed")
+                if ws:
+                    ws.close()
+                    logger.debug("WebSocket connection closed")
             except Exception as e:
                 logger.error(f"Error closing WebSocket: {str(e)}")
 

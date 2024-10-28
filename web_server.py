@@ -13,9 +13,10 @@ async def start_web_server(bot):
     
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, host=server_address, port=8080)
+    # Changed to bind to 0.0.0.0 instead of specific IP
+    site = web.TCPSite(runner, host="0.0.0.0", port=8080)
     await site.start()
-    logger.info(f"Web server started on {server_address}:8080")
+    logger.info(f"Web server started on 0.0.0.0:8080 (ComfyUI server: {server_address})")
 
 async def update_progress(request):
     try:
@@ -35,7 +36,7 @@ async def update_progress(request):
         return web.Response(text="Progress updated")
     except Exception as e:
         logger.error(f"Error in update_progress: {str(e)}", exc_info=True)
-        return web.Response(text=f"Error: {str(e)}", status=500)
+        return web.Response(text="Internal server error", status=500)
 
 async def update_progress_message(bot, request_item, progress_data):
     try:
@@ -43,14 +44,13 @@ async def update_progress_message(bot, request_item, progress_data):
         message = await channel.fetch_message(int(request_item.original_message_id))
         
         if isinstance(progress_data, dict):
-            status = progress_data.get('status', 'processing')
+            status = progress_data.get('status', '')
             msg = progress_data.get('message', 'Processing...')
             progress = progress_data.get('progress', 0)
         else:
             status = 'generating'
             progress = int(progress_data)
             msg = f'Generating image... {progress}% complete'
-
 
         if progress % 10 == 0 or status != 'generating':
             await message.edit(content=msg)

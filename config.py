@@ -3,7 +3,13 @@ from dotenv import load_dotenv
 import discord
 
 load_dotenv()
-server_address = os.getenv('server_address')
+
+# Server configurations
+BOT_SERVER = os.getenv('BOT_SERVER', 'localhost')
+COMFY_SERVER = os.getenv('COMFY_SERVER', 'localhost')
+server_address = os.getenv('server_address', COMFY_SERVER)
+
+# Discord configurations
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 COMMAND_PREFIX = os.getenv('COMMAND_PREFIX')
 CHANNEL_IDS = [int(id) for id in os.getenv('CHANNEL_IDS').split(',')]

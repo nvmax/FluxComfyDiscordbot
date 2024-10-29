@@ -6,8 +6,7 @@ load_dotenv()
 
 # Server configurations
 BOT_SERVER = os.getenv('BOT_SERVER', 'localhost')
-COMFY_SERVER = os.getenv('COMFY_SERVER', 'localhost')
-server_address = os.getenv('server_address', COMFY_SERVER)
+server_address = os.getenv('server_address')
 
 # Discord configurations
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')

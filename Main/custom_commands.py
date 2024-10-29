@@ -107,7 +107,7 @@ async def comfy(interaction: discord.Interaction, prompt: str, resolution: str, 
         workflow_filename = f'flux3_{request_uuid}.json'
         save_json(workflow_filename, workflow) 
 
-        original_message = await interaction.followup.send("Generating image... 0% complete", ephemeral=False)
+        original_message = await interaction.followup.send("Generating image...", ephemeral=False)
 
         request_item = RequestItem(
             id=str(interaction.id),

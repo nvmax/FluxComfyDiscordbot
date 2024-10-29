@@ -8,6 +8,7 @@ from Main.utils import load_json
 from Main.custom_commands.views import ImageControlView
 from typing import Dict, Any
 import asyncio
+from message_constants import STATUS_MESSAGES
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +57,8 @@ async def handle_generated_image(request):
             logger.warning(f"Received response for unknown request_id: {request_data['request_id']}")
             return web.Response(text="Unknown request", status=404)
 
-        # Remove request from pending
-        del request.app['bot'].pending_requests[request_data['request_id']]
-
-        # Generate image filename
-        image_filename = f"generated_image_{request_data['request_id']}.png"
-
+        # Fetch user and guild information
         try:
-            # Fetch user and guild information
             user = await request.app['bot'].fetch_user(int(request_data['user_id']))
             channel = await request.app['bot'].fetch_channel(int(request_data['channel_id']))
             guild = channel.guild
@@ -109,12 +104,14 @@ async def handle_generated_image(request):
                 inline=True
             )
 
-            # Add upscale factor with x suffix
             if request_data['upscale_factor']:
                 embed.add_field(name="CR Upscale", value=f"{request_data['upscale_factor']}x", inline=True)
             
             if request_data['seed']:
                 embed.add_field(name="Seed", value=request_data['seed'], inline=True)
+
+            # Generate image filename
+            image_filename = f"generated_image_{request_data['request_id']}.png"
 
             # Create image file and view
             image_file = discord.File(io.BytesIO(request_data['image_data']), image_filename)
@@ -134,26 +131,34 @@ async def handle_generated_image(request):
                 original_message = await channel.fetch_message(int(request_data['original_message_id']))
                 await original_message.edit(content=None, embed=embed, attachments=[image_file], view=view)
                 request.app['bot'].add_view(view, message_id=original_message.id)
-            except discord.errors.NotFound:
-                logger.warning(f"Channel {request_data['channel_id']} or message {request_data['original_message_id']} not found")
+
+                # Add to history
+                add_to_history(
+                    request_data['user_id'],
+                    request_data['prompt'],
+                    None,  # workflow
+                    image_filename,
+                    request_data['resolution'],
+                    request_data['loras'],
+                    request_data['upscale_factor']
+                )
+
+                # Only remove from pending requests after successful message update and history addition
+                if request_data['request_id'] in request.app['bot'].pending_requests:
+                    del request.app['bot'].pending_requests[request_data['request_id']]
+
+                logger.info(f"Image successfully sent to channel for user {request_data['user_id']}")
+                return web.Response(text="Image sent to channel")
+
+            except discord.NotFound:
+                logger.error("Channel or message not found")
                 return web.Response(text="Channel or message not found", status=404)
-            except discord.errors.Forbidden:
-                logger.warning(f"Bot doesn't have permission to send messages in channel {request_data['channel_id']}")
+            except discord.Forbidden:
+                logger.error("Bot lacks required permissions")
                 return web.Response(text="Permission denied", status=403)
-
-            # Add to history
-            add_to_history(
-                request_data['user_id'],
-                request_data['prompt'],
-                None,  # workflow
-                image_filename,
-                request_data['resolution'],
-                request_data['loras'],
-                request_data['upscale_factor']
-            )
-
-            logger.info(f"Image successfully sent to channel for user {request_data['user_id']}")
-            return web.Response(text="Image sent to channel")
+            except Exception as e:
+                logger.error(f"Error updating message: {str(e)}")
+                return web.Response(text=f"Error updating message: {str(e)}", status=500)
 
         except Exception as e:
             logger.error(f"Error processing image request: {str(e)}", exc_info=True)
@@ -190,37 +195,21 @@ async def update_progress_message(bot, request_item, progress_data: Dict[str, An
         
         status = progress_data.get('status', '')
         progress_message = progress_data.get('message', 'Processing...')
-        
-        emoji_map = {
-            'starting': '🔄',
-            'loading': '⚙️',
-            'generating': '🎨',
-            'upscaling': '📐',
-            'complete': '✅',
-            'error': '❌',
-            'cached': '📦'
-        }
-        
-        emoji = emoji_map.get(status, '⏳')
-        
-        # Format the message based on the status
-        if status == 'loading':
-            formatted_message = f"{emoji} {progress_message}"
-        elif status == 'generating':
-            progress = progress_data.get('progress', 0)
-            formatted_message = f"{emoji} {progress_message} [{progress}%]"
-            
-            # Add progress bar
-            bar_length = 20
-            filled = int(bar_length * progress / 100)
-            bar = '█' * filled + '░' * (bar_length - filled)
-            formatted_message = f"{formatted_message}\n{bar}"
-        elif status == 'upscaling':
-            formatted_message = f"{emoji} Upscaling image with CR Upscaler ({request_item.upscale_factor}x)..."
+        progress = progress_data.get('progress', 0)
+
+        # Get the status info from our mapping
+        status_info = STATUS_MESSAGES.get(status, {
+            'message': progress_message,
+            'emoji': '⚙️'  # Default emoji for unknown status
+        })
+
+        # Format message based on status
+        if status == 'generating':
+            formatted_message = f"{status_info['emoji']} {status_info['message']} {progress}%"
         elif status == 'error':
-            formatted_message = f"{emoji} Error: {progress_message}"
+            formatted_message = f"{status_info['emoji']} {status_info['message']} {progress_message}"
         else:
-            formatted_message = f"{emoji} {progress_message}"
+            formatted_message = f"{status_info['emoji']} {status_info['message']}"
 
         await message.edit(content=formatted_message)
         logger.debug(f"Updated progress message: {formatted_message}")
@@ -230,7 +219,7 @@ async def update_progress_message(bot, request_item, progress_data: Dict[str, An
     except discord.errors.Forbidden:
         logger.warning("Bot lacks permission to edit message")
     except Exception as e:
-        logger.error(f"Error updating progress message: {str(e)}", exc_info=True)
+        logger.error(f"Error updating progress message: {str(e)}")
 
 async def check_timeout(bot, request_id: str, timeout: int = 300):
     """

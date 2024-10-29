@@ -127,10 +127,9 @@ def clear_cache(ws):
 
 def send_progress_update(request_id, progress_data):
     try:
-        # Get the bot's web server address from environment or config
         bot_server = os.getenv('BOT_SERVER', BOT_SERVER)
         retries = 3
-        retry_delay = 1  # seconds
+        retry_delay = 1
 
         data = {
             'request_id': request_id,
@@ -153,13 +152,11 @@ def send_progress_update(request_id, progress_data):
                 if attempt < retries - 1:
                     logger.warning(f"Attempt {attempt + 1} failed, retrying in {retry_delay} seconds...")
                     time.sleep(retry_delay)
-                    retry_delay *= 2  # Exponential backoff
+                    retry_delay *= 2
                 else:
                     logger.error(f"All retry attempts failed: {str(e)}")
     except Exception as e:
         logger.error(f"Error sending progress update: {str(e)}")
-        # Continue execution even if update fails
-        pass
 
 def get_images(ws, workflow, progress_callback):
     try:
@@ -171,17 +168,7 @@ def get_images(ws, workflow, progress_callback):
         
         output_images = {}
         start_time = time.time()
-        executing = False
-        max_steps = 1
         last_milestone = 0
-        
-        # Track loading states
-        loading_states = {
-            "model": False,
-            "clip": False,
-            "vae": False,
-            "loras": []
-        }
         
         while True:
             out = ws.recv()
@@ -189,34 +176,45 @@ def get_images(ws, workflow, progress_callback):
                 message = json.loads(out)
                 
                 if message['type'] == 'execution_start':
-                    progress_callback({"status": "starting", "message": "Starting execution..."})
+                    progress_callback({
+                        "status": "execution",
+                        "message": "Starting execution..."
+                    })
                 
                 elif message['type'] == 'executing':
                     data = message['data']
                     
-                    # Track model loading
-                    if "UNETLoader" in str(data):
-                        loading_states["model"] = True
-                        progress_callback({"status": "loading", "message": "Loading main model..."})
-                    
-                    elif "CLIPLoader" in str(data):
-                        loading_states["clip"] = True
-                        progress_callback({"status": "loading", "message": "Loading CLIP model..."})
-                    
-                    elif "VAELoader" in str(data):
-                        loading_states["vae"] = True
-                        progress_callback({"status": "loading", "message": "Loading VAE..."})
-                    
-                    elif "Power Lora Loader" in str(data):
-                        current_lora = data.get('node_info', {}).get('title', 'LoRA')
-                        loading_states["loras"].append(current_lora)
+                    if data['node'] is None and data['prompt_id'] == prompt_id:
+                        # Final progress update before getting images
                         progress_callback({
-                            "status": "loading", 
-                            "message": f"Loading LoRA: {current_lora}"
+                            "status": "complete",
+                            "message": "Generation complete!"
+                        })
+                        break
+                    
+                    if "UNETLoader" in str(data):
+                        progress_callback({
+                            "status": "loading_models",
+                            "message": "Loading models and preparing generation..."
                         })
                     
-                    if data['node'] is None and data['prompt_id'] == prompt_id:
-                        break
+                    elif "CLIPLoader" in str(data):
+                        progress_callback({
+                            "status": "loading_models",
+                            "message": "Loading models and preparing generation..."
+                        })
+                    
+                    elif "VAELoader" in str(data):
+                        progress_callback({
+                            "status": "loading_models",
+                            "message": "Loading models and preparing generation..."
+                        })
+                    
+                    elif "Power Lora Loader" in str(data):
+                        progress_callback({
+                            "status": "loading_models",
+                            "message": "Loading models and preparing generation..."
+                        })
                 
                 elif message['type'] == 'progress':
                     data = message['data']
@@ -225,28 +223,18 @@ def get_images(ws, workflow, progress_callback):
                     progress = int((current_step / max_steps) * 100)
                     
                     current_milestone = (progress // 10) * 10
-                    if current_milestone > last_milestone and current_milestone < 100:
+                    if current_milestone > last_milestone:
                         progress_callback({
                             "status": "generating",
-                            "message": f"Generating image... {progress}%",
                             "progress": progress
                         })
                         last_milestone = current_milestone
-                    
-                    progress_time_used = round((time.time() - start_time) / 60, 2)
-                    logger.info(f"Progress: {current_step}/{max_steps} ({progress}%) - Time: {progress_time_used} min")
                 
                 elif message['type'] == 'execution_cached':
                     progress_callback({
                         "status": "cached",
                         "message": "Using cached result..."
                     })
-        
-        progress_callback({
-            "status": "complete",
-            "message": "Generation complete!",
-            "progress": 100
-        })
         
         # Get the final images
         history = get_history(prompt_id)[prompt_id]
@@ -264,7 +252,7 @@ def get_images(ws, workflow, progress_callback):
         logger.error(f"Error in get_images: {str(e)}")
         progress_callback({
             "status": "error",
-            "message": f"Error during generation: {str(e)}"
+            "message": str(e)
         })
         raise
 
@@ -361,16 +349,14 @@ if __name__ == "__main__":
         # Send initial status
         send_progress_update(request_id, {
             'status': 'starting',
-            'message': 'Starting generation process...',
-            'progress': 0
+            'message': 'Starting Generation process...'
         })
 
         # Load workflow
         try:
             send_progress_update(request_id, {
-                'status': 'loading',
-                'message': 'Loading workflow...',
-                'progress': 5
+                'status': 'loading_workflow',
+                'message': 'Loading workflow...'
             })
             workflow = open_workflow(workflow_filename)
             if not isinstance(workflow, dict):
@@ -382,9 +368,8 @@ if __name__ == "__main__":
         # Process seed
         try:
             send_progress_update(request_id, {
-                'status': 'loading',
-                'message': 'Initializing parameters...',
-                'progress': 10
+                'status': 'initializing',
+                'message': 'Initializing parameters...'
             })
             seed = int(seed) if seed != "None" else generate_random_seed()
             logger.debug(f"Using seed: {seed}")
@@ -415,9 +400,8 @@ if __name__ == "__main__":
         for attempt in range(max_retries):
             try:
                 send_progress_update(request_id, {
-                    'status': 'loading',
-                    'message': f'Connecting to ComfyUI (attempt {attempt + 1})...',
-                    'progress': 15
+                    'status': 'connecting',
+                    'message': f'Connecting to ComfyUI (attempt {attempt + 1})...'
                 })
                 logger.debug(f"Connecting to WebSocket at ws://{server_address}:8188/ws?clientId={client_id}")
                 ws = websocket.create_connection(f"ws://{server_address}:8188/ws?clientId={client_id}", timeout=30)
@@ -426,7 +410,7 @@ if __name__ == "__main__":
                 if attempt < max_retries - 1:
                     logger.warning(f"WebSocket connection attempt {attempt + 1} failed: {str(e)}")
                     time.sleep(retry_delay)
-                    retry_delay *= 2  # Exponential backoff
+                    retry_delay *= 2
                 else:
                     logger.error(f"All WebSocket connection attempts failed: {str(e)}")
                     raise
@@ -437,9 +421,8 @@ if __name__ == "__main__":
             clear_cache(ws)
             
             send_progress_update(request_id, {
-                'status': 'loading',
-                'message': 'Loading models and preparing generation...',
-                'progress': 20
+                'status': 'loading_models',
+                'message': 'Loading models and preparing generation...'
             })
 
             # Generate images
@@ -476,12 +459,6 @@ if __name__ == "__main__":
                     filename=filename
                 )
                 
-                send_progress_update(request_id, {
-                    'status': 'complete',
-                    'message': 'Generation complete!',
-                    'progress': 100
-                })
-                
                 logger.debug(f"Response from web server: {response.text if response else 'No response'}")
                 print(response.text if response else "No response received")
 
@@ -491,17 +468,17 @@ if __name__ == "__main__":
                 logger.error("No final image found to send.")
                 send_progress_update(request_id, {
                     'status': 'error',
-                    'message': 'No final image generated',
-                    'progress': 0
+                    'message': 'No final image generated'
                 })
                 print("Error: No final image found to send.")
 
         except Exception as e:
             logger.error(f"Error during image generation/processing: {str(e)}", exc_info=True)
+            if ws:
+                ws.close()
             send_progress_update(request_id, {
                 'status': 'error',
-                'message': f'Error during generation: {str(e)}',
-                'progress': 0
+                'message': f'Error during generation: {str(e)}'
             })
             raise
         finally:
@@ -523,16 +500,14 @@ if __name__ == "__main__":
         logger.error(f"Argument error: {str(ve)}")
         send_progress_update(request_id, {
             'status': 'error',
-            'message': f'Configuration error: {str(ve)}',
-            'progress': 0
+            'message': f'Configuration error: {str(ve)}'
         })
         print(f"Error: {str(ve)}")
     except Exception as e:
         logger.error(f"An unexpected error occurred in comfygen.py: {str(e)}", exc_info=True)
         send_progress_update(request_id, {
             'status': 'error',
-            'message': f'Unexpected error: {str(e)}',
-            'progress': 0
+            'message': f'Unexpected error: {str(e)}'
         })
         print(f"Error: {str(e)}")
     finally:

@@ -176,7 +176,7 @@ class ImageControlView(ui.View):
             workflow_filename = f'flux3_{request_uuid}.json'
             save_json(workflow_filename, workflow)
 
-            new_message = await interaction.followup.send("Regenerating image... 0% complete")
+            new_message = await interaction.followup.send("Regenerating image...")
 
             request_item = RequestItem(
                 id=str(interaction.id),
@@ -278,7 +278,7 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
            workflow_filename = f'flux3_{request_uuid}.json'
            save_json(workflow_filename, workflow)
 
-           new_message = await interaction.response.send_message("Generating new image with updated options... 0% complete")
+           new_message = await interaction.response.send_message("Generating new image with updated options...")
            message = await interaction.original_response()
 
            request_item = RequestItem(

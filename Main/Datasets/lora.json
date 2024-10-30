@@ -1,117 +1,117 @@
 {
-  "default": "Midjourney_imitation_FLUX.safetensors",
+  "default": "aidmaMJ6.1-FLUX-V0.3.safetensors",
   "available_loras": [
     {
       "id": 1,
-      "name": "Midjourney_imitation",
-      "add_prompt": "Midjourney style",
-      "file": "Midjourney_imitation_FLUX.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 2,
-      "name": "FluxTastic Details",
-      "add_prompt": "",
-      "file": "FluxDFaeTasticDetails.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 3,
-      "name": "vision_realistic",
-      "add_prompt": "",
-      "file": "vision_realistic_flux_lora_v1.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 4,
-      "name": "AuraFlux",
-      "add_prompt": "",
-      "file": "Aura_Flux.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 5,
-      "name": "Fantasy Flux",
-      "add_prompt": "",
-      "file": "fantasy-flux-v1.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 6,
-      "name": "Phlux_Texture&Lighting",
-      "add_prompt": "",
-      "file": "Phlux_Texture&Lighting.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 7,
-      "name": "RPGv6-itr15",
-      "add_prompt": "RPG STYLE,",
-      "file": "RPGv6-itr15.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 8,
-      "name": "glowing_flux",
-      "add_prompt": "",
-      "file": "glowing_flux.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 9,
-      "name": "DreamyKolors_v1",
-      "add_prompt": "",
-      "file": "DreamyKolors_v1.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 10,
       "name": "aidmaMidjourney6.1",
       "file": "aidmaMJ6.1-FLUX-V0.3.safetensors",
       "weight": 0.5,
       "add_prompt": "AIDMAMJ6.1"
     },
     {
-      "id": 11,
-      "name": "Undead Madness WOWstyle",
-      "file": "undeadmadness-warcraftstyle.safetensors",
-      "weight": 0.5,
-      "add_prompt": "warcraftundeadstyle"
-    },
-    {
-      "id": 12,
-      "name": "Mystic Splash",
-      "file": "MysticSplash.safetensors",
-      "weight": 0.5,
-      "add_prompt": "MYSTICSPLASH"
-    },
-    {
-      "id": 13,
+      "id": 2,
       "name": "Aidma Flux Pro Details",
       "file": "aidmaFLUXpro1.1-FLUX-V0.2.safetensors",
       "weight": 0.5,
       "add_prompt": "aidmafluxpro1.1"
     },
     {
-      "id": 14,
+      "id": 3,
       "name": "Aidma Hyper Realism",
       "file": "aidmaHyperRealism-FLUX-V0.2.safetensors",
       "weight": 0.5,
       "add_prompt": "aidmaHyperrealism"
     },
     {
-      "id": 15,
+      "id": 4,
+      "name": "Aidma Experimental Photography",
+      "file": "aidmaExperimentalPhotography-FLUX-V0.1.safetensors",
+      "weight": 0.5,
+      "add_prompt": "aidmaExperimentalPhotography"
+    },
+    {
+      "id": 5,
       "name": "Aidma Text Improver",
       "file": "Textimprover-FLUX-V0.4.safetensors",
       "weight": 0.5,
       "add_prompt": "aidmatextimprover"
     },
     {
-      "id": 16,
-      "name": "Aidma Experimental Phot",
-      "file": "aidmaExperimentalPhotography-FLUX-V0.1.safetensors",
+      "id": 6,
+      "name": "Midjourney_imitation",
+      "add_prompt": "Midjourney style",
+      "file": "Midjourney_imitation_FLUX.safetensors",
+      "weight": 0.5
+    },
+    {
+      "id": 7,
+      "name": "FluxTastic Details",
+      "add_prompt": "",
+      "file": "FluxDFaeTasticDetails.safetensors",
+      "weight": 0.5
+    },
+    {
+      "id": 8,
+      "name": "Epic-Details",
+      "file": "Epic-detail_v2.safetensors",
       "weight": 0.5,
-      "add_prompt": "aidmaExperimentalPhotography"
+      "add_prompt": ""
+    },
+    {
+      "id": 9,
+      "name": "AuraFlux",
+      "add_prompt": "",
+      "file": "Aura_Flux.safetensors",
+      "weight": 0.5
+    },
+    {
+      "id": 10,
+      "name": "Fantasy Flux",
+      "add_prompt": "",
+      "file": "fantasy-flux-v1.safetensors",
+      "weight": 0.5
+    },
+    {
+      "id": 11,
+      "name": "RPGv6-itr15",
+      "add_prompt": "RPG STYLE,",
+      "file": "RPGv6-itr15.safetensors",
+      "weight": 0.5
+    },
+    {
+      "id": 12,
+      "name": "vision_realistic",
+      "add_prompt": "",
+      "file": "vision_realistic_flux_lora_v1.safetensors",
+      "weight": 0.5
+    },
+    {
+      "id": 13,
+      "name": "Phlux_Texture&Lighting",
+      "add_prompt": "",
+      "file": "Phlux_Texture&Lighting.safetensors",
+      "weight": 0.5
+    },
+    {
+      "id": 14,
+      "name": "glowing_flux",
+      "add_prompt": "",
+      "file": "glowing_flux.safetensors",
+      "weight": 0.5
+    },
+    {
+      "id": 15,
+      "name": "DreamyKolors_v1",
+      "add_prompt": "",
+      "file": "DreamyKolors_v1.safetensors",
+      "weight": 0.5
+    },
+    {
+      "id": 16,
+      "name": "Mystic Splash",
+      "file": "MysticSplash.safetensors",
+      "weight": 0.5,
+      "add_prompt": "MYSTICSPLASH"
     },
     {
       "id": 17,
@@ -150,17 +150,17 @@
     },
     {
       "id": 22,
-      "name": "DeepFocus",
-      "file": "deepfocus.safetensors",
-      "weight": 0.5,
-      "add_prompt": "DF"
-    },
-    {
-      "id": 23,
       "name": "Beauty of Realism Flux",
       "file": "The_beauty_of_realism_(FLUX).safetensors",
       "weight": 0.5,
       "add_prompt": "cinematic quality, realism, play of shadow and light"
+    },
+    {
+      "id": 23,
+      "name": "Undead Madness WOWstyle",
+      "file": "undeadmadness-warcraftstyle.safetensors",
+      "weight": 0.5,
+      "add_prompt": "warcraftundeadstyle"
     }
   ]
 }

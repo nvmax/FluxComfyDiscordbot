@@ -34,6 +34,15 @@ class LoraEditor:
         
         ttk.Label(title_frame, text="LoRA Configuration Editor", style="Title.TLabel").pack(side=tk.LEFT)
         
+        # Default LoRA selection
+        default_frame = ttk.Frame(container)
+        default_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        ttk.Label(default_frame, text="Default LoRA:").pack(side=tk.LEFT, padx=(0, 5))
+        self.default_var = tk.StringVar(value=self.data.get("default", ""))
+        self.default_combo = ttk.Combobox(default_frame, textvariable=self.default_var, width=50)
+        self.default_combo.pack(side=tk.LEFT)
+        self.default_combo.bind('<<ComboboxSelected>>', self.update_default_lora)
+        
         folder_frame = ttk.Frame(title_frame)
         folder_frame.pack(side=tk.RIGHT)
         
@@ -45,16 +54,27 @@ class LoraEditor:
         
         # Search frame
         search_frame = ttk.Frame(container)
-        search_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        search_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
         ttk.Label(search_frame, text="Search:").pack(side=tk.LEFT, padx=(0, 5))
         self.search_var = tk.StringVar()
         self.search_var.trace('w', self.filter_treeview)
         search_entry = ttk.Entry(search_frame, textvariable=self.search_var, width=40)
         search_entry.pack(side=tk.LEFT)
         
+        # Treeview frame with reorder buttons
+        tree_container = ttk.Frame(container)
+        tree_container.grid(row=3, column=0, sticky="nsew", pady=(0, 10))
+        
+        # Reorder buttons frame
+        reorder_frame = ttk.Frame(tree_container)
+        reorder_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(5, 0))
+        
+        ttk.Button(reorder_frame, text="▲", width=3, command=self.move_up).pack(pady=2)
+        ttk.Button(reorder_frame, text="▼", width=3, command=self.move_down).pack(pady=2)
+        
         # Treeview frame
-        tree_frame = ttk.Frame(container, relief="solid", borderwidth=1)
-        tree_frame.grid(row=2, column=0, sticky="nsew", pady=(0, 10))
+        tree_frame = ttk.Frame(tree_container, relief="solid", borderwidth=1)
+        tree_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         # Configure columns
         columns = ("ID", "Name", "File", "Weight", "Prompt")
@@ -77,7 +97,7 @@ class LoraEditor:
         
         # Button frame
         btn_frame = ttk.Frame(container)
-        btn_frame.grid(row=3, column=0, pady=10)
+        btn_frame.grid(row=4, column=0, pady=10)
         
         buttons = [
             ("Add Entry", self.add_entry, "⊕"),
@@ -95,11 +115,11 @@ class LoraEditor:
         # Status bar
         self.status_var = tk.StringVar()
         status_bar = ttk.Label(container, textvariable=self.status_var, relief="sunken", padding=(5, 2))
-        status_bar.grid(row=4, column=0, sticky="ew", pady=(10, 0))
+        status_bar.grid(row=5, column=0, sticky="ew", pady=(10, 0))
         
         # Configure grid weights
         container.grid_columnconfigure(0, weight=1)
-        container.grid_rowconfigure(2, weight=1)
+        container.grid_rowconfigure(3, weight=1)
         tree_frame.grid_columnconfigure(0, weight=1)
         tree_frame.grid_rowconfigure(0, weight=1)
         root.grid_columnconfigure(0, weight=1)
@@ -107,6 +127,7 @@ class LoraEditor:
         
         self.load_tree()
         self.update_status()
+        self.refresh_lora_files()
 
     def select_folder(self):
         folder = filedialog.askdirectory(title="Select LoRA Files Folder")
@@ -115,16 +136,32 @@ class LoraEditor:
             self.folder_var.set(folder)
             self.refresh_lora_files()
 
+    def update_default_lora(self, event=None):
+        self.data["default"] = self.default_var.get()
+        self.status_var.set(f"Default LoRA set to: {self.default_var.get()}")
+
     def refresh_lora_files(self):
-        if not self.lora_folder:
-            messagebox.showwarning("Warning", "Please select a LoRA files folder first")
-            return
+        if not self.lora_folder and os.path.exists(self.current_file):
+            # If we have a config file but no folder selected, extract the folder from the first file
+            try:
+                first_file = self.data["available_loras"][0]["file"]
+                self.lora_folder = str(Path(first_file).parent)
+                self.folder_var.set(self.lora_folder)
+            except (IndexError, KeyError):
+                pass
+                
+        if self.lora_folder:
+            self.available_lora_files = []
+            for file in Path(self.lora_folder).glob("*.safetensors"):
+                self.available_lora_files.append(file.name)
             
-        self.available_lora_files = []
-        for file in Path(self.lora_folder).glob("*.safetensors"):
-            self.available_lora_files.append(file.name)
-        
-        self.status_var.set(f"Found {len(self.available_lora_files)} LoRA files in folder")
+            # Update default LoRA combobox
+            all_files = [lora["file"] for lora in self.data["available_loras"]]
+            self.default_combo['values'] = all_files
+            
+            self.status_var.set(f"Found {len(self.available_lora_files)} LoRA files in folder")
+        else:
+            messagebox.showwarning("Warning", "Please select a LoRA files folder first")
 
     def create_tooltip(self, widget, text):
         def show_tooltip(event):
@@ -263,6 +300,52 @@ class LoraEditor:
                 
             self.load_tree()
             self.status_var.set(f"Deleted entry: {deleted_name}")
+    def move_up(self):
+        selected = self.tree.selection()
+        if not selected:
+            return
+            
+        item = selected[0]
+        idx = self.tree.index(item)
+        if idx > 0:
+            # Update data list
+            self.data["available_loras"][idx], self.data["available_loras"][idx-1] = \
+                self.data["available_loras"][idx-1], self.data["available_loras"][idx]
+            
+            # Update IDs
+            self.update_ids()
+            
+            # Reload tree and reselect item
+            self.load_tree()
+            new_item = self.tree.get_children()[idx-1]
+            self.tree.selection_set(new_item)
+            self.tree.see(new_item)
+
+    def move_down(self):
+        selected = self.tree.selection()
+        if not selected:
+            return
+            
+        item = selected[0]
+        idx = self.tree.index(item)
+        if idx < len(self.data["available_loras"]) - 1:
+            # Update data list
+            self.data["available_loras"][idx], self.data["available_loras"][idx+1] = \
+                self.data["available_loras"][idx+1], self.data["available_loras"][idx]
+            
+            # Update IDs
+            self.update_ids()
+            
+            # Reload tree and reselect item
+            self.load_tree()
+            new_item = self.tree.get_children()[idx+1]
+            self.tree.selection_set(new_item)
+            self.tree.see(new_item)
+    
+    def update_ids(self):
+        """Update all IDs to match their position in the list"""
+        for i, lora in enumerate(self.data["available_loras"], 1):
+            lora["id"] = i
 
 class EntryDialog:
     def __init__(self, parent, title, initial=None, available_files=None):

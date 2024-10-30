@@ -35,7 +35,7 @@ So, are you ready to dive into a world where your words paint pictures? Where yo
 8. [License](#license)
 
 
-    #### prerequisite 
+    ### prerequisite 
     1. [Comfyui](https://github.com/comfyanonymous/ComfyUI) please install and configure for use.
     - Please enable --listen on your comfyui server. 
     2. Flux required files:
@@ -143,17 +143,21 @@ These models will go in your comfyui/models/Lora folder.
 	- Limitations 
 		* 25 loras excluding default, in this list, this is hard coded by discord not of my choosing. 
     * currently there are examples in this file, please download and change these to reflect the correct loras that you have for flux. adding more than 25 will result in an error on discord and will not register bot commands.
+    
+    
+    
+### New Tool: Lora_editor
 
-    ##### New Tool: Lora_editor
-    - This tool will allow you to configure your LoRA's with a simple gui, it will also allow you to download new LoRA's from Civitai.
-    - Open lora_editor.py  using "python lora_editor.py", it will open a gui window.
-    - Select the LORA_JSON_PATH to the lora.json file in the datasets folder.
-    - Select the LORA_FOLDER_PATH to the lora folder in your comfyui models folder.
-    - Click refresh lora files to load in any new loras you have added.
-    - Select a LoRA from the list and edit the weight, this will take effect once the bot is restarted.
-    - You can also add new LoRA's from Civitai by clicking the add LoRA button and pasting the full civitai url of the lora you want to download.
-       - Civitai API token is required to download from Civitai, you can get one for free by creating an account on Civitai and clicking on your profile picture on the top right and click settings, scroll all the way down to the bottom and click add API key, copy and paste the API key into the CIVITAI_API_TOKEN field in the .env file.
-      <img src="loraeditor.png" width="600">
+  * This tool will allow you to configure your LoRA's with a simple gui, it will also allow you to download new LoRA's from Civitai.
+  * Open lora_editor.py  using "python lora_editor.py", it will open a gui window.
+  * Select the LORA_JSON_PATH to the lora.json file in the datasets folder.
+  * Select the LORA_FOLDER_PATH to the lora folder in your comfyui models folder.
+  * Click refresh lora files to load in any new loras you have added.
+  * Select a LoRA from the list and edit the weight, this will take effect once the bot is restarted.
+  * You can also add new LoRA's from Civitai by clicking the add LoRA button and pasting the full civitai url of the lora you want to download.
+  * Civitai API token is required to download from Civitai, you can get one for free by creating an account on Civitai and clicking on your profile picture on the top right and click settings, scroll all the way down to the bottom and click add API key, copy and paste the API key into the CIVITAI_API_TOKEN field in the .env file.
+      
+<img src="loraeditor.png" width="600">
 
 
 #### Banned words or people

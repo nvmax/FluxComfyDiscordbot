@@ -134,15 +134,15 @@ These models will go in your comfyui/models/Lora folder.
 
 ### adding LoRA's to your bot
 
- . open the lora.json file located in /Datasets 
-    * Add name of your LoRA you downloaded or use a name you choose so you know what it is, this does not need to be the actual name of the file.
-    * add_prompt :  if the lora requires a trigger word place it in this field
-    * file: this is the exact name of the LoRA file with .safetensors, Example: MyLoRA.safetensors
-    * weight:  this is the weight required to get the desired effect from the lora.  
-	    * 0.5 is Ideal if you are wanting to use multiple LoRA's at one time, having many at 1.0 can cause mass hallucination on image generations.
-	- Limitations 
-		* 25 loras excluding default, in this list, this is hard coded by discord not of my choosing. 
-    * currently there are examples in this file, please download and change these to reflect the correct loras that you have for flux. adding more than 25 will result in an error on discord and will not register bot commands.
+  * open the lora.json file located in /Datasets 
+  * Add name of your LoRA you downloaded or use a name you choose so you know what it is, this does not need to be the actual name of the file.
+  * add_prompt: if the lora requires a trigger word place it in this field
+  * file: this is the exact name of the LoRA file with .safetensors, Example: MyLoRA.safetensors
+  * weight: this is the weight required to get the desired effect from the lora.  
+    * 0.5 is Ideal if you are wanting to use multiple LoRA's at one time, having many at 1.0 can cause mass hallucination on image generations.
+  - Limitations 
+    * 25 loras excluding default, in this list, this is hard coded by discord not of my choosing. 
+  * currently there are examples in this file, please download and change these to reflect the correct loras that you have for flux. adding more than 25 will result in an error on discord and will not register bot commands.
     
     
     

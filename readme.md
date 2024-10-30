@@ -46,7 +46,7 @@ So, are you ready to dive into a world where your words paint pictures? Where yo
             * t5xxl_fp8_e4m3fn.safetensors
             * clip_l.safetensors
             * ae.sft
-          - For faster generations look at using [Flux Fusion V2](https://civitai.com/models/630820/flux-fusion-v2-4-steps-gguf-nf4-fp8fp16) download the FP15 or FP8 version.
+          - For faster generations look at using [Flux Fusion V2](https://civitai.com/models/630820/flux-fusion-v2-4-steps-gguf-nf4-fp8fp16) download the FP16 version.
            - place in your comfyui/models/unet folder.
               - use fluxfusion.json for the FluxFusion V2 model.
     3. copy over the 4x-ClearRealityV1.pth into your comfyui/models/upscale_models folder.
@@ -124,8 +124,7 @@ configured it.
 	  
       - There is no Admin role since all intents are pulled from discord, Discord Admins already have the rights and intents for all options to admin the bot. 
 6. Set the `BOT_SERVER` to the IP address of the machine running the bot.
-7. Set the `COMFY_SERVER` to the IP address of the machine running ComfyUI.
-8. Set the `server_address` to the IP address of the machine running ComfyUI. (so those running locally vs remotely can be used)
+7. Set the `server_address` to the IP address of the machine running ComfyUI. (Can be local or remote)
 	  
 #### LoRA (Low-Rank Adaptation) models Config
 
@@ -135,16 +134,27 @@ These models will go in your comfyui/models/Lora folder.
 
 ### adding LoRA's to your bot
 
-1. open the lora.json file located in /Datasets 
+ . open the lora.json file located in /Datasets 
     * Add name of your LoRA you downloaded or use a name you choose so you know what it is, this does not need to be the actual name of the file.
     * add_prompt :  if the lora requires a trigger word place it in this field
     * file: this is the exact name of the LoRA file with .safetensors, Example: MyLoRA.safetensors
     * weight:  this is the weight required to get the desired effect from the lora.  
 	    * 0.5 is Ideal if you are wanting to use multiple LoRA's at one time, having many at 1.0 can cause mass hallucination on image generations.
-      -- New tool: Lora_editor open from cmd window, select your comfyui/models/Lora folder, this will open a cmd window and allow you to select your lora and edit the weight.
 	- Limitations 
 		* 25 loras excluding default, in this list, this is hard coded by discord not of my choosing. 
     * currently there are examples in this file, please download and change these to reflect the correct loras that you have for flux. adding more than 25 will result in an error on discord and will not register bot commands.
+
+    ##### New Tool: Lora_editor
+    - This tool will allow you to configure your LoRA's with a simple gui, it will also allow you to download new LoRA's from Civitai.
+    - Open lora_editor.py  using "python lora_editor.py", it will open a gui window.
+    - Select the LORA_JSON_PATH to the lora.json file in the datasets folder.
+    - Select the LORA_FOLDER_PATH to the lora folder in your comfyui models folder.
+    - Click refresh lora files to load in any new loras you have added.
+    - Select a LoRA from the list and edit the weight, this will take effect once the bot is restarted.
+    - You can also add new LoRA's from Civitai by clicking the add LoRA button and pasting the full civitai url of the lora you want to download.
+       - Civitai API token is required to download from Civitai, you can get one for free by creating an account on Civitai and clicking on your profile picture on the top right and click settings, scroll all the way down to the bottom and click add API key, copy and paste the API key into the CIVITAI_API_TOKEN field in the .env file.
+      <img src="loraeditor.png" width="600">
+
 
 #### Banned words or people
 
@@ -167,9 +177,9 @@ These models will go in your comfyui/models/Lora folder.
 
 
 Required Files folder, these are critical and needed to make sure the bot works right with the workflow and resolutions that flux can support.
-1. workflow.json - after comfyui is installed load this lora, install all needed nodes using its manager. 
+1. workflow.json - after comfyui is installed load this workflow, install all needed nodes using its manager. 
  - this is the workflow for comfyui to use for image generations, the bot uses the api format of this file.
-2. ratios.json - this is a edit of mikey_nodes to add more resolutions that his nodes did not have that flux supports, location  ```ComfyUI_windows_portable\ComfyUI\custom_nodes\mikey_nodes```
+2. ratios.json - this is a edit of mikey_nodes to add more resolutions that his nodes did not have that flux supports, location  ```ComfyUI\custom_nodes\mikey_nodes```
   - replace exsisting ratios.json with one provided.
 3. copy over the 4x-ClearRealityV1.pth into your comfyui/models/upscale_models folder.
 4. if using FluxFusion V2 4 steps GGUF NF4 FP8FP16.safetensors please download and place in your comfyui/models/checkpoints folder.
@@ -240,8 +250,7 @@ Encountering issues? Don't worry! Here are some common problems and simple solut
 Remember, running AI image generation can be resource-intensive. If you're consistently having issues, you might need to consider upgrading your hardware or optimizing your setup. For further assistance, don't hesitate to reach out. 
 
 ## Upcoming Features:
- -slash command to install loras from civitai - requires token for their api. it will download and place it in your comfyui /models/Lora folder and add it to the lora.json file. still limited to 25 loras.
-    - refactoring lora.json and number entries to keep track of how many loras there are. 
+ Always open to suggestions, please open an issue in the github repository, or reach out to me on discord. 
 
 ## Contributing 
 We welcome contributions to improve and expand this Discord Image Generation Bot! If you're interested in contributing, please follow these guidelines: 

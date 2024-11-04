@@ -52,7 +52,7 @@ BASE_MODELS = {
 
 # Available checkpoints
 CHECKPOINTS = {
-    'FLUX 6GB': {
+    'FLUXFusion 6GB': {
         'filename': 'fluxFusionV24StepsGGUFNF4_V2GGUFQ3KM.gguf',
         'path': '/unet',
         'model_id': '630820',
@@ -60,7 +60,7 @@ CHECKPOINTS = {
         'workflow': 'fluxfusion6GB4step.json',
         'source': 'civitai'
     },
-    'FLUX 8GB': {
+    'FLUXFusion 8GB': {
         'filename': 'fluxFusionV24StepsGGUFNF4_V2GGUFQ50.gguf',
         'path': '/unet',
         'model_id': '630820',
@@ -68,7 +68,7 @@ CHECKPOINTS = {
         'workflow': 'fluxfusion8GB4step.json',
         'source': 'civitai'
     },
-    'FLUX 10GB': {
+    'FLUXFusion 10GB': {
         'filename': 'fluxFusionV24StepsGGUFNF4_V2GGUFQ6K.gguf',
         'path': '/unet',
         'model_id': '630820',
@@ -76,7 +76,7 @@ CHECKPOINTS = {
         'workflow': 'fluxfusion10GB4step.json',
         'source': 'civitai'
     },
-    'FLUX 12GB': {
+    'FLUXFusion 12GB': {
         'filename': 'fluxFusionV24StepsGGUFNF4_V2GGUFQ80.gguf',
         'path': '/unet',
         'model_id': '630820',
@@ -84,7 +84,7 @@ CHECKPOINTS = {
         'workflow': 'fluxfusion12GB4step.json',
         'source': 'civitai'
     },
-    'FLUX 24GB': {
+    'FLUXFusion 24GB': {
         'filename': 'fluxFusionV24StepsGGUFNF4_V2Fp16.safetensors',
         'path': '/checkpoints',
         'model_id': '630820',
@@ -92,7 +92,7 @@ CHECKPOINTS = {
         'workflow': 'fluxfusion24GB4step.json',
         'source': 'civitai'
     },
-    'FLUX Dev': {
+    'FLUX.1 Dev': {
         'filename': 'flux1-dev.safetensors',
         'path': '/checkpoints',
         'repo_id': 'black-forest-labs/FLUX.1-dev',

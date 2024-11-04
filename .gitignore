@@ -2,3 +2,5 @@
 __pycache__
 image_history.db
 .setupenv
+logs/
+logs/setup.logs

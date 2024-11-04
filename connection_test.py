@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import websocket
 import time
 
+
 def test_comfyui_connection(server):
     print(f"\nTesting ComfyUI connection to {server}:8188...")
     try:
@@ -39,7 +40,7 @@ def main():
     load_dotenv()
     
     bot_server = os.getenv('BOT_SERVER', 'localhost')
-    comfy_server = os.getenv('COMFY_SERVER', 'localhost')
+    comfy_server = os.getenv('server_address', 'localhost')
     
     print("Connection Test Utility")
     print("======================")

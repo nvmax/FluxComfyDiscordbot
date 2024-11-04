@@ -38,23 +38,10 @@ So, are you ready to dive into a world where your words paint pictures? Where yo
     ### prerequisite 
     1. [Comfyui](https://github.com/comfyanonymous/ComfyUI) please install and configure for use.
     - Please enable --listen on your comfyui server. 
-    2. Flux required files:
-        *Flux.1 Dev and associated files in correct folders in comfyui please refer to [Comfyui Wiki Manual](https://comfyui-wiki.com/tutorial/advanced/flux1-comfyui-guide-workflow-and-examples) for this. 
-        - Note: the bot will not work without these files.
-        - File names are specific.
-            * flux1-dev.sft
-            * t5xxl_fp8_e4m3fn.safetensors
-            * clip_l.safetensors
-            * ae.sft
-          - For faster generations look at using [Flux Fusion V2](https://civitai.com/models/630820/flux-fusion-v2-4-steps-gguf-nf4-fp8fp16) download the FP16 version.
-           - place in your comfyui/models/unet folder.
-              - use fluxfusion.json for the FluxFusion V2 model.
-    3. copy over the 4x-ClearRealityV1.pth into your comfyui/models/upscale_models folder.
-    4. [Required Files](#requiredfiles)
+    2. Launch Comfyui and load workflow.json from required_files and install missing nodes.
+      - if you are new or new installation please download [comfyui manager](https://github.com/ltdrdata/ComfyUI-Manager) before loading this workflow
 
-## Installation
-
-   
+## Installation   
 
 1. Clone the repository or download the source code to your local machine. 
 
@@ -67,17 +54,15 @@ So, are you ready to dive into a world where your words paint pictures? Where yo
 
 This command will install all the necessary libraries for the bot to function. 
 
-5. Follow the configuration steps outlined in the [Setting up the Discord Bot](#Setting-up-the-Discord-Bot) section to set up your bot token and other settings.
+5. Follow the configuration steps outlined in the [Setting up the Discord Bot](#Setting-up-the-Discord-Bot) section.
 
-6. Startup comfyui and load the workflow.json file.
-
-7. Once everything is configured, you can run the bot using: 
+6. Once everything is configured, you can run the bot using: 
 ``` Python bot.py```
  
 
 The bot should now be running and connected to your Discord server. 
 
-Note: If you close the terminal, you'll need to activate it again before running the bot.py
+Note: If you close the terminal, it ends the bot. 
 
  
 
@@ -110,30 +95,38 @@ Note: If you close the terminal, you'll need to activate it again before running
 
 3. Open a new browser tab, paste the URL, and select the server where you want to add the bot.
 
+
 ## Configuring the Bot
-1. Create a new .env  file in a text editor, you can also use the provided example just rename to .env after you have 
-configured it.
-2. Replace the placeholder token with your actual bot token: ``` DISCORD_TOKEN = 'your_bot_token_here'```
-3. Update the ```ALLOWED_SERVERS``` with the id of your server or servers, no quotes separate with a comma
-4. Update the `CHANNEL_IDS` of the channel in discord you want it to respond in, multiple can be added no quotes separate with a comma
-		-Note: This restricts it from being ran in any and all channels, if you dont specify a channel the bot can be used in any channel on the discord server " may make a mess " 
-5. Set the `bot_manager_role_id` to the ID of the role that should have access to bot management commands.
-	-Note: this is not ADMIN, this is used for managing the bot if you are not the admin of the server.
-	  
-      - Case: if your friend you trust wants to be able to ban specific users or words or even reboot the server this would give him the permissions to do so but not give him Admin privileges on your discord server.
-	  
-      - There is no Admin role since all intents are pulled from discord, Discord Admins already have the rights and intents for all options to admin the bot. 
-6. Set the `BOT_SERVER` to the IP address of the machine running the bot.
-7. Set the `server_address` to the IP address of the machine running ComfyUI. (Can be local or remote)
-	  
-#### LoRA (Low-Rank Adaptation) models Config
+1. Create a new .env in the root directory of the bot
+2. add "COMMAND_PREFIX=/" with out the quotes of course this is all you need in your .env file.
+3. run setup.py from cmd window
+4. fill in your information.
+  - click browse and select the location of your comfyui models folder.  Example: C:/Comfyui_windows_portable/ComfyUI/models
+  - populate your huggingface, Civitai, and Discord tokens
+  - Civitai create an account on Civitai and click on your profile picture on the top right and click settings, scroll all the way down to the bottom and click add API key
+  - Hugginface create an account, click on your icon top right corner, click Access Tokens, create a new token and select "read access to contents of all public gated repos you can access" click save and copy your token.
+  - Bot server addresss is the address your bot is running on typically 127.0.0.1 if that doesnt work try 0.0.0.0 or localhost.
+  - Comfyui Server Address is the address comfyui is running on again probably the same as your bot, if you use a seperate machine then enter that ip, (yes this can work over the internet, not recommended for timing and slowness reasons).
+  -alloed Server ID's is the server ids of the discord server you are running it on, right click on server and click copy server id, if you dont have this option turn on developer mode in settings. 
+  Channel ID's, right click with the channel you want the bot to work in and copy channel id and paste it in here.
+  if you have multple servers and channels just enter with a comma no spaces example: 123456789,987654321
+  - Bot Manger Role ID: this is if you want to give a friend or someone control over the bot on discord, this is not discord admin this is just bot admin. if you dont just leave this blank or put your own in it. 
+  - Checkpoint selection: 
+  - various checkpoints that support multiple new cards it is listed on them, now can support 6,8,10,12-16 and 24GB cards please select the version that best suits your cards VRAM.
+
+  All files needed to run flux will download if they are not found with in your comfyui installation. 
+  <img src="setuptool.jpg" width="500">
+
+	 
+## LoRA (Low-Rank Adaptation) models Config
 
 This is where the magic happens, LoRA models can enhance and apply a specific feeling or desired result to a image,  You can download various lora's from [Civitai.com/models](https://civitai.com/models) use the filter options and select LoRA under Model types, and select Flux.1s and Flux.1 D under Base model this will sort the models that you can use with this bot.
 
 These models will go in your comfyui/models/Lora folder.
 
-### adding LoRA's to your bot
+### Adding LoRA's to your bot (please configure this before running, has examples already you may not have!)
 
+  #### Manually configure:
   * open the lora.json file located in /Datasets 
   * Add name of your LoRA you downloaded or use a name you choose so you know what it is, this does not need to be the actual name of the file.
   * add_prompt: if the lora requires a trigger word place it in this field
@@ -155,7 +148,14 @@ These models will go in your comfyui/models/Lora folder.
   * Click refresh lora files to load in any new loras you have added.
   * Select a LoRA from the list and edit the weight, this will take effect once the bot is restarted.
   * You can also add new LoRA's from Civitai by clicking the add LoRA button and pasting the full civitai url of the lora you want to download.
-  * Civitai API token is required to download from Civitai, you can get one for free by creating an account on Civitai and clicking on your profile picture on the top right and click settings, scroll all the way down to the bottom and click add API key, copy and paste the API key into the CIVITAI_API_TOKEN field in the .env file.
+  * Civitai API token is required to download from Civitai, you can get one for free by creating an account on Civitai and clicking on your profile picture on the top right and click settings, scroll all the way down to the bottom and click add API key, copy and paste the API key into the CIVITAI_API_TOKEN field in the .env file.  (yes you will need your token here too seperate tool)
+
+  Benifits of using tool:
+  - it autodownloads the lora's by pasting in the URL to the lora
+  - it auto populates trigger words required for the lora to work
+  - no fuss easy and simple to use, weights are already set to 0.5 (for multiple loras this is HIGHLY recommended)
+  - for loras requiring less than 0.5 please change it to the lower option.
+  - allows you to customize in what order they are shown in the bot easily.
       
 <img src="loraeditor.png" width="600">
 
@@ -184,9 +184,8 @@ Required Files folder, these are critical and needed to make sure the bot works 
 1. workflow.json - after comfyui is installed load this workflow, install all needed nodes using its manager. 
  - this is the workflow for comfyui to use for image generations, the bot uses the api format of this file.
 2. ratios.json - this is a edit of mikey_nodes to add more resolutions that his nodes did not have that flux supports, location  ```ComfyUI\custom_nodes\mikey_nodes```
-  - replace exsisting ratios.json with one provided.
-3. copy over the 4x-ClearRealityV1.pth into your comfyui/models/upscale_models folder.
-4. if using FluxFusion V2 4 steps GGUF NF4 FP8FP16.safetensors please download and place in your comfyui/models/checkpoints folder.
+3. 4x-ClearRealityV1.pth is for the CRUpscaling 
+- the Setup.py will automatically download any checkpoints and copy over the ratios.json and 4x-ClearRealityv1 to required folders.
 
 
 
@@ -237,19 +236,21 @@ Encountering issues? Don't worry! Here are some common problems and simple solut
  -  GPU: NVIDIA RTX 3090 or 4090 
  - While lower specifications may work, you might experience slower performance or limitations in image size and quality. If you have lower-end hardware: - You may need to adjust settings in ComfyUI to work with lower memory GPUs. - Check the [ComfyUI documentation](https://github.com/comfyanonymous/ComfyUI) for optimizations for lower-end hardware. 
 
+ ### UPDATE: Now supports lower Vram GPUS thanks to FluxFusion.
+   - 6,8,10,12-16, 24 all supported, use Setup tool and select the checkpoint for the size of your VRAM. 
+
 ### Common Issues 
 1.  **Bot Not Responding** - Ensure the bot is online and has proper permissions in your Discord server. - Check if you're using the command in an allowed channel. 
 2.  **Slow Image Generation** - This could be due to high server load or limited hardware resources. - Be patient, or try again at a less busy time. 
-3.  **Error Messages** - If you see specific error messages, try restarting the bot. - Check the bot's console output for more detailed error information. 
+3.  **Error Messages** - If you see specific error messages, try restarting the bot. - Check the bot's console output for more detailed error information, you may also join discord and ask for help.
 4.  **Installation Problems** - Ensure you have Python 3.x installed correctly. - Verify that all dependencies are installed using `pip install -r requirements.txt`. 
 5.  **GPU Not Detected** - Make sure you have the latest NVIDIA drivers installed. - Confirm that your GPU is CUDA-compatible and properly recognized by your system. 
 6.  **Out of Memory Errors** - Try generating smaller images or using fewer LoRAs. - Close other resource-intensive applications on your system. 
 
 ### Still Having Trouble? If you're still experiencing issues: 
-- Double-check all configuration settings in `.env`. 
-- Ensure all required JSON files (`flux3.json`, `ratios.json`, `lora.json`) are present and correctly formatted. 
+- Double-check all configuration settings by running the Setup.py.  
 - Consult the ComfyUI documentation for advanced troubleshooting specific to the image generation backend.
-		- There are options to use lowvram for comfyui this may allow it to work on 4070's 4060's and AMD GPUs with less that 24GB of VRam.  
+		- There are options to use lowvram for comfyui this may allow it to work on 4070's 4060's and AMD GPUs with less that 24GB of VRam, even if you are running fluxfusion checkpoints. 
 
 Remember, running AI image generation can be resource-intensive. If you're consistently having issues, you might need to consider upgrading your hardware or optimizing your setup. For further assistance, don't hesitate to reach out. 
 

@@ -6,6 +6,7 @@ import logging
 import uuid
 import time
 import json
+import asyncio
 import re
 from Main.utils import load_json, save_json, generate_random_seed
 from .workflow_utils import update_workflow
@@ -208,6 +209,7 @@ class ImageControlView(ui.View):
             logger.warning("Missing permissions to delete message")
         except Exception as e:
             logger.error(f"Error deleting message: {str(e)}")
+
 
 class PromptModal(ui.Modal, title="Edit Prompt"):
    def __init__(self, bot, original_prompt, image_filename, resolution, loras, upscale_factor, original_interaction, original_seed=None):

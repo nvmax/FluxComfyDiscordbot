@@ -17,7 +17,7 @@
   },
   "69": {
     "inputs": {
-      "prompt": ""
+      "prompt": "a highly detailed cinematic closeup frontal portrait, humanoid robot with a reflective, dome-shaped head, contains a galaxy cosmos and nebula inside it, the robot's body, in shades of white, purple and black, features an array of textures and protrusions suggesting a complex internal structure, set against a soft-focus background with bokeh effect in cool blue tones, dark environment, moody and epic AIDMAMJ6.1 aidmaHyperrealism\n"
     },
     "class_type": "CR Prompt Text",
     "_meta": {
@@ -26,7 +26,7 @@
   },
   "152": {
     "inputs": {
-      "vae_name": "ae.sft"
+      "vae_name": "ae.safetensors"
     },
     "class_type": "VAELoader",
     "_meta": {
@@ -44,19 +44,9 @@
       "title": "DualCLIPLoader"
     }
   },
-  "154": {
-    "inputs": {
-      "unet_name": "flux1-dev.sft",
-      "weight_dtype": "fp8_e4m3fn"
-    },
-    "class_type": "UNETLoader",
-    "_meta": {
-      "title": "Load Diffusion Model"
-    }
-  },
   "258": {
     "inputs": {
-      "ratio_selected": "16:9 [1344x768 landscape]",
+      "ratio_selected": "16:9 [1920x1080 landscape]",
       "batch_size": 1
     },
     "class_type": "Empty Latent Ratio Select SDXL",
@@ -71,7 +61,7 @@
       },
       "➕ Add Lora": "",
       "model": [
-        "154",
+        "288",
         0
       ],
       "clip": [
@@ -88,7 +78,7 @@
     "inputs": {
       "upscale_model": "4x-ClearRealityV1.pth",
       "mode": "rescale",
-      "rescale_factor": 1,
+      "rescale_factor": 2,
       "resize_width": 1024,
       "resampling_method": "lanczos",
       "supersample": "true",
@@ -130,6 +120,25 @@
       "title": "Image Save"
     }
   },
+  "287": {
+    "inputs": {
+      "unet_name": "fluxFusionV24StepsGGUFNF4_V2GGUFQ3KM.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "Unet Loader (GGUF)"
+    }
+  },
+  "288": {
+    "inputs": {
+      "unet_name": "flux1-dev.sft",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
   "198:0": {
     "inputs": {
       "sampler_name": "euler"
@@ -141,7 +150,7 @@
   },
   "198:2": {
     "inputs": {
-      "noise_seed": 1079328036578518
+      "noise_seed": 660124690620460
     },
     "class_type": "RandomNoise",
     "_meta": {

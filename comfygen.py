@@ -92,7 +92,7 @@ def queue_prompt(prompt):
     req = urllib.request.Request(f"http://{server_address}:8188/prompt", data=data, method="POST")
     req.add_header('Content-Type', 'application/json')
     try:
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with urllib.request.urlopen(req, timeout=120) as response:
             response_data = response.read().decode('utf-8')
             logger.debug(f"Response from ComfyUI: {response_data}")
             return json.loads(response_data)
@@ -105,7 +105,7 @@ def get_image(filename, subfolder, folder_type):
     url_values = urllib.parse.urlencode(data)
     url = f"http://{server_address}:8188/view?{url_values}"
     try:
-        with urllib.request.urlopen(url, timeout=30) as response:
+        with urllib.request.urlopen(url, timeout=120) as response:
             return response.read(), filename
     except Exception as e:
         logger.error(f"Error in get_image: {str(e)}")
@@ -114,7 +114,7 @@ def get_image(filename, subfolder, folder_type):
 def get_history(prompt_id):
     url = f"http://{server_address}:8188/history/{prompt_id}"
     try:
-        with urllib.request.urlopen(url, timeout=30) as response:
+        with urllib.request.urlopen(url, timeout=120) as response:
             return json.loads(response.read())
     except Exception as e:
         logger.error(f"Error in get_history: {str(e)}")
@@ -141,7 +141,7 @@ def send_progress_update(request_id, progress_data):
                 response = requests.post(
                     f"http://{bot_server}:8080/update_progress",
                     json=data,
-                    timeout=10
+                    timeout=120
                 )
                 if response.status_code == 200:
                     logger.debug(f"Progress update sent: {progress_data}")
@@ -304,7 +304,7 @@ def send_final_image(request_id, user_id, channel_id, interaction_id, original_m
                     f"http://{bot_server}:8080/send_image",
                     data=data,
                     files=files,
-                    timeout=30
+                    timeout=120
                 )
                 if response.status_code == 200:
                     logger.debug("Successfully sent final image")
@@ -404,7 +404,7 @@ if __name__ == "__main__":
                     'message': f'Connecting to ComfyUI (attempt {attempt + 1})...'
                 })
                 logger.debug(f"Connecting to WebSocket at ws://{server_address}:8188/ws?clientId={client_id}")
-                ws = websocket.create_connection(f"ws://{server_address}:8188/ws?clientId={client_id}", timeout=30)
+                ws = websocket.create_connection(f"ws://{server_address}:8188/ws?clientId={client_id}", timeout=120)
                 break
             except Exception as e:
                 if attempt < max_retries - 1:
@@ -482,7 +482,7 @@ if __name__ == "__main__":
             })
             raise
         finally:
-            # Clean up
+            
             try:
                 if ws:
                     ws.close()

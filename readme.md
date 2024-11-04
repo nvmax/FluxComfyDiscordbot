@@ -114,7 +114,14 @@ Note: If you close the terminal, it ends the bot.
   - Checkpoint selection: 
   - various checkpoints that support multiple new cards it is listed on them, now can support 6,8,10,12-16 and 24GB cards please select the version that best suits your cards VRAM.
 
-  All files needed to run flux will download if they are not found with in your comfyui installation. 
+  All files needed to run flux will download if they are not found with in your comfyui installation.
+  
+  * at any point you want to change the checkpoint just run the setup tool again and select the new model you want that easy.
+  * if its already downloaded it will not download again it will just change your .env variable to support the change (reboot bot)
+
+
+    
+    
   <img src="setuptool.jpg" width="500">
 
 	 

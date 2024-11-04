@@ -61,7 +61,7 @@
       },
       "➕ Add Lora": "",
       "model": [
-        "288",
+        "287",
         0
       ],
       "clip": [
@@ -122,7 +122,7 @@
   },
   "287": {
     "inputs": {
-      "unet_name": "fluxFusionV24StepsGGUFNF4_V2GGUFQ3KM.gguf"
+      "unet_name": "fluxFusionV24StepsGGUFNF4_V2GGUFQ5KS.gguf"
     },
     "class_type": "UnetLoaderGGUF",
     "_meta": {

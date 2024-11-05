@@ -77,15 +77,15 @@ Note: If you close the terminal, it ends the bot.
  * Once created, go to the "Bot" tab in the left sidebar. 
  * Click "Add Bot" to create a bot user for your application.
  * Under the bot's username, you'll see a "Token" section. Click "Copy" to copy your bot token. Keep this token secret and secure.
- * In the "Privileged Gateway Intents" section, enable the following intents:
+ * click Bot on the left side, In the "Privileged Gateway Intents" section, enable the following intents:
    * Presence Intent
    * Server Members Intent
    * Message Content Intent
 * Go to the "OAuth2" tab in the left sidebar.
 * In the "Scopes" section, select "bot".
 * In the "Bot Permissions" section, select the permissions your bot needs. At minimum, it will need:- 
-	* Read Messages/View Channels
 	* Send Messages
+  * Manage Messages
 	* Embed Links
 	* Attach Files
 	* Read Message History
@@ -169,9 +169,10 @@ These models will go in your comfyui/models/Lora folder.
 
 #### Banned words or people
 
-1. Located in /Datasets 
- * Here you can specify banned words that you do not wish to have people create images of or context of, any part of the word used will result in the person losing rights to generate images automatically.
- * Admin or Bot Manager can review, unban or even ask it why using the slash commands in discord
+1. Banned users and banned words are handled in the database.
+    * you will need to add banned words to this list using the /add_banned_word command, by default it is empty. 
+
+* Admin or Bot Manager can review, unban or even ask it why using the slash commands in discord
 	 * /add_banned_word "word"
 	 * /ban_user "discord id"
 	 * /list_banned_users  - lists all that have been banned (should display the discord name)
@@ -180,6 +181,12 @@ These models will go in your comfyui/models/Lora folder.
 	 * /unban_user "discord id"
 	 * /whybanned "discord id" - gives reason why this person was banned and the prompt they tried to use. 
      * /reboot - reboots the bot, this is useful if you are having issues with the bot and need to restart it.
+
+#### Update: The banned words was pretty harsh, 1 use and banned no warnings.
+  * implemented a warning system, 2 warnings 3rd time banned.
+  * will alert user to the banned words list in the message they recieve. 
+  * admins can use /check_warnings and /remove_warning to remove or check.
+  * this should also message admins about the warning as well. (not sure but should discord is funny)
 
 
 

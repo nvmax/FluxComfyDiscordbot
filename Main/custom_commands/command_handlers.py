@@ -14,13 +14,15 @@ from config import BOT_MANAGER_ROLE_ID, CHANNEL_IDS
 from config import fluxversion
 
 from Main.database import (
-    DB_NAME, ban_user, unban_user, 
-    get_ban_info, is_user_banned
+    DB_NAME, ban_user, unban_user, get_ban_info, 
+    add_banned_word, remove_banned_word,
+    get_banned_words, remove_user_warnings,
+    get_all_warnings, get_user_warnings
 )
 from Main.utils import load_json, save_json, generate_random_seed
 from Main.custom_commands.views import OptionsView, LoRAView
 from Main.custom_commands.models import RequestItem
-from Main.custom_commands.banned_utils import check_banned, load_banned_data, save_banned_data
+from Main.custom_commands.banned_utils import check_banned
 from Main.custom_commands.workflow_utils import update_workflow
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,32 @@ def in_allowed_channel():
         return True
     return app_commands.check(predicate)
 
+async def notify_admin(bot, user, prompt, is_warning: bool, banned_word: str):
+    try:
+        for guild in bot.guilds:
+            role = discord.utils.get(guild.roles, id=BOT_MANAGER_ROLE_ID)
+            if role:
+                for member in role.members:
+                    # Get warning count if it's a warning
+                    warning_info = ""
+                    if is_warning:
+                        warning_count = get_user_warnings(str(user.id))
+                        warning_info = f"Warning {warning_count}/2"
+                    
+                    notification = (
+                        f"{'⚠️ ' + warning_info if is_warning else '🚫 BAN'} NOTIFICATION:\n"
+                        f"User: {user.name} (ID: {user.id})\n"
+                        f"Prompt: {prompt}\n"
+                        f"Banned Word: {banned_word}"
+                    )
+                    try:
+                        await member.send(notification)
+                    except discord.Forbidden:
+                        continue
+                    break
+    except Exception as e:
+        logger.error(f"Failed to notify admin: {e}")
+
 async def setup_commands(bot: discord.Client):
     @bot.tree.command(name="comfy", description="Generate an image based on a prompt")
     @in_allowed_channel()
@@ -62,9 +90,26 @@ async def setup_commands(bot: discord.Client):
     async def comfy(interaction: discord.Interaction, prompt: str, resolution: str, 
                 upscale_factor: int = 1, seed: Optional[int] = None):
         try:
-            is_banned, ban_message = check_banned(str(interaction.user.id), prompt)
-            if is_banned:
-                await interaction.response.send_message(ban_message, ephemeral=True)
+            is_banned, message = check_banned(str(interaction.user.id), prompt)
+            if "WARNING" in message:  # This is a warning
+                await notify_admin(
+                    interaction.client,
+                    interaction.user,
+                    prompt,
+                    is_warning=True,
+                    banned_word=message.split("'")[1]  # Extract banned word from message
+                )
+                await interaction.response.send_message(message, ephemeral=True)
+                return
+            elif is_banned:
+                await notify_admin(
+                    interaction.client,
+                    interaction.user,
+                    prompt,
+                    is_warning=False,
+                    banned_word=message.split("'")[1]  # Extract banned word from message
+                )
+                await interaction.response.send_message(message, ephemeral=True)
                 return
 
             await interaction.response.defer(ephemeral=True)
@@ -72,13 +117,8 @@ async def setup_commands(bot: discord.Client):
             view = LoRAView(interaction.client)
             msg = await interaction.followup.send("Please select LoRAs to use:", view=view, ephemeral=True)
             
-            # Wait for the view to finish
             await view.wait()
-            
-            # Get selected LoRAs from the view instance
             selected_loras = view.selected_loras
-            
-            # Clean up the selection message
             await msg.delete()
             
             if not hasattr(view, 'has_confirmed'):
@@ -143,31 +183,22 @@ async def setup_commands(bot: discord.Client):
 
     @bot.tree.command(name="add_banned_word", description="Add a word to the banned list")
     @app_commands.checks.has_permissions(administrator=True)
-    async def add_banned_word(interaction: discord.Interaction, word: str):
-        banned_data = load_banned_data()
-        if word.lower() not in banned_data['banned_words']:
-            banned_data['banned_words'].append(word.lower())
-            save_banned_data(banned_data)
-            await interaction.response.send_message(f"Added '{word}' to the banned words list.", ephemeral=True)
-        else:
-            await interaction.response.send_message(f"'{word}' is already in the banned words list.", ephemeral=True)
+    async def add_banned_word_command(interaction: discord.Interaction, word: str):
+        word = word.lower()
+        add_banned_word(word)  # This calls the database function
+        await interaction.response.send_message(f"Added '{word}' to the banned words list.", ephemeral=True)
 
     @bot.tree.command(name="remove_banned_word", description="Remove a word from the banned list")
     @app_commands.checks.has_permissions(administrator=True)
-    async def remove_banned_word(interaction: discord.Interaction, word: str):
-        banned_data = load_banned_data()
-        if word.lower() in banned_data['banned_words']:
-            banned_data['banned_words'].remove(word.lower())
-            save_banned_data(banned_data)
-            await interaction.response.send_message(f"Removed '{word}' from the banned words list.", ephemeral=True)
-        else:
-            await interaction.response.send_message(f"'{word}' is not in the banned words list.", ephemeral=True)
+    async def remove_banned_word_command(interaction: discord.Interaction, word: str):
+        word = word.lower()
+        remove_banned_word(word)  # This calls the database function
+        await interaction.response.send_message(f"Removed '{word}' from the banned words list.", ephemeral=True)
 
     @bot.tree.command(name="list_banned_words", description="List all banned words")
     @app_commands.checks.has_permissions(administrator=True)
     async def list_banned_words(interaction: discord.Interaction):
-        banned_data = load_banned_data()
-        banned_words = banned_data['banned_words']
+        banned_words = get_banned_words()
         if banned_words:
             await interaction.response.send_message(f"Banned words: {', '.join(banned_words)}", ephemeral=True)
         else:
@@ -214,6 +245,134 @@ async def setup_commands(bot: discord.Client):
             await interaction.response.send_message(f"Banned users:\n{banned_list}", ephemeral=True)
         else:
             await interaction.response.send_message("There are no banned users.", ephemeral=True)
+    
+    @bot.tree.command(name="remove_warning", description="Remove all warnings from a user")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def remove_warning_command(interaction: discord.Interaction, user: discord.User):
+        try:
+            success, message = remove_user_warnings(str(user.id))
+            if success:
+                await interaction.response.send_message(
+                    f"Successfully removed all warnings from {user.name} ({user.id}).\n{message}", 
+                    ephemeral=True
+                )
+            else:
+                await interaction.response.send_message(
+                    f"Could not remove warnings from {user.name} ({user.id}).\n{message}", 
+                    ephemeral=True
+                )
+        except Exception as e:
+            logger.error(f"Error in remove_warning command: {str(e)}")
+            await interaction.response.send_message(
+                f"An error occurred while removing warnings: {str(e)}", 
+                ephemeral=True
+            )
+
+    @bot.tree.command(name="check_warnings", description="Check all user warnings")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def check_warnings_command(interaction: discord.Interaction):
+        try:
+            success, result = get_all_warnings()
+            
+            if not success:
+                await interaction.response.send_message(result, ephemeral=True)
+                return
+            
+            embeds = []
+            
+            # Create an embed for each user with warnings
+            for user_id, warnings in result.items():
+                try:
+                    # Try to fetch user info
+                    user = await interaction.client.fetch_user(int(user_id))
+                    user_name = user.name
+                except:
+                    user_name = f"Unknown User ({user_id})"
+                
+                embed = discord.Embed(
+                    title=f"Warnings for {user_name}",
+                    color=discord.Color.yellow()
+                )
+                embed.set_footer(text=f"User ID: {user_id}")
+                
+                warning_count = len(warnings)
+                if warning_count == 1:
+                    status = "🟡 Active - First Warning"
+                elif warning_count == 2:
+                    status = "🔴 Final Warning"
+                else:
+                    status = "⚫ Unknown Status"
+
+                embed.add_field(
+                    name="Warning Status",
+                    value=f"{status}\n{warning_count}/2 warnings",
+                    inline=False
+                )
+                
+                for idx, (prompt, word, warned_at) in enumerate(warnings, 1):
+                    embed.add_field(
+                        name=f"Warning {idx} - {warned_at}",
+                        value=f"**Banned Word Used:** {word}\n**Full Prompt:** {prompt}",
+                        inline=False
+                    )
+                embeds.append(embed)
+            
+            if len(embeds) == 0:
+                await interaction.response.send_message("No warnings found in the database.", ephemeral=True)
+                return
+                
+            # If only one embed, send it without navigation
+            if len(embeds) == 1:
+                await interaction.response.send_message(embed=embeds[0], ephemeral=True)
+            else:
+                # Create navigation view for multiple embeds
+                class NavigationView(discord.ui.View):
+                    def __init__(self):
+                        super().__init__(timeout=180)  # 3 minute timeout
+                        self.current_page = 0
+
+                    @discord.ui.button(label="◀️ Previous", style=discord.ButtonStyle.gray)
+                    async def previous_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
+                        if button_interaction.user.id != interaction.user.id:
+                            await button_interaction.response.send_message("You cannot use these buttons.", ephemeral=True)
+                            return
+                        self.current_page = (self.current_page - 1) % len(embeds)
+                        embed = embeds[self.current_page]
+                        embed.set_footer(text=f"Page {self.current_page + 1}/{len(embeds)}")
+                        await button_interaction.response.edit_message(embed=embed)
+
+                    @discord.ui.button(label="Next ▶️", style=discord.ButtonStyle.gray)
+                    async def next_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
+                        if button_interaction.user.id != interaction.user.id:
+                            await button_interaction.response.send_message("You cannot use these buttons.", ephemeral=True)
+                            return
+                        self.current_page = (self.current_page + 1) % len(embeds)
+                        embed = embeds[self.current_page]
+                        embed.set_footer(text=f"Page {self.current_page + 1}/{len(embeds)}")
+                        await button_interaction.response.edit_message(embed=embed)
+
+                    async def on_timeout(self):
+                        # Disable buttons after timeout
+                        for item in self.children:
+                            item.disabled = True
+                        # Try to update the message with disabled buttons
+                        try:
+                            await interaction.edit_original_response(view=self)
+                        except:
+                            pass
+
+                view = NavigationView()
+                first_embed = embeds[0]
+                first_embed.set_footer(text=f"Page 1/{len(embeds)}")
+                await interaction.response.send_message(embed=first_embed, view=view, ephemeral=True)
+                
+        except Exception as e:
+            logger.error(f"Error in check_warnings command: {str(e)}")
+            await interaction.response.send_message(
+                f"An error occurred while checking warnings: {str(e)}", 
+                ephemeral=True
+            )
+            
 
     @bot.tree.command(name="sync", description="Sync bot commands")
     @has_admin_or_bot_manager_role()

@@ -10,6 +10,7 @@ DB_NAME = 'image_history.db'
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
+    # Existing tables remain the same
     c.execute('''CREATE TABLE IF NOT EXISTS image_history
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   user_id TEXT,
@@ -20,10 +21,24 @@ def init_db():
                   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                   loras JSON,
                   upscale_factor INTEGER)''')
+    
     c.execute('''CREATE TABLE IF NOT EXISTS banned_users
                  (user_id TEXT PRIMARY KEY,
                   reason TEXT,
                   banned_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    
+    # New tables for banned words and warnings
+    c.execute('''CREATE TABLE IF NOT EXISTS banned_words
+                 (word TEXT PRIMARY KEY,
+                  added_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+                  
+    c.execute('''CREATE TABLE IF NOT EXISTS user_warnings
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  user_id TEXT,
+                  prompt TEXT,
+                  word TEXT,
+                  warned_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    
     conn.commit()
     conn.close()
 
@@ -138,6 +153,99 @@ def update_image_info(image_filename, new_prompt=None, new_resolution=None, new_
         logger.debug(f"No updates provided for {image_filename}")
     
     conn.close()
+
+def get_banned_words():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT word FROM banned_words")
+    words = [row[0] for row in c.fetchall()]
+    conn.close()
+    return words
+
+def add_banned_word(word: str):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("INSERT OR IGNORE INTO banned_words (word) VALUES (?)", (word.lower(),))
+    conn.commit()
+    conn.close()
+
+def remove_banned_word(word: str):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("DELETE FROM banned_words WHERE word = ?", (word.lower(),))
+    conn.commit()
+    conn.close()
+
+def add_user_warning(user_id: str, prompt: str, word: str):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("INSERT INTO user_warnings (user_id, prompt, word) VALUES (?, ?, ?)",
+              (user_id, prompt, word))
+    conn.commit()
+    conn.close()
+
+def remove_user_warnings(user_id: str):
+    """Remove all warnings for a specific user"""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    
+    try:
+        # Check if user has warnings
+        c.execute("SELECT COUNT(*) FROM user_warnings WHERE user_id = ?", (user_id,))
+        warning_count = c.fetchone()[0]
+        
+        if warning_count == 0:
+            conn.close()
+            return False, "User has no warnings to remove"
+            
+        # Delete all warnings for the user
+        c.execute("DELETE FROM user_warnings WHERE user_id = ?", (user_id,))
+        conn.commit()
+        conn.close()
+        return True, f"Removed {warning_count} warning(s)"
+    except Exception as e:
+        conn.close()
+        return False, f"Error removing warnings: {str(e)}"
+
+def get_user_warnings(user_id: str):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM user_warnings WHERE user_id = ?", (user_id,))
+    warning_count = c.fetchone()[0]
+    conn.close()
+    return warning_count
+
+def get_all_warnings():
+    """Get all warnings from the database, grouped by user"""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    
+    try:
+        # Get all warnings with user info
+        c.execute("""
+            SELECT user_id, prompt, word, warned_at 
+            FROM user_warnings 
+            ORDER BY user_id, warned_at DESC
+        """)
+        warnings = c.fetchall()
+        
+        if not warnings:
+            conn.close()
+            return False, "No warnings found in the database"
+        
+        # Group warnings by user
+        warning_dict = {}
+        for warning in warnings:
+            user_id, prompt, word, warned_at = warning
+            if user_id not in warning_dict:
+                warning_dict[user_id] = []
+            warning_dict[user_id].append((prompt, word, warned_at))
+        
+        conn.close()
+        return True, warning_dict
+    except Exception as e:
+        conn.close()
+        return False, f"Error retrieving warnings: {str(e)}"
 
 def delete_image_info(image_filename):
     conn = sqlite3.connect(DB_NAME)

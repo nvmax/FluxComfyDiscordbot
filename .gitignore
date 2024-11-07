@@ -4,3 +4,4 @@ image_history.db
 .setupenv
 logs/
 logs/setup.logs
+/lora_editor/lora_history.db

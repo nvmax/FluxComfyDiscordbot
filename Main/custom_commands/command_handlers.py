@@ -72,7 +72,7 @@ async def notify_admin(bot, user, prompt, is_warning: bool, banned_word: str):
         logger.error(f"Failed to notify admin: {e}")
 
 async def setup_commands(bot: discord.Client):
-    @bot.tree.command(name="comfy", description="Generate an image based on a prompt")
+    @bot.tree.command(name="comfy", description="Generate an image based on a prompt.")
     @in_allowed_channel()
     @app_commands.describe(
         prompt="Enter your prompt",
@@ -81,96 +81,118 @@ async def setup_commands(bot: discord.Client):
         seed="Enter a seed for reproducibility (optional)"
     )
     @app_commands.choices(resolution=[
-        app_commands.Choice(name=name, value=name) 
-        for name in load_json('ratios.json')['ratios'].keys()
+        app_commands.Choice(name=name, value=name) for name in load_json('ratios.json')['ratios'].keys()
     ])
     @app_commands.choices(upscale_factor=[
         app_commands.Choice(name=str(i), value=i) for i in range(1, 5)
     ])
-    async def comfy(interaction: discord.Interaction, prompt: str, resolution: str, 
-                upscale_factor: int = 1, seed: Optional[int] = None):
+    async def comfy(interaction: discord.Interaction, prompt: str, resolution: str, upscale_factor: int = 1, seed: Optional[int] = None):
         try:
-            is_banned, message = check_banned(str(interaction.user.id), prompt)
-            if "WARNING" in message:  # This is a warning
-                await notify_admin(
-                    interaction.client,
-                    interaction.user,
-                    prompt,
-                    is_warning=True,
-                    banned_word=message.split("'")[1]  # Extract banned word from message
-                )
-                await interaction.response.send_message(message, ephemeral=True)
-                return
-            elif is_banned:
-                await notify_admin(
-                    interaction.client,
-                    interaction.user,
-                    prompt,
-                    is_warning=False,
-                    banned_word=message.split("'")[1]  # Extract banned word from message
-                )
-                await interaction.response.send_message(message, ephemeral=True)
+            logger.info(f"Comfy command invoked by {interaction.user.id}")
+            
+            is_banned, ban_message = check_banned(str(interaction.user.id), prompt)
+            if is_banned:
+                await interaction.response.send_message(ban_message, ephemeral=True)
                 return
 
             await interaction.response.defer(ephemeral=True)
             
-            view = LoRAView(interaction.client)
-            msg = await interaction.followup.send("Please select LoRAs to use:", view=view, ephemeral=True)
-            
-            await view.wait()
-            selected_loras = view.selected_loras
-            await msg.delete()
-            
-            if not hasattr(view, 'has_confirmed'):
-                logger.debug("LoRA selection was cancelled or timed out")
-                return
+            try:
+                lora_view = LoRAView(interaction.client)
+                lora_message = await interaction.followup.send(
+                    "Please select the LoRAs you want to use:",
+                    view=lora_view,
+                    ephemeral=True
+                )
+                
+                # Wait for LoRA selection
+                await lora_view.wait()
+                
+                if not hasattr(lora_view, 'has_confirmed') or not lora_view.has_confirmed:
+                    await lora_message.edit(content="Selection cancelled or timed out.", view=None)
+                    return
+                    
+                selected_loras = lora_view.selected_loras
+                logger.debug(f"Selected LoRAs: {selected_loras}")
+                
+                try:
+                    await lora_message.delete()
+                except discord.NotFound:
+                    pass  # Message already deleted
+                
+                # Process the selection and generate image
+                workflow = load_json(fluxversion)
+                request_uuid = str(uuid.uuid4())
+                
+                if seed is None:
+                    seed = generate_random_seed()
+                    
+                # Update prompt with LoRA trigger words
+                lora_config = load_json('lora.json')
+                additional_prompts = []
+                for lora in selected_loras:
+                    lora_info = next((l for l in lora_config['available_loras'] if l['file'] == lora), None)
+                    if lora_info and lora_info.get('add_prompt'):
+                        additional_prompts.append(lora_info['add_prompt'])
+                
+                full_prompt = f"{prompt} {' '.join(additional_prompts)}".strip()
+                current_timestamp = int(time.time())
+                workflow = update_workflow(
+                    workflow,
+                    f"{full_prompt} (Timestamp: {current_timestamp})",
+                    resolution,
+                    selected_loras,
+                    upscale_factor,
+                    seed
+                )
 
-            additional_prompts = []
-            lora_config = load_json('lora.json')
-            for lora in selected_loras:
-                lora_info = next((l for l in lora_config['available_loras'] if l['file'] == lora), None)
-                if lora_info and lora_info.get('add_prompt'):
-                    additional_prompts.append(lora_info['add_prompt'])
-            
-            full_prompt = f"{prompt} {' '.join(additional_prompts)}".strip()
-            
-            if seed is None:
-                seed = generate_random_seed()
+                workflow_filename = f'flux3_{request_uuid}.json'
+                save_json(workflow_filename, workflow)
 
-            workflow = load_json(fluxversion)
-            request_uuid = str(uuid.uuid4())
-            current_timestamp = int(time.time())
-            
-            workflow = update_workflow(workflow, 
-                                f"{full_prompt} (Timestamp: {current_timestamp})", 
-                                resolution, 
-                                selected_loras, 
-                                upscale_factor,
-                                seed)
+                # Send initial message
+                original_message = await interaction.followup.send(
+                    "🔄 Starting generation process...",
+                    ephemeral=False
+                )
 
-            workflow_filename = f'flux3_{request_uuid}.json'
-            save_json(workflow_filename, workflow)
-
-            original_message = await interaction.followup.send("Generating image... 0% complete", ephemeral=False)
-
-            request_item = RequestItem(
-                id=str(interaction.id),
-                user_id=str(interaction.user.id),
-                channel_id=str(interaction.channel.id),
-                interaction_id=str(interaction.id),
-                original_message_id=str(original_message.id),
-                prompt=full_prompt,
-                resolution=resolution,
-                loras=selected_loras,
-                upscale_factor=upscale_factor,
-                workflow_filename=workflow_filename,
-                seed=seed
-            )
-            await interaction.client.subprocess_queue.put(request_item)
-
+                # Create request item
+                request_item = RequestItem(
+                    id=str(interaction.id),
+                    user_id=str(interaction.user.id),
+                    channel_id=str(interaction.channel.id),
+                    interaction_id=str(interaction.id),
+                    original_message_id=str(original_message.id),
+                    prompt=full_prompt,
+                    resolution=resolution,
+                    loras=selected_loras,
+                    upscale_factor=upscale_factor,
+                    workflow_filename=workflow_filename,
+                    seed=seed
+                )
+                await interaction.client.subprocess_queue.put(request_item)
+                
+            except Exception as e:
+                logger.error(f"Error during image generation setup: {str(e)}", exc_info=True)
+                error_message = str(e)
+                if len(error_message) > 1900:
+                    error_message = error_message[:1900] + "..."
+                await interaction.followup.send(f"An error occurred during setup: {error_message}", ephemeral=True)
+                
         except Exception as e:
             logger.error(f"Error in comfy command: {str(e)}", exc_info=True)
-            await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "An error occurred. Please try again.",
+                        ephemeral=True
+                    )
+                else:
+                    await interaction.followup.send(
+                        "An error occurred. Please try again.",
+                        ephemeral=True
+                    )
+            except Exception as e2:
+                logger.error(f"Error sending error message: {str(e2)}", exc_info=True)
 
     @bot.tree.command(name="reboot", description="Reboot the bot (Restricted to specific admin)")
     async def reboot(interaction: discord.Interaction):
@@ -403,21 +425,31 @@ async def setup_commands(bot: discord.Client):
 
     @bot.tree.error
     async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.CommandOnCooldown):
-            await interaction.response.send_message(
-                f"This command is on cooldown. Try again in {error.retry_after:.2f}s",
-                ephemeral=True
-            )
-        elif isinstance(error, app_commands.MissingPermissions):
-            await interaction.response.send_message(
-                "You don't have permission to use this command.",
-                ephemeral=True
-            )
-        else:
-            logger.error(f"Command error: {str(error)}", exc_info=True)
-            await interaction.response.send_message( 
-                f"An error occurred while executing the command: {str(error)}", 
-                ephemeral=True
-            )
+        """Global error handler for application commands"""
+        try:
+            error_message = str(error)
+            if len(error_message) > 1900:  # Leave room for formatting
+                error_message = error_message[:1900] + "..."
 
-    logger.info("All commands have been set up successfully")
+            if isinstance(error, app_commands.CommandOnCooldown):
+                response_message = f"This command is on cooldown. Try again in {error.retry_after:.2f}s"
+            elif isinstance(error, app_commands.MissingPermissions):
+                response_message = "You don't have permission to use this command."
+            else:
+                response_message = f"An error occurred while executing the command: {error_message}"
+
+            # Check if interaction has been responded to
+            if interaction.response.is_done():
+                try:
+                    await interaction.followup.send(response_message, ephemeral=True)
+                except discord.HTTPException:
+                    # If the followup fails, try to send a simplified error message
+                    await interaction.followup.send("An error occurred. Please try again.", ephemeral=True)
+            else:
+                try:
+                    await interaction.response.send_message(response_message, ephemeral=True)
+                except discord.HTTPException:
+                    await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
+
+        except Exception as e:
+            logger.error(f"Error in error handler: {str(e)}", exc_info=True)

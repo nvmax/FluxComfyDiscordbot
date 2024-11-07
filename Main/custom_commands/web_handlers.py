@@ -37,7 +37,10 @@ async def handle_generated_image(request):
             elif part.name == 'loras':
                 request_data['loras'] = json.loads(await part.text())
             elif part.name == 'upscale_factor':
-                request_data['upscale_factor'] = int(await part.text())
+                try:
+                    request_data['upscale_factor'] = int(await part.text())
+                except (ValueError, TypeError):
+                    request_data['upscale_factor'] = 1
             else:
                 request_data[part.name] = await part.text()
 
@@ -52,12 +55,16 @@ async def handle_generated_image(request):
             logger.warning(f"Missing required fields: {', '.join(missing_fields)}")
             return web.Response(text="Missing required data", status=400)
 
+        # Handle upscale factor
+        if not isinstance(request_data['upscale_factor'], int):
+            request_data['upscale_factor'] = 1
+
         # Check if request is still pending
         if request_data['request_id'] not in request.app['bot'].pending_requests:
             logger.warning(f"Received response for unknown request_id: {request_data['request_id']}")
             return web.Response(text="Unknown request", status=404)
 
-        # Fetch user and guild information
+        # Generate embed and handle image
         try:
             user = await request.app['bot'].fetch_user(int(request_data['user_id']))
             channel = await request.app['bot'].fetch_channel(int(request_data['channel_id']))
@@ -74,7 +81,7 @@ async def handle_generated_image(request):
                 color=user_color
             )
 
-            # Add resolution field with CR Upscaler info
+            # Add resolution field with upscaler info
             if request_data['upscale_factor'] > 1:
                 if request_data['upscaled_resolution'] and request_data['upscaled_resolution'] != "Unknown":
                     embed.add_field(
@@ -93,28 +100,30 @@ async def handle_generated_image(request):
 
             # Add LoRA information
             lora_config = load_json('lora.json')
-            lora_names = [
-                next((lora['name'] for lora in lora_config['available_loras'] 
-                     if lora['file'] == lora_file), lora_file)
-                for lora_file in (request_data['loras'] or [])
-            ]
+            lora_names = []
+            if request_data['loras']:
+                for lora_file in request_data['loras']:
+                    lora_info = next((lora for lora in lora_config['available_loras'] 
+                                    if lora['file'] == lora_file), None)
+                    if lora_info:
+                        lora_names.append(lora_info['name'])
+                    else:
+                        lora_names.append(lora_file)
+
             embed.add_field(
                 name="LoRAs",
                 value=", ".join(lora_names) if lora_names else "None",
                 inline=True
             )
 
-            if request_data['upscale_factor']:
-                embed.add_field(name="CR Upscale", value=f"{request_data['upscale_factor']}x", inline=True)
-            
-            if request_data['seed']:
-                embed.add_field(name="Seed", value=request_data['seed'], inline=True)
+            if request_data['seed'] is not None:
+                embed.add_field(name="Seed", value=str(request_data['seed']), inline=True)
 
-            # Generate image filename
+            # Generate image filename and create file
             image_filename = f"generated_image_{request_data['request_id']}.png"
-
-            # Create image file and view
             image_file = discord.File(io.BytesIO(request_data['image_data']), image_filename)
+
+            # Create view with buttons
             view = ImageControlView(
                 request.app['bot'],
                 request_data['prompt'],
@@ -143,12 +152,12 @@ async def handle_generated_image(request):
                     request_data['upscale_factor']
                 )
 
-                # Only remove from pending requests after successful message update and history addition
+                # Remove from pending requests
                 if request_data['request_id'] in request.app['bot'].pending_requests:
                     del request.app['bot'].pending_requests[request_data['request_id']]
 
-                logger.info(f"Image successfully sent to channel for user {request_data['user_id']}")
-                return web.Response(text="Image sent to channel")
+                logger.info(f"Successfully processed image for user {request_data['user_id']}")
+                return web.Response(text="Success")
 
             except discord.NotFound:
                 logger.error("Channel or message not found")
@@ -166,7 +175,7 @@ async def handle_generated_image(request):
 
     except Exception as e:
         logger.error(f"Error in handle_generated_image: {str(e)}", exc_info=True)
-        return web.Response(text="Internal server error", status=500)
+        return web.Response(text=f"Internal server error: {str(e)}", status=500)
 
 async def update_progress(request):
     try:

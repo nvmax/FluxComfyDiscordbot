@@ -129,3 +129,8 @@ class EntryDialog:
             self.dialog.destroy()
         except ValueError as e:
             messagebox.showerror("Error", str(e))
+
+    def update_file_list(self, file_list):
+        """Update the available files in the combobox"""
+        self.available_files = file_list
+        self.file_combo['values'] = self.available_files

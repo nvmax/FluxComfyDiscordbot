@@ -1,166 +1,187 @@
 {
-  "default": "Midjourney_imitation_FLUX.safetensors",
+  "default": "",
   "available_loras": [
     {
       "id": 1,
-      "name": "Midjourney_imitation",
-      "add_prompt": "Midjourney style",
-      "file": "Midjourney_imitation_FLUX.safetensors",
-      "weight": 0.5
+      "name": "Phlux_Texture&Lighting",
+      "file": "Phlux_Texture&Lighting.safetensors",
+      "weight": 0.5,
+      "add_prompt": ""
     },
     {
       "id": 2,
-      "name": "FluxTastic Details",
-      "add_prompt": "",
-      "file": "FluxDFaeTasticDetails.safetensors",
-      "weight": 0.5
+      "name": "RPGv6-itr15",
+      "file": "RPGv6-itr15.safetensors",
+      "weight": 0.5,
+      "add_prompt": "RPG STYLE,"
     },
     {
       "id": 3,
-      "name": "vision_realistic",
-      "add_prompt": "",
-      "file": "vision_realistic_flux_lora_v1.safetensors",
-      "weight": 0.5
+      "name": "glowing_flux",
+      "file": "glowing_flux.safetensors",
+      "weight": 0.5,
+      "add_prompt": ""
     },
     {
       "id": 4,
-      "name": "AuraFlux",
-      "add_prompt": "",
-      "file": "Aura_Flux.safetensors",
-      "weight": 0.5
+      "name": "DreamyKolors_v1",
+      "file": "DreamyKolors_v1.safetensors",
+      "weight": 0.5,
+      "add_prompt": ""
     },
     {
       "id": 5,
-      "name": "Fantasy Flux",
-      "add_prompt": "",
-      "file": "fantasy-flux-v1.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 6,
-      "name": "Phlux_Texture&Lighting",
-      "add_prompt": "",
-      "file": "Phlux_Texture&Lighting.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 7,
-      "name": "RPGv6-itr15",
-      "add_prompt": "RPG STYLE,",
-      "file": "RPGv6-itr15.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 8,
-      "name": "glowing_flux",
-      "add_prompt": "",
-      "file": "glowing_flux.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 9,
-      "name": "DreamyKolors_v1",
-      "add_prompt": "",
-      "file": "DreamyKolors_v1.safetensors",
-      "weight": 0.5
-    },
-    {
-      "id": 10,
       "name": "aidmaMidjourney6.1",
       "file": "aidmaMJ6.1-FLUX-V0.3.safetensors",
       "weight": 0.5,
       "add_prompt": "AIDMAMJ6.1"
     },
     {
-      "id": 11,
+      "id": 6,
       "name": "Undead Madness WOWstyle",
       "file": "undeadmadness-warcraftstyle.safetensors",
       "weight": 0.5,
       "add_prompt": "warcraftundeadstyle"
     },
     {
-      "id": 12,
+      "id": 7,
       "name": "Mystic Splash",
       "file": "MysticSplash.safetensors",
       "weight": 0.5,
       "add_prompt": "MYSTICSPLASH"
     },
     {
-      "id": 13,
+      "id": 8,
       "name": "Aidma Flux Pro Details",
       "file": "aidmaFLUXpro1.1-FLUX-V0.2.safetensors",
       "weight": 0.5,
       "add_prompt": "aidmafluxpro1.1"
     },
     {
-      "id": 14,
+      "id": 9,
       "name": "Aidma Hyper Realism",
       "file": "aidmaHyperRealism-FLUX-V0.2.safetensors",
       "weight": 0.5,
       "add_prompt": "aidmaHyperrealism"
     },
     {
-      "id": 15,
+      "id": 10,
       "name": "Aidma Text Improver",
       "file": "Textimprover-FLUX-V0.4.safetensors",
       "weight": 0.5,
       "add_prompt": "aidmatextimprover"
     },
     {
-      "id": 16,
+      "id": 11,
       "name": "Aidma Experimental Phot",
       "file": "aidmaExperimentalPhotography-FLUX-V0.1.safetensors",
       "weight": 0.5,
       "add_prompt": "aidmaExperimentalPhotography"
     },
     {
-      "id": 17,
+      "id": 12,
       "name": "Best of Flux -style",
       "file": "best_of_flux_v30_rank64_bf16-step01750.safetensors",
       "weight": 0.5,
       "add_prompt": "best of"
     },
     {
-      "id": 18,
+      "id": 13,
       "name": "Ultimate Enhancer",
       "file": "Ultima_Flux_v1.safetensors",
       "weight": 0.5,
       "add_prompt": ""
     },
     {
-      "id": 19,
+      "id": 14,
       "name": "Vanta Gold",
       "file": "VantaGold.safetensors\n",
       "weight": 0.5,
       "add_prompt": "in the style of VNTGLD"
     },
     {
-      "id": 20,
+      "id": 15,
       "name": "BoFlux Abstract",
       "file": "boFLUX_AbstractMorph.safetensors",
       "weight": 0.5,
       "add_prompt": "bo-abstract"
     },
     {
-      "id": 21,
+      "id": 16,
       "name": "Bo-bioluminescent\n Style",
       "file": "boFLUX_Bioluminescent_Dreams_v1.safetensors",
       "weight": 0.5,
       "add_prompt": "bo-bioluminescent"
     },
     {
-      "id": 22,
+      "id": 17,
       "name": "DeepFocus",
       "file": "deepfocus.safetensors",
       "weight": 0.5,
       "add_prompt": "DF"
     },
     {
-      "id": 23,
+      "id": 18,
       "name": "Beauty of Realism Flux",
       "file": "The_beauty_of_realism_(FLUX).safetensors",
       "weight": 0.5,
       "add_prompt": "cinematic quality, realism, play of shadow and light"
+    },
+    {
+      "id": 19,
+      "name": "Logo Vector",
+      "file": "Logo_vector.safetensors",
+      "weight": 0.5,
+      "add_prompt": ""
+    },
+    {
+      "id": 20,
+      "name": "New Fantasy Corev2",
+      "file": "New Fantasy CoreV2.safetensors",
+      "weight": 0.5,
+      "add_prompt": "MyNewFantasy"
+    },
+    {
+      "id": 21,
+      "name": "Decadence Style",
+      "file": "Decadence_style.safetensors",
+      "weight": 0.5,
+      "add_prompt": ""
+    },
+    {
+      "id": 22,
+      "name": "Pixel Art Flux V2",
+      "file": "pixel-art-flux-v2.safetensors",
+      "weight": 0.5,
+      "add_prompt": ""
+    },
+    {
+      "id": 23,
+      "name": "Midjourney_imitation",
+      "file": "Midjourney_imitation_FLUX.safetensors",
+      "weight": 0.5,
+      "add_prompt": "Midjourney style"
+    },
+    {
+      "id": 24,
+      "name": "Plushy World",
+      "file": "plushy_world.safetensors",
+      "weight": 0.5,
+      "add_prompt": "3dcndylnd style"
+    },
+    {
+      "id": 25,
+      "name": "Aesthetic10K",
+      "file": "aesthetic10k.safetensors",
+      "weight": 0.5,
+      "add_prompt": ""
+    },
+    {
+      "id": 26,
+      "name": "Microx",
+      "file": "microx.safetensors",
+      "weight": 0.5,
+      "add_prompt": ""
     }
   ]
 }

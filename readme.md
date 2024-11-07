@@ -139,19 +139,25 @@ These models will go in your comfyui/models/Lora folder.
   * add_prompt: if the lora requires a trigger word place it in this field
   * file: this is the exact name of the LoRA file with .safetensors, Example: MyLoRA.safetensors
   * weight: this is the weight required to get the desired effect from the lora.  
-    * 0.5 is Ideal if you are wanting to use multiple LoRA's at one time, having many at 1.0 can cause mass hallucination on image generations.
-  - Limitations 
-    * 25 loras excluding default, in this list, this is hard coded by discord not of my choosing. 
-  * currently there are examples in this file, please download and change these to reflect the correct loras that you have for flux. adding more than 25 will result in an error on discord and will not register bot commands.
+    * 0.5 is ideal if you are wanting to use multiple LoRA's at one time, having many at 1.0 can cause mass hallucination on image generations.
+   
     
     
     
 ### New Tool: Lora_editor
 
-  * This tool will allow you to configure your LoRA's with a simple gui, it will also allow you to download new LoRA's from Civitai.
+    ### update: 
+    * Now supports more than 25 LoRA's, theoritically it can support north of 600 LoRA's.
+    * You can activate and deactivate loras from the gui. 
+    * Persistant lora information is stored in sqlite3 database.
+    * Trigger words are now persistant. 
+    * Now supports Huggingface (you will need to add the trigger words yourself for HF LoRA's)
+
+  * This tool will allow you to configure your LoRA's with a simple gui, it will also allow you to download new LoRA's from Civitai and Huggingface.
   * Open lora_editor.py  using "python lora_editor.py", it will open a gui window.
   * Select the LORA_JSON_PATH to the lora.json file in the datasets folder.
   * Select the LORA_FOLDER_PATH to the lora folder in your comfyui models folder.
+  * populate your civitai and huggingface tokens.
   * Click refresh lora files to load in any new loras you have added.
   * Select a LoRA from the list and edit the weight, this will take effect once the bot is restarted.
   * You can also add new LoRA's from Civitai by clicking the add LoRA button and pasting the full civitai url of the lora you want to download.

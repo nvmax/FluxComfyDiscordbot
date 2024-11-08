@@ -261,6 +261,13 @@ class LoraEditor:
         self.style.configure("Title.TLabel", font=('Segoe UI', 12, 'bold'))
         self.style.configure("TLabelframe", padding=5)
         self.style.configure("TLabelframe.Label", font=('Segoe UI', 9))
+        
+        # Add style for the Reset button
+        self.style.configure("Red.TButton",
+            font=('Segoe UI', 9),
+            foreground='red',
+            padding=5
+        )
 
     def create_ui(self):
         """Create the main UI layout"""
@@ -653,11 +660,19 @@ class LoraEditor:
             ("Edit Entry", self.edit_entry, "✎"),
             ("Delete Entry", self.delete_entry, "✖"),
             ("Save", self.save_config, "💾"),
-            ("Refresh Files", self.refresh_lora_files, "🔄")
+            ("Refresh Files", self.refresh_lora_files, "🔄"),
+            ("Reset LoRA", self.reset_lora, "⚠")  # Added Reset button
         ]
         
         for text, command, symbol in buttons:
-            btn = ttk.Button(btn_frame, text=f"{symbol} {text}", command=command, width=15)
+            btn = ttk.Button(
+                btn_frame, 
+                text=f"{symbol} {text}", 
+                command=command, 
+                width=15,
+                # Make Reset button red
+                style="Red.TButton" if text == "Reset LoRA" else "TButton"
+            )
             btn.pack(side=tk.LEFT, padx=5)
 
     def update_progress(self, percentage):
@@ -1145,6 +1160,56 @@ class LoraEditor:
             except Exception as e:
                 logging.error(f"Error deleting entry: {e}")
                 messagebox.showerror("Error", f"Failed to delete entry: {str(e)}")
+
+    def reset_lora(self):
+        """Reset all LoRA entries"""
+        # Show warning dialog
+        result = messagebox.askokcancel(
+            "Warning",
+            "⚠ This will remove all LoRAs from your list!\n\n"
+            "Are you sure you want to continue?",
+            icon='warning'
+        )
+        
+        if result:
+            try:
+                # Clear JSON config
+                self.config.data["available_loras"] = []
+                self.config.data["default"] = ""
+                self.config.save_config()
+                
+                # Clear database (deactivate all entries)
+                with sqlite3.connect(self.db.db_path) as conn:
+                    c = conn.cursor()
+                    c.execute('UPDATE lora_history SET is_active = 0')
+                    conn.commit()
+                
+                # Clear treeview
+                self.tree.delete(*self.tree.get_children())
+                
+                # Update UI elements
+                self.default_var.set("")
+                self.default_combo['values'] = []
+                
+                # Refresh displays
+                self.refresh_tree()
+                self.refresh_lora_files()
+                
+                # Update status
+                self.status_var.set("All LoRA entries have been reset")
+                
+                # Show confirmation
+                messagebox.showinfo(
+                    "Reset Complete",
+                    "All LoRA entries have been successfully removed."
+                )
+                
+            except Exception as e:
+                logging.error(f"Error resetting LoRA entries: {e}")
+                messagebox.showerror(
+                    "Error",
+                    f"Failed to reset LoRA entries: {str(e)}"
+                )
 
     def save_config(self):
         """Save configuration to both JSON and database"""

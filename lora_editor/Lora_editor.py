@@ -1138,28 +1138,45 @@ class LoraEditor:
                 values = item["values"]
                 file_name = values[2]  # file_name is in the third column
                 
+                # Remove from treeview
+                self.tree.delete(selected[0])
+                
                 # Remove from JSON config
-                index = int(values[0]) - 1
-                deleted_name = self.config.data["available_loras"][index]["name"]
-                del self.config.data["available_loras"][index]
+                self.config.data["available_loras"] = [
+                    entry for entry in self.config.data["available_loras"]
+                    if entry.get("file") != file_name
+                ]
                 
-                # Update IDs in JSON config
-                self.config.update_ids()
+                # Update IDs in remaining entries
+                for i, entry in enumerate(self.config.data["available_loras"], 1):
+                    entry["id"] = i
                 
-                # Deactivate in database (soft delete)
+                # Save JSON config
+                self.config.save_config()
+                
+                # Deactivate in database
                 self.db.deactivate_lora(file_name)
                 
-                # Save changes
-                self.save_config()
+                # Clear default if this was the default
+                if self.default_var.get() == file_name:
+                    self.default_var.set("")
+                    self.config.data["default"] = ""
                 
-                # Refresh the tree view
-                self.refresh_tree()
+                # Update UI
+                self.refresh_lora_files()  # Update available files list
+                self.default_combo['values'] = [lora["file"] for lora in self.config.data["available_loras"]]
                 
+                # Update status
+                deleted_name = values[1]  # Name is in the second column
                 self.status_var.set(f"Deleted entry: {deleted_name}")
                 
             except Exception as e:
                 logging.error(f"Error deleting entry: {e}")
                 messagebox.showerror("Error", f"Failed to delete entry: {str(e)}")
+                
+            finally:
+                # Refresh the tree to ensure proper order and IDs
+                self.refresh_tree()
 
     def reset_lora(self):
         """Reset all LoRA entries"""

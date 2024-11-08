@@ -261,11 +261,12 @@ class OptionsView(ui.View):
         self.bot = bot
         self.original_prompt = original_prompt
         self.image_filename = image_filename
-        self.original_upscale_factor = original_upscale_factor
         self.selected_resolution = original_resolution
-        self.all_selected_loras = set(original_loras if original_loras else [])  # Changed to set
+        self.all_selected_loras = set(original_loras if original_loras else [])
+        self.current_page_selections = set()  # Track current page selections
         self.original_interaction = original_interaction
         self.selected_seed = original_seed
+        self.original_upscale_factor = original_upscale_factor
         self.page = 0
         
         logger.debug(f"Initializing OptionsView with original LoRAs: {self.all_selected_loras}")
@@ -280,11 +281,19 @@ class OptionsView(ui.View):
         self.resolution_select = ResolutionSelect(self.bot, self.selected_resolution)
         self.add_item(self.resolution_select)
 
+        # Get current page selections
+        start_idx = self.page * 25
+        end_idx = min(start_idx + 25, len(self.bot.lora_options))
+        current_page_loras = [lora['file'] for lora in self.bot.lora_options[start_idx:end_idx]]
+        
+        # Update current page selections
+        self.current_page_selections = {lora for lora in self.all_selected_loras if lora in current_page_loras}
+
         # LoRA select (Row 1)
         self.lora_select = PaginatedLoRASelect(
             self.bot.lora_options,
             self.page,
-            list(self.all_selected_loras)  # Convert set to list for the select
+            list(self.current_page_selections)  # Only pass current page selections
         )
         self.add_item(self.lora_select)
 
@@ -294,7 +303,7 @@ class OptionsView(ui.View):
         if total_pages > 1:
             if self.page > 0:
                 prev_button = ui.Button(
-                    label=f"◀ Previous (Page {self.page}/{total_pages})",
+                    label=f"◀ Previous (Page {self.page + 1}/{total_pages})",
                     custom_id="previous_page",
                     style=discord.ButtonStyle.secondary,
                     row=2
@@ -322,6 +331,26 @@ class OptionsView(ui.View):
         confirm_button.callback = self.confirm_callback
         self.add_item(confirm_button)
 
+    async def update_current_page_selections(self):
+        """Update selections for the current page"""
+        if not hasattr(self.lora_select, 'values'):
+            return
+
+        # Get current page LoRA files
+        start_idx = self.page * 25
+        end_idx = min(start_idx + 25, len(self.bot.lora_options))
+        current_page_loras = {lora['file'] for lora in self.bot.lora_options[start_idx:end_idx]}
+        
+        # Remove current page LoRAs from all selections
+        self.all_selected_loras = {lora for lora in self.all_selected_loras if lora not in current_page_loras}
+        
+        # Add new selections from current page
+        if self.lora_select.values:
+            self.all_selected_loras.update(self.lora_select.values)
+        
+        logger.debug(f"Updated selections: {self.all_selected_loras}")
+
+
     async def resolution_select_callback(self, interaction: discord.Interaction):
         """Handle resolution selection"""
         if self.resolution_select.values:
@@ -339,22 +368,14 @@ class OptionsView(ui.View):
 
     async def previous_page_callback(self, interaction: discord.Interaction):
         """Handle previous page navigation"""
-        if hasattr(self.lora_select, 'values'):
-            # Update selections from current page before changing
-            self.all_selected_loras.update(self.lora_select.values)
-            logger.debug(f"Stored selections before page change: {self.all_selected_loras}")
-        
+        await self.update_current_page_selections()
         self.page = max(0, self.page - 1)
         self.setup_view()
         await interaction.response.edit_message(view=self)
 
     async def next_page_callback(self, interaction: discord.Interaction):
         """Handle next page navigation"""
-        if hasattr(self.lora_select, 'values'):
-            # Update selections from current page before changing
-            self.all_selected_loras.update(self.lora_select.values)
-            logger.debug(f"Stored selections before page change: {self.all_selected_loras}")
-        
+        await self.update_current_page_selections()
         total_pages = (len(self.bot.lora_options) - 1) // 25 + 1
         self.page = min(self.page + 1, total_pages - 1)
         self.setup_view()
@@ -363,9 +384,8 @@ class OptionsView(ui.View):
     async def confirm_callback(self, interaction: discord.Interaction):
         """Handle confirmation and prompt processing"""
         try:
-            # Get final selections from current page
-            if hasattr(self.lora_select, 'values'):
-                self.all_selected_loras.update(self.lora_select.values)
+            # Update selections one final time
+            await self.update_current_page_selections()
             
             logger.debug(f"Final LoRA selections at confirmation: {self.all_selected_loras}")
             
@@ -391,7 +411,6 @@ class OptionsView(ui.View):
                     trigger_word = lora_info['add_prompt'].strip()
                     if trigger_word:
                         additional_prompts.append(trigger_word)
-                        logger.debug(f"Adding trigger word '{trigger_word}' for LoRA: {lora_file}")
             
             # Combine base prompt with trigger words
             updated_prompt = base_prompt
@@ -401,8 +420,6 @@ class OptionsView(ui.View):
                 updated_prompt += ' ' + ', '.join(additional_prompts)
             updated_prompt = updated_prompt.strip(' ,')
             
-            logger.debug(f"Final processed prompt: {updated_prompt}")
-
             try:
                 if self.original_interaction:
                     await self.original_interaction.delete_original_response()
@@ -414,7 +431,7 @@ class OptionsView(ui.View):
                 updated_prompt,
                 self.image_filename,
                 self.selected_resolution,
-                list(self.all_selected_loras),  # Convert set back to list for modal
+                list(self.all_selected_loras),
                 self.original_upscale_factor,
                 self.original_interaction,
                 self.selected_seed
@@ -427,6 +444,7 @@ class OptionsView(ui.View):
                 f"An error occurred while processing your selection: {str(e)}", 
                 ephemeral=True
             )
+            
 def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls.resolution_select.callback = cls.resolution_select_callback

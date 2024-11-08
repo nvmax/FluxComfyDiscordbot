@@ -3,19 +3,19 @@ import json
 import requests
 import re
 from urllib.parse import urlparse, parse_qs, unquote
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from pathlib import Path
 from huggingface_hub import HfApi, hf_hub_download
 import time
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
+
 root_dir = Path(__file__).parent.parent
 load_dotenv(root_dir / '.env')
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 def sanitize_filename(filename):
     """Remove or replace characters that are invalid in Windows filenames"""
@@ -105,149 +105,174 @@ class CivitAIDownloader:
     def __init__(self, progress_callback=None):
         self.api_token = os.getenv('CIVITAI_API_TOKEN')
         self.progress_callback = progress_callback
-        self.api_base = "https://civitai.com/api/v1"
-        
         self.headers = {}
         if self.api_token:
             self.headers["Authorization"] = f"Bearer {self.api_token}"
         self.headers["Content-Type"] = "application/json"
 
-    def extract_model_id(self, url: str) -> Tuple[str, str]:
-        """Extract model ID and version ID from URL"""
+    def extract_version_id(self, url: str) -> Optional[str]:
         try:
-            model_id_match = re.search(r'/models/(\d+)', str(url))
-            if not model_id_match:
-                raise ValueError("Invalid Lora link. Please provide a valid Civitai model link.")
-            
-            model_id = model_id_match.group(1)
+            # Parse URL and query parameters
             parsed = urlparse(url)
             query_params = parse_qs(parsed.query)
-            version_id = query_params.get('modelVersionId', [None])[0]
             
-            return model_id, version_id
+            # Check for modelVersionId in query parameters
+            if 'modelVersionId' in query_params:
+                version_id = query_params['modelVersionId'][0]
+                logger.info(f"Found version ID in query params: {version_id}")
+                return version_id
+                
+            # Extract model ID and get version info
+            model_id_match = re.search(r'/models/(\d+)', url)
+            if model_id_match:
+                model_id = model_id_match.group(1)
+                logger.info(f"Found model ID: {model_id}")
+                model_info = self.get_model_info(model_id)
+                if model_info and 'modelVersions' in model_info:
+                    version_id = str(model_info['modelVersions'][0]['id'])
+                    logger.info(f"Found version ID from model info: {version_id}")
+                    return version_id
+                    
+            return None
         except Exception as e:
-            raise ValueError(f"Failed to parse URL: {str(e)}")
+            logger.error(f"Error extracting version ID: {str(e)}")
+            return None
 
-    def get_model_info(self, model_id: str) -> Dict:
+    def get_model_info(self, url_or_id: str) -> Optional[Dict]:
+        """Get model information from CivitAI API"""
         try:
-            response = requests.get(
-                f"{self.api_base}/models/{model_id}",
-                headers=self.headers,
-                timeout=30
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"Failed to fetch model information. Status: {response.status_code}")
+            # Extract model ID if URL provided
+            if '/' in url_or_id:
+                model_match = re.search(r'/models/(\d+)', url_or_id)
+                if not model_match:
+                    raise ValueError("Could not extract model ID from URL")
+                model_id = model_match.group(1)
+            else:
+                model_id = url_or_id
+
+            api_url = f"https://civitai.com/api/v1/models/{model_id}"
+            response = requests.get(api_url, headers=self.headers, timeout=30)
+            response.raise_for_status()
             
             model_info = response.json()
-            
-            if model_info.get('type') != 'LORA':
-                raise ValueError("This model is not a LORA type model")
+            if not model_info:
+                raise ValueError("No model information returned from API")
             
             return model_info
             
-        except requests.exceptions.RequestException as e:
-            raise Exception(f"Failed to fetch model info: {str(e)}")
-
-    def get_version_info(self, version_id: str) -> Dict:
-        try:
-            response = requests.get(
-                f"{self.api_base}/model-versions/{version_id}",
-                headers=self.headers,
-                timeout=30
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"Failed to fetch version information. Status: {response.status_code}")
-            
-            return response.json()
-            
-        except requests.exceptions.RequestException as e:
-            raise Exception(f"Failed to fetch version info: {str(e)}")
-
-    def download_file(self, model_info: Dict, version_id: str, dest_folder: str) -> str:
-        """Download file from CivitAI"""
-        try:
-            version_info = self.get_version_info(version_id)
-            
-            if not version_info.get('files'):
-                raise ValueError("No files available for this model version")
-            
-            safetensor_file = next(
-                (f for f in version_info['files'] 
-                 if f.get('metadata', {}).get('format') == 'SafeTensor'),
-                None
-            )
-            
-            if not safetensor_file:
-                raise ValueError("No SafeTensor format file available")
-            
-            download_url = safetensor_file.get('downloadUrl')
-            if not download_url:
-                raise ValueError("No download URL available")
-            
-            logging.info(f"Downloading from URL: {download_url}")
-            
-            response = requests.get(download_url, 
-                                 headers=self.headers,
-                                 stream=True)
-            
-            if response.status_code != 200:
-                raise Exception(f"Download failed. Status: {response.status_code}")
-            
-            # Determine filename
-            content_disposition = response.headers.get('content-disposition')
-            if content_disposition:
-                filename_match = re.findall(r'filename\*=UTF-8\'\'(.+)', content_disposition)
-                if filename_match:
-                    file_name = unquote(filename_match[0])
-                else:
-                    filename_match = re.findall(r'filename="(.+)"', content_disposition)
-                    if filename_match:
-                        file_name = filename_match[0]
-                    else:
-                        file_name = f"{model_info['name']}_{version_id}.safetensors"
-            else:
-                trained_words = version_info.get('trainedWords', [])
-                base_name = trained_words[0] if trained_words else model_info['name']
-                file_name = f"{base_name}_{version_id}.safetensors"
-            
-            file_name = sanitize_filename(file_name)
-            logging.info(f"Using filename: {file_name}")
-            
-            os.makedirs(dest_folder, exist_ok=True)
-            dest_path = os.path.join(dest_folder, file_name)
-            
-            total_size = int(response.headers.get('content-length', 0))
-            bytes_downloaded = 0
-            last_update = time.time()
-            
-            with open(dest_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        bytes_downloaded += len(chunk)
-                        current_time = time.time()
-                        if (current_time - last_update) >= 0.1:  # Update progress every 100ms
-                            if self.progress_callback and total_size:
-                                progress = (bytes_downloaded / total_size) * 100
-                                self.progress_callback(progress)
-                                last_update = current_time
-            
-            return dest_path
-            
         except Exception as e:
-            raise Exception(f"Download failed: {str(e)}")
+            logger.error(f"Error getting model info: {str(e)}")
+            return None
 
-    def get_model_trained_words(self, model_info: Dict, version_id: str = None) -> List[str]:
+    def get_download_url(self, url: str) -> Optional[str]:
+        try:
+            version_id = self.extract_version_id(url)
+            logger.info(f"Extracted version ID: {version_id}")
+            
+            if not version_id:
+                logger.info("No version ID extracted, attempting direct API call")
+                # Try direct API call with model ID
+                model_id = re.search(r'/models/(\d+)', url)
+                if model_id:
+                    model_info = self.get_model_info(model_id.group(1))
+                    if model_info and model_info.get('modelVersions'):
+                        version_id = str(model_info['modelVersions'][0]['id'])
+                        logger.info(f"Found version ID from model info: {version_id}")
+
+            if version_id:
+                api_url = f"https://civitai.com/api/v1/model-versions/{version_id}"
+                logger.info(f"Calling API URL: {api_url}")
+                response = requests.get(api_url, headers=self.headers, timeout=30)
+                response.raise_for_status()
+                
+                version_info = response.json()
+                logger.info(f"API Response status: {response.status_code}")
+                
+                # Find primary file with SafeTensor format
+                for file in version_info.get('files', []):
+                    if file.get('primary', False):
+                        download_url = file.get('downloadUrl')
+                        logger.info(f"Found download URL: {download_url}")
+                        return download_url
+                        
+            raise ValueError("No suitable download URL found")
+                
+        except Exception as e:
+            logger.error(f"Error getting download URL: {str(e)}")
+            return None
+
+    def get_model_trained_words(self, url: str) -> List[str]:
         """Get trained words for the model version"""
         try:
-            if version_id:
-                version = next((v for v in model_info['modelVersions'] 
-                              if str(v['id']) == version_id), None)
-            else:
-                version = model_info['modelVersions'][0]
+            version_id = self.extract_version_id(url)
+            if not version_id:
+                return []
+                
+            api_url = f"https://civitai.com/api/v1/model-versions/{version_id}"
+            response = requests.get(api_url, headers=self.headers, timeout=30)
+            response.raise_for_status()
             
-            return version.get('trainedWords', [])
-        except Exception:
+            version_info = response.json()
+            return version_info.get('trainedWords', [])
+            
+        except Exception as e:
+            logger.error(f"Error getting trained words: {str(e)}")
             return []
+
+    def download_file(self, model_info: Dict, version_id: str, dest_folder: str) -> str:
+        try:
+            # Get download URL using the version ID
+            api_url = f"https://civitai.com/api/v1/model-versions/{version_id}"
+            logger.info(f"Requesting version info from: {api_url}")
+            
+            response = requests.get(api_url, headers=self.headers, timeout=30)
+            response.raise_for_status()
+            
+            version_data = response.json()
+            logger.info(f"Version data received for ID {version_id}")
+            
+            # Find the primary file
+            for file in version_data.get('files', []):
+                if file.get('primary', False):
+                    download_url = file.get('downloadUrl')
+                    if download_url:
+                        logger.info(f"Found download URL: {download_url}")
+                        
+                        # Get filename from content disposition or URL
+                        download_response = requests.get(
+                            download_url,
+                            headers=self.headers,
+                            stream=True,
+                            timeout=30
+                        )
+                        download_response.raise_for_status()
+                        
+                        content_disposition = download_response.headers.get('content-disposition')
+                        if content_disposition:
+                            filename = re.findall("filename=(.+)", content_disposition)[0].strip('"')
+                        else:
+                            filename = download_url.split('/')[-1]
+                        
+                        output_path = os.path.join(dest_folder, filename)
+                        
+                        # Download with progress tracking
+                        total_size = int(download_response.headers.get('content-length', 0))
+                        block_size = 1024 * 1024  # 1MB chunks
+                        downloaded_size = 0
+                        
+                        with open(output_path, 'wb') as f:
+                            for data in download_response.iter_content(block_size):
+                                downloaded_size += len(data)
+                                f.write(data)
+                                if total_size:
+                                    progress = (downloaded_size / total_size) * 100
+                                    if self.progress_callback:
+                                        self.progress_callback(progress)
+                        
+                        logger.info(f"Download completed: {output_path}")
+                        return output_path
+            
+            raise ValueError("No primary file found in version data")
+        except Exception as e:
+            logger.error(f"Error in download_file: {str(e)}")
+            raise

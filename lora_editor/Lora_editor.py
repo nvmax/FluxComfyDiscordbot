@@ -627,8 +627,17 @@ class LoraEditor:
         # Reorder buttons frame
         reorder_frame = ttk.Frame(tree_container)
         reorder_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(5, 0))
+        
+        # Single position move buttons
         ttk.Button(reorder_frame, text="▲", width=3, command=self.move_up).pack(pady=2)
         ttk.Button(reorder_frame, text="▼", width=3, command=self.move_down).pack(pady=2)
+        
+        # Add separator
+        ttk.Separator(reorder_frame, orient='horizontal').pack(fill='x', pady=5)
+        
+        # Multiple position move buttons
+        ttk.Button(reorder_frame, text="▲▲", width=3, command=self.move_up_five).pack(pady=2)
+        ttk.Button(reorder_frame, text="▼▼", width=3, command=self.move_down_five).pack(pady=2)
         
         # Configure tree frame grid weights
         tree_frame.grid_columnconfigure(0, weight=1)
@@ -948,6 +957,63 @@ class LoraEditor:
             # Swap items in the config data
             self.config.data["available_loras"][idx], self.config.data["available_loras"][idx+1] = \
                 self.config.data["available_loras"][idx+1], self.config.data["available_loras"][idx]
+            
+            # Update IDs
+            self.config.update_ids()
+            
+            # Keep selection on moved item
+            self.tree.selection_set(item)
+            self.tree.see(item)
+
+    def move_up_five(self):
+        """Move selected item up 5 positions"""
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        item = selected[0]
+        current_idx = self.tree.index(item)
+        target_idx = max(0, current_idx - 5)  # Don't go above 0
+        
+        if current_idx > target_idx:  # Only move if we're not already at the top
+            # Move the item
+            self.tree.move(item, "", target_idx)
+            
+            # Update the config data to match
+            entry = self.config.data["available_loras"].pop(current_idx)
+            self.config.data["available_loras"].insert(target_idx, entry)
+            
+            # Update database order
+            self.sync_database_order()
+            
+            # Update IDs
+            self.config.update_ids()
+            
+            # Keep selection on moved item
+            self.tree.selection_set(item)
+            self.tree.see(item)
+
+    def move_down_five(self):
+        """Move selected item down 5 positions"""
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        item = selected[0]
+        current_idx = self.tree.index(item)
+        max_idx = len(self.tree.get_children()) - 1
+        target_idx = min(max_idx, current_idx + 5)  # Don't go below max index
+        
+        if current_idx < target_idx:  # Only move if we're not already at the bottom
+            # Move the item
+            self.tree.move(item, "", target_idx)
+            
+            # Update the config data to match
+            entry = self.config.data["available_loras"].pop(current_idx)
+            self.config.data["available_loras"].insert(target_idx, entry)
+            
+            # Update database order
+            self.sync_database_order()
             
             # Update IDs
             self.config.update_ids()

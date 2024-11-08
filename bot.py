@@ -16,6 +16,7 @@ from web_server import start_web_server
 import logging
 import json
 import uuid
+from Main.lora_monitor import setup_lora_monitor
 ## import comfygen.py from main directory
 
 
@@ -32,6 +33,7 @@ class MyBot(discord_commands.Bot):
         self.resolution_options = []
         self.lora_options = []
         self.tree.on_error = self.on_tree_error
+        setup_lora_monitor(self)
 
     async def setup_hook(self):
         init_db()
@@ -59,6 +61,13 @@ class MyBot(discord_commands.Bot):
                 original_loras=json.loads(info[7]),
                 original_upscale_factor=info[8]
             ))
+
+    async def close(self):
+        # Stop the file observer when bot shuts down
+        if hasattr(self, 'lora_observer'):
+            self.lora_observer.stop()
+            self.lora_observer.join()
+        await super().close()
 
     async def process_subprocess_queue(self):
         while True:

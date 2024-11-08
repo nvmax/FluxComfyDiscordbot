@@ -2,13 +2,6 @@
   "default": "",
   "available_loras": [
     {
-      "id": 1,
-      "name": "Undead Madness WOWstyle",
-      "file": "undeadmadness-warcraftstyle.safetensors",
-      "weight": 0.5,
-      "add_prompt": "warcraftundeadstyle"
-    },
-    {
       "id": 2,
       "name": "Mystic Splash",
       "file": "MysticSplash.safetensors",

@@ -24,6 +24,15 @@ Whether you're an artist looking for inspiration, a writer wanting to visualize 
 
 So, are you ready to dive into a world where your words paint pictures? Where your imagination knows no bounds? Where you can create images you never even knew you could think of? Then you're in the right place! Let's embark on this exciting journey of AI-powered creativity together!
 
+## New Updates:
+  * Loras are now monitored and when a new one is detected it will be added to the list of loras on the bot, no need to restart the bot.
+  * Lora list now supports more than 25 loras, theoritically it can support north of 600 loras.
+  * Lora editor
+    * Added active and inactive status, you can now select what ones you want to show with out having to delete them.
+    * Added Jump 5 space buttons, will move the selected lora up or down 5 spaces
+    * Added reset lora this will wipe out all loras(destructive) does not delete your loras in your folder.
+    * Added Huggingface support, you can now download loras from huggingface.
+
 ## Table of Contents
 1. [Prerequisite](#prerequisite)
 2. [Installation](#installation)
@@ -131,19 +140,9 @@ This is where the magic happens, LoRA models can enhance and apply a specific fe
 
 These models will go in your comfyui/models/Lora folder.
 
-### Adding LoRA's to your bot (please configure this before running, has examples already you may not have!)
+## Adding LoRA's to your bot 
+(please configure this before running, has examples already you may not have!)
 
-  #### Manually configure:
-  * open the lora.json file located in /Datasets 
-  * Add name of your LoRA you downloaded or use a name you choose so you know what it is, this does not need to be the actual name of the file.
-  * add_prompt: if the lora requires a trigger word place it in this field
-  * file: this is the exact name of the LoRA file with .safetensors, Example: MyLoRA.safetensors
-  * weight: this is the weight required to get the desired effect from the lora.  
-    * 0.5 is ideal if you are wanting to use multiple LoRA's at one time, having many at 1.0 can cause mass hallucination on image generations.
-   
-    
-    
-    
 ### New Tool: Lora_editor
 
     ### update: 
@@ -152,6 +151,9 @@ These models will go in your comfyui/models/Lora folder.
     * Persistant lora information is stored in sqlite3 database.
     * Trigger words are now persistant. 
     * Now supports Huggingface (you will need to add the trigger words yourself for HF LoRA's)
+    * Now has a reset lora button, this will wipe all loras from the list. (will not delete the lora files)
+    * has 5 space jump for listed loras, double arrows will jump the item in list 5 spaces up or down.
+    * Loras are now instantly available on the bot as soon as they are added to the list. 
 
   * This tool will allow you to configure your LoRA's with a simple gui, it will also allow you to download new LoRA's from Civitai and Huggingface.
   * Open lora_editor.py  using "python lora_editor.py", it will open a gui window.
@@ -171,6 +173,18 @@ These models will go in your comfyui/models/Lora folder.
   - allows you to customize in what order they are shown in the bot easily.
       
 <img src="loraeditor.png" width="600">
+  
+  #### Manually configure:
+  * open the lora.json file located in /Datasets 
+  * Add name of your LoRA you downloaded or use a name you choose so you know what it is, this does not need to be the actual name of the file.
+  * add_prompt: if the lora requires a trigger word place it in this field
+  * file: this is the exact name of the LoRA file with .safetensors, Example: MyLoRA.safetensors
+  * weight: this is the weight required to get the desired effect from the lora.  
+    * 0.5 is ideal if you are wanting to use multiple LoRA's at one time, having many at 1.0 can cause mass hallucination on image generations.
+   
+    
+    
+    
 
 
 #### Banned words or people

@@ -1005,15 +1005,44 @@ class LoraEditor:
         }, available_files=self.available_lora_files)
         
         if dialog.result:
-            index = int(values[0]) - 1
-            self.config.data["available_loras"][index].update({
-                "name": dialog.result["name"],
-                "file": dialog.result["file"],
-                "weight": float(dialog.result["weight"]),
-                "add_prompt": dialog.result["prompt"]
-            })
-            self.load_tree()
-            self.status_var.set(f"Updated entry: {dialog.result['name']}")
+            try:
+                # Update database entry
+                self.db.add_lora(LoraHistoryEntry(
+                    file_name=dialog.result["file"],
+                    display_name=dialog.result["name"],
+                    trigger_words=dialog.result["prompt"],
+                    weight=float(dialog.result["weight"]),
+                    is_active=True
+                ))
+                
+                # Update JSON config
+                index = int(values[0]) - 1  # Get index from ID column
+                self.config.data["available_loras"][index].update({
+                    "name": dialog.result["name"],
+                    "file": dialog.result["file"],
+                    "weight": float(dialog.result["weight"]),
+                    "add_prompt": dialog.result["prompt"]
+                })
+                
+                # Save JSON config to file
+                self.config.save_config()
+                
+                # Update tree view
+                self.tree.set(selected[0], "Name", dialog.result["name"])
+                self.tree.set(selected[0], "File", dialog.result["file"])
+                self.tree.set(selected[0], "Weight", dialog.result["weight"])
+                self.tree.set(selected[0], "Prompt", dialog.result["prompt"])
+                
+                # Update status
+                self.status_var.set(f"Updated entry: {dialog.result['name']}")
+                
+                # Refresh the display
+                self.refresh_tree()
+                self.refresh_lora_files()
+                
+            except Exception as e:
+                logging.error(f"Error updating entry: {e}")
+                messagebox.showerror("Error", f"Failed to update entry: {str(e)}")
 
     def delete_entry(self):
         """Delete the selected LoRA entry"""

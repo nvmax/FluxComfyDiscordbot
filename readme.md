@@ -25,7 +25,9 @@ Whether you're an artist looking for inspiration, a writer wanting to visualize 
 So, are you ready to dive into a world where your words paint pictures? Where your imagination knows no bounds? Where you can create images you never even knew you could think of? Then you're in the right place! Let's embark on this exciting journey of AI-powered creativity together!
 
 ## New Updates:
-  * Loras are now monitored and when a new one is detected it will be added to the list of loras on the bot, no need to restart the bot.
+  * Now Supports Docker - refer to "Setting up the Discord Bot" for more details
+  * Fixed issue with lora "confirm selection" button not updating the amount of loras selected.
+  * Loras are now monitored and when a new one is detected it will be added to the list of loras on the bot, no need to restart the bot(does not apply to Docker ran installation).
   * Lora list now supports more than 25 loras, theoritically it can support north of 600 loras.
   * Lora editor
     * Added active and inactive status, you can now select what ones you want to show with out having to delete them.
@@ -73,7 +75,7 @@ The bot should now be running and connected to your Discord server.
 
 Note: If you close the terminal, it ends the bot. 
 
- 
+
 
 
 ## Setting up the Discord Bot
@@ -132,6 +134,20 @@ Note: If you close the terminal, it ends the bot.
     
     
   <img src="setuptool.jpg" width="500">
+
+  ## Docker Installation:
+   * requires previous setup to be completed first
+   * configure your loras file using the Lora_editor tool
+   * run the following command in your terminal:
+   ```
+   docker-compose up --build
+   ```
+   * if it doesnt link up to your comfyui you may need to adjust the server adddress in the dockerfile
+   * Line 33, ENV server_address=0.0.0.0 (try 127.0.0.1 or your actual internal ip on your network, or ip where comfyui is running)
+   * after build you dont need to run the build command again just run 
+   ```
+   docker-compose up
+   ```
 
 	 
 ## LoRA (Low-Rank Adaptation) models Config

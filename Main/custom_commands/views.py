@@ -19,62 +19,90 @@ class PaginatedLoRASelect(discord.ui.Select):
         self.all_options = []
         selected_loras = selected_loras or []
         
-        # Create select options with proper default values
-        for lora in lora_options:
+        # Calculate page slicing
+        start_idx = page * 25
+        end_idx = min(start_idx + 25, len(lora_options))
+        page_options = lora_options[start_idx:end_idx]
+        
+        # Create options only for current page
+        for lora in page_options:
             self.all_options.append(
                 discord.SelectOption(
                     label=lora['name'],
                     value=lora['file'],
-                    default=bool(lora['file'] in selected_loras)  # Explicitly convert to boolean
+                    default=bool(lora['file'] in selected_loras)
                 )
             )
         
-        # Calculate page slicing
-        start_idx = page * 25
-        end_idx = min(start_idx + 25, len(self.all_options))
-        current_options = self.all_options[start_idx:end_idx]
-        
-        total_pages = (len(self.all_options) - 1) // 25 + 1
+        total_pages = (len(lora_options) - 1) // 25 + 1
         super().__init__(
             placeholder=f"Select LoRAs (Page {page + 1}/{total_pages})",
             min_values=0,
-            max_values=len(current_options),
-            options=current_options
+            max_values=len(self.all_options),
+            options=self.all_options
         )
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-
-class PaginatedLoRASelect(discord.ui.Select):
-    def __init__(self, lora_options: List[dict], page: int = 0, selected_loras: List[str] = None):
-        self.all_options = []
-        selected_loras = selected_loras or []
-        
-        # Create select options with proper default values
-        for lora in lora_options:
-            self.all_options.append(
-                discord.SelectOption(
-                    label=lora['name'],
-                    value=lora['file'],
-                    default=bool(lora['file'] in selected_loras)  # Explicitly convert to boolean
-                )
+        view = self.view
+        try:
+            # Get current page options
+            current_page_values = {option.value for option in self.options}
+            
+            # Determine which selections set to use
+            selections = (view.all_selections if hasattr(view, 'all_selections') 
+                        else view.all_selected_loras if hasattr(view, 'all_selected_loras') 
+                        else set())
+            
+            # Remove all options from current page from selections
+            selections = {
+                selection for selection in selections 
+                if selection not in current_page_values
+            }
+            
+            # Add only currently selected values
+            selections.update(self.values)
+            
+            # Update the view's selection set
+            if hasattr(view, 'all_selections'):
+                view.all_selections = selections
+            else:
+                view.all_selected_loras = selections
+            
+            # Update page selections tracking
+            if hasattr(view, '_page_selections'):
+                view._page_selections[view.page] = set(self.values)
+            
+            # Update confirm button
+            for child in view.children:
+                if isinstance(child, discord.ui.Button) and "confirm" in str(child.custom_id):
+                    child.label = f"Confirm Selection ({len(selections)} LoRAs)"
+                    break
+                    
+            # Recreate the select with updated defaults
+            new_select = PaginatedLoRASelect(
+                view.bot.lora_options,
+                view.page,
+                list(selections)
             )
-        
-        # Calculate page slicing
-        start_idx = page * 25
-        end_idx = min(start_idx + 25, len(self.all_options))
-        current_options = self.all_options[start_idx:end_idx]
-        
-        total_pages = (len(self.all_options) - 1) // 25 + 1
-        super().__init__(
-            placeholder=f"Select LoRAs (Page {page + 1}/{total_pages})",
-            min_values=0,
-            max_values=len(current_options),
-            options=current_options
-        )
+            
+            # Replace the old select with the new one
+            for i, child in enumerate(view.children):
+                if isinstance(child, PaginatedLoRASelect):
+                    new_select.callback = child.callback
+                    view.remove_item(child)
+                    view.add_item(new_select)
+                    break
+            
+            # Update the view
+            await interaction.response.edit_message(view=view)
+            
+            logger.debug(f"Updated selections: {selections}")
+            logger.debug(f"Current page values: {self.values}")
+            
+        except Exception as e:
+            logger.error(f"Error in LoRA select callback: {str(e)}", exc_info=True)
+            await interaction.response.defer()
 
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
 
 class LoRAView(discord.ui.View):
     def __init__(self, bot):
@@ -84,25 +112,27 @@ class LoRAView(discord.ui.View):
         self.all_selections = set()
         self.selected_loras = []
         self.has_confirmed = False
+        self._page_selections = {}
         self.update_view()
 
     def update_view(self):
+        """Update view with current selections"""
         self.clear_items()
         
         # Create new select menu with current selections
         self.lora_select = PaginatedLoRASelect(
             self.bot.lora_options,
             self.page,
-            list(self.all_selections)
+            list(self.all_selections)  # Pass all selections to show defaults
         )
         self.add_item(self.lora_select)
         
-        # Add navigation buttons if needed
+        # Add navigation buttons
         total_pages = (len(self.bot.lora_options) - 1) // 25 + 1
         
         if self.page > 0:
             previous_button = discord.ui.Button(
-                custom_id="previous_page",
+                custom_id=f"previous_page_{self.page}",
                 label="◀ Previous",
                 style=discord.ButtonStyle.secondary,
                 row=1
@@ -112,7 +142,7 @@ class LoRAView(discord.ui.View):
         
         if self.page < total_pages - 1:
             next_button = discord.ui.Button(
-                custom_id="next_page",
+                custom_id=f"next_page_{self.page}",
                 label="Next ▶",
                 style=discord.ButtonStyle.secondary,
                 row=1
@@ -121,10 +151,9 @@ class LoRAView(discord.ui.View):
             self.add_item(next_button)
         
         # Always show selection count
-        selection_count = len(self.all_selections)
         confirm_button = discord.ui.Button(
-            custom_id="confirm",
-            label=f"Confirm Selection ({selection_count})",
+            custom_id=f"confirm_{self.page}",
+            label=f"Confirm Selection ({len(self.all_selections)} LoRAs)",
             style=discord.ButtonStyle.primary,
             row=2
         )
@@ -132,7 +161,7 @@ class LoRAView(discord.ui.View):
         self.add_item(confirm_button)
 
         cancel_button = discord.ui.Button(
-            custom_id="cancel",
+            custom_id=f"cancel_{self.page}",
             label="Cancel",
             style=discord.ButtonStyle.secondary,
             row=2
@@ -141,18 +170,44 @@ class LoRAView(discord.ui.View):
         self.add_item(cancel_button)
 
     async def previous_page_callback(self, interaction: discord.Interaction):
-        # Update selections from current page
-        if self.lora_select.values:
-            self.all_selections.update(self.lora_select.values)
+        """Handle previous page navigation"""
+        if hasattr(self.lora_select, 'values'):
+            # Get current page files
+            start_idx = self.page * 25
+            end_idx = min(start_idx + 25, len(self.bot.lora_options))
+            current_page_files = {option.value for option in self.lora_select.options}
+            
+            # Update selections for current page
+            self.all_selections = {
+                selection for selection in self.all_selections 
+                if selection not in current_page_files
+            }
+            if self.lora_select.values:
+                self.all_selections.update(self.lora_select.values)
+            
+            self._page_selections[self.page] = set(self.lora_select.values)
         
         self.page = max(0, self.page - 1)
         self.update_view()
         await interaction.response.edit_message(view=self)
 
     async def next_page_callback(self, interaction: discord.Interaction):
-        # Update selections from current page
-        if self.lora_select.values:
-            self.all_selections.update(self.lora_select.values)
+        """Handle next page navigation"""
+        if hasattr(self.lora_select, 'values'):
+            # Get current page files
+            start_idx = self.page * 25
+            end_idx = min(start_idx + 25, len(self.bot.lora_options))
+            current_page_files = {option.value for option in self.lora_select.options}
+            
+            # Update selections for current page
+            self.all_selections = {
+                selection for selection in self.all_selections 
+                if selection not in current_page_files
+            }
+            if self.lora_select.values:
+                self.all_selections.update(self.lora_select.values)
+            
+            self._page_selections[self.page] = set(self.lora_select.values)
         
         total_pages = (len(self.bot.lora_options) - 1) // 25 + 1
         self.page = min(self.page + 1, total_pages - 1)
@@ -160,17 +215,33 @@ class LoRAView(discord.ui.View):
         await interaction.response.edit_message(view=self)
 
     async def confirm_callback(self, interaction: discord.Interaction):
-        # Update selections one last time
-        if self.lora_select.values:
-            self.all_selections.update(self.lora_select.values)
-        
+        """Handle confirm button press"""
+        if hasattr(self.lora_select, 'values'):
+            # Get current page files
+            start_idx = self.page * 25
+            end_idx = min(start_idx + 25, len(self.bot.lora_options))
+            current_page_files = {option.value for option in self.lora_select.options}
+            
+            # Update selections for current page
+            self.all_selections = {
+                selection for selection in self.all_selections 
+                if selection not in current_page_files
+            }
+            if self.lora_select.values:
+                self.all_selections.update(self.lora_select.values)
+            
+            self._page_selections[self.page] = set(self.lora_select.values)
+            
         self.selected_loras = list(self.all_selections)
-        logger.debug(f"Confirming LoRA selection: {self.selected_loras}")
+        logger.debug(f"Final LoRA selection: {self.selected_loras}")
+        logger.debug(f"Page selections at confirm: {self._page_selections}")
         self.has_confirmed = True
         self.stop()
         await interaction.response.defer()
 
     async def cancel_callback(self, interaction: discord.Interaction):
+        """Handle cancel button press"""
+        self._page_selections.clear()
         self.all_selections.clear()
         self.selected_loras = []
         self.has_confirmed = False
@@ -178,16 +249,18 @@ class LoRAView(discord.ui.View):
         await interaction.response.defer()
 
     async def on_timeout(self):
+        """Handle view timeout"""
+        self._page_selections.clear()
         self.all_selections.clear()
         self.selected_loras = []
         self.has_confirmed = False
         self.stop()
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Check if the interaction is valid"""
         if not await super().interaction_check(interaction):
             return False
             
-        # Store the user_id from the first interaction
         if not hasattr(self, 'user_id'):
             self.user_id = interaction.user.id
             

@@ -3,6 +3,7 @@ from discord.ext import commands as discord_commands
 import asyncio
 import subprocess
 import os
+import platform
 from config import (
     DISCORD_TOKEN, intents, COMMAND_PREFIX, 
     CHANNEL_IDS, ALLOWED_SERVERS, BOT_MANAGER_ROLE_ID
@@ -17,9 +18,6 @@ import logging
 import json
 import uuid
 from Main.lora_monitor import setup_lora_monitor
-## import comfygen.py from main directory
-
-
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -34,6 +32,12 @@ class MyBot(discord_commands.Bot):
         self.lora_options = []
         self.tree.on_error = self.on_tree_error
         setup_lora_monitor(self)
+
+    def get_python_command(self):
+        """Get the appropriate Python command based on the platform"""
+        if platform.system() == "Windows":
+            return "python"
+        return "python3"
 
     async def setup_hook(self):
         init_db()
@@ -78,8 +82,11 @@ class MyBot(discord_commands.Bot):
                 logger.debug(f"Processing subprocess queue: {request_item}")
                 await asyncio.sleep(5)
 
+                python_cmd = self.get_python_command()
+                
                 subprocess.Popen([
-                    'python', 'comfygen.py',  
+                    python_cmd,
+                    'comfygen.py',  
                     request_id,
                     request_item.user_id,
                     request_item.channel_id,

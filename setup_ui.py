@@ -25,7 +25,7 @@ class SetupUI:
     def __init__(self, root):
         self.root = root
         self.root.title("FLUX ComfyUI Setup")
-        self.root.geometry("800x800")
+        self.root.geometry("800x820")
         self.setup_manager = SetupManager()
         
         # Variables

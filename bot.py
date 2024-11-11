@@ -17,7 +17,7 @@ from web_server import start_web_server
 import logging
 import json
 import uuid
-from Main.lora_monitor import setup_lora_monitor
+from Main.lora_monitor import setup_lora_monitor, cleanup_lora_monitor
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -67,10 +67,7 @@ class MyBot(discord_commands.Bot):
             ))
 
     async def close(self):
-        # Stop the file observer when bot shuts down
-        if hasattr(self, 'lora_observer'):
-            self.lora_observer.stop()
-            self.lora_observer.join()
+        cleanup_lora_monitor(self)
         await super().close()
 
     async def process_subprocess_queue(self):

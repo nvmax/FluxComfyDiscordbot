@@ -1,12 +1,10 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import threading
-from setup_support import BASE_MODELS, CHECKPOINTS, SetupManager
+from setup_support import SetupManager, BASE_MODELS, CHECKPOINTS
 import os
-from tqdm import tqdm
 import logging
-import shutil
-
+from pathlib import Path
 
 # Create logs directory if it doesn't exist
 os.makedirs('logs', exist_ok=True)
@@ -27,11 +25,11 @@ class SetupUI:
     def __init__(self, root):
         self.root = root
         self.root.title("FLUX ComfyUI Setup")
-        self.root.geometry("800x800")  # Increased height for new sections
+        self.root.geometry("800x800")
         self.setup_manager = SetupManager()
         
         # Variables
-        self.models_path = tk.StringVar()
+        self.base_dir = tk.StringVar()
         self.hf_token = tk.StringVar()
         self.civitai_token = tk.StringVar()
         self.discord_token = tk.StringVar()
@@ -69,7 +67,8 @@ class SetupUI:
             
             # Load paths
             if 'COMFYUI_MODELS_PATH' in env_vars:
-                self.models_path.set(env_vars['COMFYUI_MODELS_PATH'])
+                base_path = Path(env_vars['COMFYUI_MODELS_PATH']).parent.parent
+                self.base_dir.set(str(base_path))
             
             # Load addresses
             if 'BOT_SERVER' in env_vars:
@@ -98,13 +97,14 @@ class SetupUI:
         self.root.grid_columnconfigure(0, weight=1)
         main_frame.grid_columnconfigure(1, weight=1)
 
-        current_row = 0  # Track the current row for layout
+        current_row = 0
 
-        # Models Directory Section
-        ttk.Label(main_frame, text="ComfyUI Models Directory:", font=('Helvetica', 10, 'bold')).grid(row=current_row, column=0, sticky="w", pady=(0, 5))
-        ttk.Entry(main_frame, textvariable=self.models_path, width=50).grid(row=current_row + 1, column=0, columnspan=2, sticky="ew", padx=(0, 5))
-        ttk.Button(main_frame, text="Browse", command=self.browse_directory).grid(row=current_row + 1, column=2, sticky="w")
-        current_row += 2
+        # Base Directory Section
+        ttk.Label(main_frame, text="ComfyUI Base Directory:", font=('Helvetica', 10, 'bold')).grid(row=current_row, column=0, sticky="w", pady=(0, 5))
+        ttk.Label(main_frame, text="(Should contain 'ComfyUI' and 'python_embedded' folders)", font=('Helvetica', 8)).grid(row=current_row + 1, column=0, columnspan=2, sticky="w")
+        ttk.Entry(main_frame, textvariable=self.base_dir, width=50).grid(row=current_row + 2, column=0, columnspan=2, sticky="ew", padx=(0, 5))
+        ttk.Button(main_frame, text="Browse", command=self.browse_directory).grid(row=current_row + 2, column=2, sticky="w")
+        current_row += 3
 
         # Token Section
         token_frame = ttk.LabelFrame(main_frame, text="API Tokens", padding="10")
@@ -137,46 +137,37 @@ class SetupUI:
         current_row += 2
 
         # Discord Configuration Section
-        discord_frame = ttk.LabelFrame(main_frame, text="Discord Configuration- no spaces just ids and a comma between them", padding="10")
+        discord_frame = ttk.LabelFrame(main_frame, text="Discord Configuration", padding="10")
         discord_frame.grid(row=current_row + 1, column=0, columnspan=3, sticky="ew", pady=10)
         
-        # Allowed Server IDs with Text widget
         ttk.Label(discord_frame, text="Allowed Server IDs:").grid(row=0, column=0, sticky="nw", pady=5)
         servers_text = tk.Text(discord_frame, height=3, width=40, wrap=tk.WORD)
         servers_text.grid(row=0, column=1, sticky="ew", padx=5)
         
-        # Bind the Text widget to the StringVar
         def update_servers_var(*args):
             self.allowed_servers.set(servers_text.get("1.0", "end-1c"))
         servers_text.bind('<KeyRelease>', update_servers_var)
-        # Set initial value if exists
         if self.allowed_servers.get():
             servers_text.insert("1.0", self.allowed_servers.get())
         
-        # Add scrollbar for servers
         servers_scroll = ttk.Scrollbar(discord_frame, orient="vertical", command=servers_text.yview)
         servers_scroll.grid(row=0, column=2, sticky="ns")
         servers_text.config(yscrollcommand=servers_scroll.set)
         
-        # Channel IDs with Text widget
         ttk.Label(discord_frame, text="Channel IDs:").grid(row=1, column=0, sticky="nw", pady=5)
         channels_text = tk.Text(discord_frame, height=3, width=40, wrap=tk.WORD)
         channels_text.grid(row=1, column=1, sticky="ew", padx=5)
         
-        # Bind the Text widget to the StringVar
         def update_channels_var(*args):
             self.channel_ids.set(channels_text.get("1.0", "end-1c"))
         channels_text.bind('<KeyRelease>', update_channels_var)
-        # Set initial value if exists
         if self.channel_ids.get():
             channels_text.insert("1.0", self.channel_ids.get())
         
-        # Add scrollbar for channels
         channels_scroll = ttk.Scrollbar(discord_frame, orient="vertical", command=channels_text.yview)
         channels_scroll.grid(row=1, column=2, sticky="ns")
         channels_text.config(yscrollcommand=channels_scroll.set)
         
-        # Bot Manager Role ID
         ttk.Label(discord_frame, text="Bot Manager Role ID:").grid(row=2, column=0, sticky="w", pady=5)
         ttk.Entry(discord_frame, textvariable=self.bot_manager_role_id, width=40).grid(row=2, column=1, sticky="ew", padx=5)
         current_row += 3
@@ -216,29 +207,9 @@ class SetupUI:
         ttk.Button(button_frame, text="Install", command=self.start_installation).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Cancel", command=self.root.quit).pack(side=tk.LEFT, padx=5)
 
-        # Configure column weights for the frames to ensure proper expansion
+        # Configure column weights for the frames
         for frame in [token_frame, address_frame, discord_frame, checkpoint_frame, progress_frame]:
             frame.grid_columnconfigure(1, weight=1)
-
-    def save_tokens_and_path(self):
-        """Save tokens and models path to .env file"""
-        try:
-            env_vars = self.setup_manager.load_env()
-            
-            # Update tokens and path
-            if self.hf_token.get():
-                env_vars['HUGGINGFACE_TOKEN'] = self.hf_token.get()
-            if self.civitai_token.get():
-                env_vars['CIVITAI_API_TOKEN'] = self.civitai_token.get()
-            if self.models_path.get():
-                env_vars['COMFYUI_MODELS_PATH'] = self.models_path.get()
-            
-            # Save to .env file
-            self.setup_manager.save_env(env_vars)
-            logger.debug("Saved tokens and models path to .env")
-            
-        except Exception as e:
-            logger.error(f"Error saving tokens and path: {str(e)}")
 
     def center_window(self):
         """Center the window on the screen"""
@@ -251,9 +222,25 @@ class SetupUI:
 
     def browse_directory(self):
         """Open directory browser dialog"""
-        directory = filedialog.askdirectory(title="Select ComfyUI Models Directory")
-        if directory:
-            self.models_path.set(directory)
+        try:
+            directory = filedialog.askdirectory(title="Select ComfyUI Base Directory")
+            if directory:
+                # List directory contents before validation
+                contents = [f for f in os.listdir(directory)]
+                logger.debug(f"Selected directory contents: {contents}")
+                
+                if self.setup_manager.validator.validate_comfyui_directory(directory):
+                    self.base_dir.set(directory)
+                    paths = self.setup_manager.validator.setup_required_paths(directory)
+                    self.setup_manager.models_path = paths['models_dir']
+                    self.setup_manager.base_dir = directory
+                else:
+                    error_msg = f"Selected directory must contain 'ComfyUI' and 'python_embeded' folders.\nFound: {contents}"
+                    logger.error(error_msg)
+                    messagebox.showerror("Error", error_msg)
+        except Exception as e:
+            logger.error(f"Error validating directory: {str(e)}")
+            messagebox.showerror("Error", f"Error validating directory: {str(e)}")
 
     def validate_token(self, token_type):
         """Validate the specified token"""
@@ -307,10 +294,10 @@ class SetupUI:
                 env_vars['DISCORD_TOKEN'] = self.discord_token.get()
                 
             # Update paths
-            if self.models_path.get():
-                env_vars['COMFYUI_MODELS_PATH'] = self.models_path.get()
+            if self.setup_manager.models_path:
+                env_vars['COMFYUI_MODELS_PATH'] = self.setup_manager.models_path
                 
-            # Update addresses (preserve quotes and comments)
+            # Update addresses
             if self.bot_server.get():
                 env_vars['BOT_SERVER'] = self.bot_server.get()
             if self.server_address.get():
@@ -334,8 +321,13 @@ class SetupUI:
 
     def start_installation(self):
         """Start the installation process"""
-        if not self.models_path.get():
-            messagebox.showerror("Error", "Please select ComfyUI Models Directory")
+        if not self.base_dir.get():
+            messagebox.showerror("Error", "Please select ComfyUI Base Directory")
+            return
+
+        # Validate directory structure
+        if not self.setup_manager.validator.validate_comfyui_directory(self.base_dir.get()):
+            messagebox.showerror("Error", "Invalid ComfyUI directory structure")
             return
 
         # Save configuration before starting installation
@@ -369,24 +361,26 @@ class SetupUI:
         """Run the installation process"""
         try:
             # Set up manager properties
-            self.setup_manager.models_path = self.models_path.get()
+            self.setup_manager.models_path = os.path.join(self.base_dir.get(), "ComfyUI", "models")
             self.setup_manager.hf_token = self.hf_token.get()
             self.setup_manager.civitai_token = self.civitai_token.get()
             self.setup_manager.progress_callback = self.update_download_progress
             
-            # Save all configuration values including new fields
+            # Copy gguf_reader.py
+            self.update_progress(10, "Copying required files...")
+            if not self.setup_manager.validator.copy_gguf_reader(os.getcwd(), self.base_dir.get()):
+                raise Exception("Failed to copy gguf_reader.py")
+
+            # Save all configuration values
             self.save_configuration()
             
-            # Reset progress
-            self.update_progress(0, "Starting installation...")
-            
-            # Process base models first
+            # Process base models
             total_models = len(BASE_MODELS)
             for index, (model_name, model_info) in enumerate(BASE_MODELS.items(), 1):
                 self.update_progress(0, f"Processing {model_name} ({index}/{total_models})...")
                 
                 model_path = os.path.join(
-                    self.models_path.get(),
+                    self.setup_manager.models_path,
                     model_info['path'].strip('/'),
                     model_info['filename']
                 )
@@ -416,7 +410,7 @@ class SetupUI:
                 self.update_progress(0, f"Processing checkpoint {self.selected_checkpoint.get()}...")
                 
                 checkpoint_path = os.path.join(
-                    self.models_path.get(),
+                    self.setup_manager.models_path,
                     checkpoint_info['path'].strip('/'),
                     checkpoint_info['filename']
                 )
@@ -443,51 +437,6 @@ class SetupUI:
                 self.status_var.set("Updating configuration...")
                 self.setup_manager.update_env_file(checkpoint_info['workflow'])
 
-            # Move additional required files
-                self.update_progress(90, "Moving additional required files...")
-            try:
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                
-                # Handle upscale model file
-                source_upscale = os.path.join(current_dir, "ComfyUI", "models", "upscale_models", "4x-ClearRealityV1.pth")
-                dest_upscale = os.path.join(self.models_path.get(), "upscale_models", "4x-ClearRealityV1.pth")
-                
-                # Ensure destination directory exists
-                os.makedirs(os.path.dirname(dest_upscale), exist_ok=True)
-                
-                if os.path.exists(source_upscale):
-                    logger.info(f"Moving upscale model from {source_upscale} to {dest_upscale}")
-                    if os.path.exists(dest_upscale):
-                        logger.info("Upscale model already exists in destination, skipping...")
-                    else:
-                        shutil.copy2(source_upscale, dest_upscale)
-                        logger.info("Upscale model moved successfully")
-                else:
-                    logger.warning(f"Source upscale model not found at {source_upscale}")
-                    
-                # Handle ratios.json file
-                # Get custom_nodes path by going up one level from models_path and adding custom_nodes
-                models_parent = os.path.dirname(self.models_path.get().rstrip(os.sep))
-                custom_nodes_path = os.path.join(models_parent, "custom_nodes")
-                
-                source_ratios = os.path.join(current_dir, "required_files", "ratios.json")
-                dest_ratios = os.path.join(custom_nodes_path, "mikey_nodes", "ratios.json")
-                
-                # Ensure destination directory exists
-                os.makedirs(os.path.dirname(dest_ratios), exist_ok=True)
-                
-                if os.path.exists(source_ratios):
-                    logger.info(f"Moving ratios.json from {source_ratios} to {dest_ratios}")
-                    # Always copy ratios.json, overwriting if it exists
-                    shutil.copy2(source_ratios, dest_ratios)
-                    logger.info("ratios.json copied successfully")
-                else:
-                    logger.warning(f"Source ratios.json not found at {source_ratios}")
-                    
-            except Exception as e:
-                logger.error(f"Error moving additional files: {str(e)}")
-                raise
-            
             # Complete
             self.update_progress(100, "Installation completed successfully!")
             messagebox.showinfo("Success", "Installation completed successfully!")

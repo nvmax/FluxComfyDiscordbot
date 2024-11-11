@@ -25,6 +25,14 @@ Whether you're an artist looking for inspiration, a writer wanting to visualize 
 So, are you ready to dive into a world where your words paint pictures? Where your imagination knows no bounds? Where you can create images you never even knew you could think of? Then you're in the right place! Let's embark on this exciting journey of AI-powered creativity together!
 
 ## New Updates:
+  * 11/11/2024
+  * New comfyui installs were giving errors loading the workflow due to changes in "numpy 2" support.
+  * Setup tool now copies over a modified file for this bot to work with "numpy 2" (does not break numpy 2 in any newer nodes, only fixes older nodes using less than 2.0 version)
+  * Updated setup tool with folder validation specify your base directory of Comfyui Example: C:/Comfyui_windows_portable/ComfyUI should contain the comfyui launcher in it.
+  * Updated code for Lora_monitor resolves issues with timing of updating lora list with in the bot, better verification of update status.
+
+
+  * 11/9/2024
   * Now Supports Docker - refer to "Setting up the Discord Bot" for more details
   * Fixed issue with lora "confirm selection" button not updating the amount of loras selected.
   * Loras are now monitored and when a new one is detected it will be added to the list of loras on the bot, no need to restart the bot(does not apply to Docker ran installation).

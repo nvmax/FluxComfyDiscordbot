@@ -25,6 +25,10 @@ Whether you're an artist looking for inspiration, a writer wanting to visualize 
 So, are you ready to dive into a world where your words paint pictures? Where your imagination knows no bounds? Where you can create images you never even knew you could think of? Then you're in the right place! Let's embark on this exciting journey of AI-powered creativity together!
 
 ## New Updates:
+  * 11/12/2024
+  * Compiled the setup tool for windows, now run the Setup.exe to install the bot.
+
+
   * 11/11/2024
   * New comfyui installs were giving errors loading the workflow due to changes in "numpy 2" support.
   * Setup tool now copies over a modified file for this bot to work with "numpy 2" (does not break numpy 2 in any newer nodes, only fixes older nodes using less than 2.0 version)
@@ -118,7 +122,7 @@ Note: If you close the terminal, it ends the bot.
 ## Configuring the Bot
 1. Create a new .env in the root directory of the bot
 2. add "COMMAND_PREFIX=/" with out the quotes of course this is all you need in your .env file.
-3. run setup.py from cmd window
+3. run setup.py from cmd window, Or run the Setup.exe from the root directory.
 4. fill in your information.
   - click browse and select the location of your comfyui models folder.  Example: C:/Comfyui_windows_portable/ComfyUI/models
   - populate your huggingface, Civitai, and Discord tokens
@@ -243,7 +247,7 @@ Required Files folder, these are critical and needed to make sure the bot works 
  - this is the workflow for comfyui to use for image generations, the bot uses the api format of this file.
 2. ratios.json - this is a edit of mikey_nodes to add more resolutions that his nodes did not have that flux supports, location  ```ComfyUI\custom_nodes\mikey_nodes```
 3. 4x-ClearRealityV1.pth is for the CRUpscaling 
-- the Setup.py will automatically download any checkpoints and copy over the ratios.json and 4x-ClearRealityv1 to required folders.
+- the Setup.py/setup.exe will automatically download any checkpoints and copy over the ratios.json and 4x-ClearRealityv1 to required folders.
 
 
 
@@ -306,7 +310,7 @@ Encountering issues? Don't worry! Here are some common problems and simple solut
 6.  **Out of Memory Errors** - Try generating smaller images or using fewer LoRAs. - Close other resource-intensive applications on your system. 
 
 ### Still Having Trouble? If you're still experiencing issues: 
-- Double-check all configuration settings by running the Setup.py.  
+- Double-check all configuration settings by running the Setup.py or setup.exe.  
 - Consult the ComfyUI documentation for advanced troubleshooting specific to the image generation backend.
 		- There are options to use lowvram for comfyui this may allow it to work on 4070's 4060's and AMD GPUs with less that 24GB of VRam, even if you are running fluxfusion checkpoints. 
 

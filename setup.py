@@ -1,9 +1,8 @@
+import os
 import logging
 import argparse
-from setup_support import SetupManager
-import setup_ui
-import argparse
-import os
+import sys
+from pathlib import Path
 
 # Create logs directory if it doesn't exist
 os.makedirs('logs', exist_ok=True)
@@ -19,6 +18,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def run_gui():
+    import setup_ui
+    setup_ui.main()
+
 def main():
     parser = argparse.ArgumentParser(description='FLUX ComfyUI Setup')
     parser.add_argument('--cli', action='store_true', help='Run in CLI mode instead of GUI')
@@ -26,15 +29,14 @@ def main():
 
     try:
         if args.cli:
-            # CLI mode
+            from setup_support import SetupManager
             setup_manager = SetupManager()
             setup_manager.run_setup()
         else:
-            # GUI mode (default)
-            setup_ui.main()
+            run_gui()
             
     except Exception as e:
-        logger.error(f"Setup failed: {str(e)}")
+        logging.error(f"Setup failed: {str(e)}")
         raise
 
 if __name__ == "__main__":

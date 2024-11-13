@@ -16,7 +16,7 @@ class LoraHistoryEntry:
     file_name: str
     display_name: str
     trigger_words: str
-    weight: float
+    weight: dict
     is_active: bool = True
     id: Optional[int] = None
 
@@ -35,7 +35,8 @@ class LoraDatabase:
                     file_name TEXT UNIQUE NOT NULL,
                     display_name TEXT NOT NULL,
                     trigger_words TEXT,
-                    weight REAL NOT NULL,
+                    weight_min REAL NOT NULL DEFAULT 0.5,
+                    weight_max REAL NOT NULL DEFAULT 1.0,
                     is_active BOOLEAN NOT NULL DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )''')
@@ -50,11 +51,22 @@ class LoraDatabase:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 c = conn.cursor()
+                
+                # Handle weight values
+                if isinstance(entry.weight, dict):
+                    weight_min = entry.weight.get('min', 0.5)
+                    weight_max = entry.weight.get('max', 1.0)
+                else:
+                    # Legacy support
+                    weight_val = float(entry.weight)
+                    weight_min = weight_val * 0.5
+                    weight_max = weight_val
+                
                 c.execute('''INSERT OR REPLACE INTO lora_history 
-                           (file_name, display_name, trigger_words, weight, is_active)
-                           VALUES (?, ?, ?, ?, ?)''',
+                           (file_name, display_name, trigger_words, weight_min, weight_max, is_active)
+                           VALUES (?, ?, ?, ?, ?, ?)''',
                         (entry.file_name, entry.display_name, entry.trigger_words, 
-                         entry.weight, entry.is_active))
+                         weight_min, weight_max, entry.is_active))
                 conn.commit()
                 logger.debug(f"Added/Updated LoRA: {entry.file_name}")
                 return True
@@ -72,38 +84,27 @@ class LoraDatabase:
                 else:
                     c.execute('SELECT * FROM lora_history WHERE is_active = 1 ORDER BY created_at DESC')
                 
-                return [LoraHistoryEntry(
-                    id=row[0],
-                    file_name=row[1],
-                    display_name=row[2],
-                    trigger_words=row[3],
-                    weight=row[4],
-                    is_active=bool(row[5])
-                ) for row in c.fetchall()]
-        except Exception as e:
-            logger.error(f"Error getting LoRA history: {e}")
-            return []
-
-    def get_lora_by_filename(self, file_name: str) -> Optional[LoraHistoryEntry]:
-        """Get a specific LoRA entry by filename"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                c = conn.cursor()
-                c.execute('SELECT * FROM lora_history WHERE file_name = ?', (file_name,))
-                row = c.fetchone()
-                if row:
-                    return LoraHistoryEntry(
+                entries = []
+                for row in c.fetchall():
+                    # Create weight dictionary from min/max values
+                    weight = {
+                        "min": row[4],  # weight_min
+                        "max": row[5]   # weight_max
+                    }
+                    
+                    entries.append(LoraHistoryEntry(
                         id=row[0],
                         file_name=row[1],
                         display_name=row[2],
                         trigger_words=row[3],
-                        weight=row[4],
-                        is_active=bool(row[5])
-                    )
-                return None
+                        weight=weight,
+                        is_active=bool(row[6])
+                    ))
+                return entries
         except Exception as e:
-            logger.error(f"Error getting LoRA by filename: {e}")
-            return None
+            logger.error(f"Error getting LoRA history: {e}")
+            return []
+
 
     def deactivate_lora(self, file_name: str) -> bool:
         """Deactivate a LoRA entry (soft delete)"""
@@ -145,21 +146,29 @@ class LoraDatabase:
                         continue
                         
                     current_entries.add(file_name)
-                    entry = LoraHistoryEntry(
-                        file_name=file_name,
-                        display_name=lora.get('name', ''),
-                        trigger_words=lora.get('add_prompt', ''),
-                        weight=float(lora.get('weight', 0.5)),
-                        is_active=True
-                    )
-                    self.add_lora(entry)
+                    weight_data = lora.get('weight', {})
+                    
+                    # Handle both new and old weight formats
+                    if isinstance(weight_data, dict):
+                        weight_min = weight_data.get('min', 0.5)
+                        weight_max = weight_data.get('max', 1.0)
+                    else:
+                        weight_min = float(weight_data) * 0.5
+                        weight_max = float(weight_data)
+                    
+                    # Update database entry
+                    c.execute('''INSERT OR REPLACE INTO lora_history 
+                               (file_name, display_name, trigger_words, weight_min, weight_max, is_active)
+                               VALUES (?, ?, ?, ?, ?, ?)''',
+                            (file_name, lora.get('name', ''), lora.get('add_prompt', ''),
+                             weight_min, weight_max, True))
                 
                 # Deactivate entries not in JSON
-                c.execute('SELECT file_name FROM lora_history WHERE is_active = 1')
-                for (file_name,) in c.fetchall():
-                    if file_name not in current_entries:
-                        self.deactivate_lora(file_name)
+                c.execute('UPDATE lora_history SET is_active = 0 WHERE file_name NOT IN ({})'.format(
+                    ','.join('?' * len(current_entries)) if current_entries else '""'
+                ), tuple(current_entries))
                 
+                conn.commit()
                 return True
         except Exception as e:
             logger.error(f"Error syncing with JSON: {e}")
@@ -175,10 +184,36 @@ class LoraDatabase:
                     'id': i,
                     'name': entry.display_name,
                     'file': entry.file_name,
-                    'weight': entry.weight,
-                    'add_prompt': entry.trigger_words
+                    'weight': entry.weight,  # Already in correct format
+                    'add_prompt': entry.trigger_words,
+                    'URL': ''  # Default empty URL for database entries
                 })
             return {'default': '', 'available_loras': loras}
         except Exception as e:
             logger.error(f"Error exporting to JSON: {e}")
             return {'default': '', 'available_loras': []}
+        
+    def get_lora_by_filename(self, file_name: str) -> Optional[LoraHistoryEntry]:
+        """Get a specific LoRA entry by filename"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                c = conn.cursor()
+                c.execute('SELECT * FROM lora_history WHERE file_name = ?', (file_name,))
+                row = c.fetchone()
+                if row:
+                    weight = {
+                        "min": row[4],  # weight_min
+                        "max": row[5]   # weight_max
+                    }
+                    return LoraHistoryEntry(
+                        id=row[0],
+                        file_name=row[1],
+                        display_name=row[2],
+                        trigger_words=row[3],
+                        weight=weight,
+                        is_active=bool(row[6])
+                    )
+                return None
+        except Exception as e:
+            logger.error(f"Error getting LoRA by filename: {e}")
+            return None

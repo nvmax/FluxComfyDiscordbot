@@ -7,6 +7,7 @@ from pathlib import Path
 from huggingface_hub import HfApi, hf_hub_download
 from lorautils import LoraConfig, CivitAIDownloader
 from lora_database import LoraDatabase, LoraHistoryEntry
+from EntryDialog import EntryDialog
 import logging
 import re
 from pathlib import Path
@@ -16,12 +17,7 @@ load_dotenv(root_dir / '.env')
 import json
 import requests
 import shutil
-import requests
-import json
 import sqlite3
-
-
-
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -165,11 +161,15 @@ class LoraEditor:
             for item in self.tree.get_children():
                 values = self.tree.item(item)["values"]
                 items.append({
-                    "file_name": values[2],  # file name is in the third column
-                    "display_name": values[1],  # name is in the second column
-                    "weight": float(values[3]),  # weight is in the fourth column
-                    "trigger_words": values[4],  # prompt/trigger words in fifth column
-                    "is_active": values[5] == "Active"  # status is in the sixth column
+                    "file_name": values[2],      # file name
+                    "display_name": values[1],    # name
+                    "weight": {
+                        "min": float(values[3]),  # min weight
+                        "max": float(values[4])   # max weight
+                    },
+                    "trigger_words": values[5],   # prompt/trigger words
+                    "is_active": values[6] == "Active",  # status
+                    "URL": values[7]             # URL
                 })
             
             # Recreate database table with new order
@@ -181,7 +181,8 @@ class LoraEditor:
                     file_name TEXT UNIQUE NOT NULL,
                     display_name TEXT NOT NULL,
                     trigger_words TEXT,
-                    weight REAL NOT NULL,
+                    weight_min REAL NOT NULL,
+                    weight_max REAL NOT NULL,
                     is_active BOOLEAN NOT NULL DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )''')
@@ -189,11 +190,12 @@ class LoraEditor:
                 # Insert items in new order
                 for item in items:
                     c.execute('''INSERT INTO temp_lora_history 
-                               (file_name, display_name, trigger_words, weight, is_active)
-                               VALUES (?, ?, ?, ?, ?)''',
+                            (file_name, display_name, trigger_words, weight_min, weight_max, is_active)
+                            VALUES (?, ?, ?, ?, ?, ?)''',
                             (item["file_name"], item["display_name"], 
-                             item["trigger_words"], item["weight"], 
-                             item["is_active"]))
+                            item["trigger_words"], 
+                            item["weight"]["min"], item["weight"]["max"],
+                            item["is_active"]))
                 
                 # Drop original table and rename temp table
                 c.execute('DROP TABLE lora_history')
@@ -203,7 +205,6 @@ class LoraEditor:
             logging.error(f"Error syncing database order: {e}")
             raise
     
-
     def init_variables(self):
         """Initialize main variables and objects"""
         try:
@@ -353,256 +354,6 @@ class LoraEditor:
         status_bar = ttk.Label(self.container, textvariable=self.status_var, relief="sunken", padding=(5, 2))
         status_bar.grid(row=7, column=0, sticky="ew", pady=(10, 0))
 
-    def refresh_tree(self):
-        """Refresh the treeview with current data"""
-        try:
-            self.tree.delete(*self.tree.get_children())
-            
-            # Get entries from database
-            entries = self.db.get_lora_history(include_inactive=self.show_inactive_var.get())
-            
-            # Update tree with entries
-            for i, entry in enumerate(entries, 1):
-                status = "Active" if entry.is_active else "Inactive"
-                self.tree.insert("", tk.END, values=(
-                    i,
-                    entry.display_name,
-                    entry.file_name,
-                    entry.weight,
-                    entry.trigger_words,
-                    status
-                ))
-                
-            self.update_status()
-        except Exception as e:
-            logging.error(f"Error refreshing tree: {e}")
-            messagebox.showerror("Error", f"Failed to refresh display: {str(e)}")
-
-    def activate_selected(self):
-        """Activate selected LoRA entries"""
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showwarning("Warning", "Please select entries to activate")
-            return
-
-        for item in selected:
-            values = self.tree.item(item)["values"]
-            file_name = values[2]  # file_name is in the third column
-            if self.db.reactivate_lora(file_name):
-                # Update the status in the treeview
-                self.tree.set(item, "Status", "Active")
-                self.status_var.set(f"Activated: {file_name}")
-        
-        # Save changes to config
-        self.save_config()
-        self.refresh_tree()
-
-    def deactivate_selected(self):
-        """Deactivate selected LoRA entries"""
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showwarning("Warning", "Please select entries to deactivate")
-            return
-
-        for item in selected:
-            values = self.tree.item(item)["values"]
-            file_name = values[2]  # file_name is in the third column
-            if self.db.deactivate_lora(file_name):
-                # Update the status in the treeview
-                self.tree.set(item, "Status", "Inactive")
-                self.status_var.set(f"Deactivated: {file_name}")
-        
-        # Save changes to config
-        self.save_config()
-        self.refresh_tree()
-
-    def create_history_controls(self):
-        """Create history control section"""
-        history_frame = ttk.LabelFrame(self.container, text="LoRA History", padding=10)
-        history_frame.grid(row=3, column=0, sticky="ew", pady=(0, 10))
-        
-        # Checkbox for showing inactive LoRAs
-        self.show_inactive_var = tk.BooleanVar(value=False)
-        show_inactive_cb = ttk.Checkbutton(
-            history_frame, 
-            text="Show Inactive LoRAs",
-            variable=self.show_inactive_var,
-            command=self.refresh_tree
-        )
-        show_inactive_cb.pack(side=tk.LEFT, padx=5)
-        
-        # Buttons for activating/deactivating
-        ttk.Button(
-            history_frame,
-            text="Activate Selected",
-            command=self.activate_selected
-        ).pack(side=tk.LEFT, padx=5)
-        
-        ttk.Button(
-            history_frame,
-            text="Deactivate Selected",
-            command=self.deactivate_selected
-        ).pack(side=tk.LEFT, padx=5)
-
-    def download_from_huggingface(self):
-        """Handle HuggingFace download process"""
-        input_url = self.hf_url_var.get().strip()
-        if not input_url:
-            messagebox.showerror("Error", "Please enter a HuggingFace URL")
-            return
-            
-        if not self.lora_folder:
-            messagebox.showerror("Error", "Please select a LoRA folder first")
-            return
-
-        # Show progress bar
-        self.progress_frame.pack(fill=tk.X, pady=5)
-
-        def run_download(input_url):
-            temp_dir = None
-            try:
-                # Parse repo ID and filename from URL
-                parsed_url = urlparse(input_url)
-                path_parts = parsed_url.path.strip('/').split('/')
-                if len(path_parts) < 2:
-                    raise ValueError("Invalid HuggingFace URL format")
-                
-                repo_id = '/'.join(path_parts[:2])
-                filename = path_parts[-1] if len(path_parts) > 2 else None
-
-                # Initialize HF API
-                hf_token = os.getenv('HUGGINGFACE_TOKEN')
-                api = HfApi(token=hf_token)
-
-                if not filename:
-                    # Get list of files in repo
-                    self.root.after(0, lambda: self.status_var.set("Searching for SafeTensor files..."))
-                    files = api.list_repo_files(repo_id)
-                    safetensor_files = [f for f in files if f.endswith('.safetensors')]
-                    if not safetensor_files:
-                        raise ValueError("No .safetensors files found in repository")
-                    filename = safetensor_files[0]
-
-                # Create temporary directory for download
-                temp_dir = os.path.join(self.lora_folder, 'temp_download')
-                os.makedirs(temp_dir, exist_ok=True)
-
-                # Get file size first
-                self.root.after(0, lambda: self.status_var.set("Getting file information..."))
-                headers = {}
-                if hf_token:
-                    headers["Authorization"] = f"Bearer {hf_token}"
-                
-                download_url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
-                response = requests.head(download_url, headers=headers, allow_redirects=True)
-                total_size = int(response.headers.get('content-length', 0))
-
-                # Download with progress tracking
-                self.root.after(0, lambda: self.status_var.set("Downloading LoRA file..."))
-                response = requests.get(download_url, headers=headers, stream=True)
-                temp_file = os.path.join(temp_dir, os.path.basename(filename))
-                
-                downloaded_size = 0
-                chunk_size = 1024 * 1024  # 1MB chunks
-
-                with open(temp_file, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=chunk_size):
-                        if chunk:
-                            f.write(chunk)
-                            downloaded_size += len(chunk)
-                            progress = (downloaded_size / total_size) * 100 if total_size > 0 else 0
-                            self.root.after(0, lambda p=progress: self.progress_var.set(p))
-
-                downloaded_filename = os.path.basename(temp_file)
-
-                def show_file_dialog():
-                    self.progress_frame.pack_forget()
-                    
-                    # Show file naming dialog
-                    dialog = FileNamingDialog(
-                        self.root,
-                        downloaded_filename,
-                        self.lora_folder
-                    )
-                    
-                    if dialog.result:
-                        final_path = os.path.join(self.lora_folder, dialog.result)
-                        try:
-                            # Remove existing file if it exists
-                            if os.path.exists(final_path):
-                                os.remove(final_path)
-                            
-                            # Move file to final location
-                            shutil.move(temp_file, final_path)
-                            
-                            # Show entry dialog
-                            entry_dialog = EntryDialog(
-                                self.root,
-                                "Add LoRA Entry",
-                                {
-                                    "name": os.path.splitext(dialog.result)[0].replace('_', ' ').title(),
-                                    "file": dialog.result,
-                                    "weight": "0.5",
-                                    "prompt": ""
-                                },
-                                available_files=self.available_lora_files + [dialog.result]
-                            )
-
-                            if entry_dialog.result:
-                                # Add to database
-                                self.db.add_lora(LoraHistoryEntry(
-                                    file_name=dialog.result,
-                                    display_name=entry_dialog.result["name"],
-                                    trigger_words=entry_dialog.result["prompt"],
-                                    weight=float(entry_dialog.result["weight"])
-                                ))
-                                
-                                # Add to JSON config
-                                new_entry = {
-                                    "id": len(self.config.data["available_loras"]) + 1,
-                                    "name": entry_dialog.result["name"],
-                                    "file": dialog.result,
-                                    "weight": float(entry_dialog.result["weight"]),
-                                    "add_prompt": entry_dialog.result["prompt"]
-                                }
-                                self.config.data["available_loras"].append(new_entry)
-                                
-                                # Save config to file
-                                self.config.save_config()
-                                
-                                # Update UI
-                                self.refresh_tree()
-                                self.refresh_lora_files()
-                                self.status_var.set(f"Added new entry: {entry_dialog.result['name']}")
-                        except Exception as e:
-                            messagebox.showerror("Error", f"Failed to save file: {str(e)}")
-                            logging.error(f"Error saving file: {str(e)}", exc_info=True)
-
-                    # Clean up temporary directory
-                    try:
-                        if os.path.exists(temp_dir):
-                            shutil.rmtree(temp_dir)
-                    except Exception as e:
-                        logging.error(f"Error cleaning up temp directory: {str(e)}")
-
-                self.root.after(0, show_file_dialog)
-
-            except Exception as e:
-                error_msg = f"Download error: {str(e)}"
-                logging.error(error_msg, exc_info=True)
-                self.root.after(0, lambda: messagebox.showerror("Error", error_msg))
-                self.progress_frame.pack_forget()
-                
-                # Clean up on error
-                try:
-                    if os.path.exists(temp_dir):
-                        shutil.rmtree(temp_dir)
-                except:
-                    pass
-
-        # Start the download thread with the URL parameter
-        threading.Thread(target=run_download, args=(input_url,), daemon=True).start()
-
     def create_treeview(self):
         """Create the treeview with reorder buttons"""
         tree_container = ttk.Frame(self.container)
@@ -612,11 +363,21 @@ class LoraEditor:
         tree_frame = ttk.Frame(tree_container)
         tree_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        columns = ("ID", "Name", "File", "Weight", "Prompt", "Status")
+        columns = ("ID", "Name", "File", "Min Weight", "Max Weight", "Prompt", "Status", "URL")
         self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", selectmode="browse")
         
         # Configure columns
-        widths = {"ID": 50, "Name": 200, "File": 300, "Weight": 100, "Prompt": 400, "Status": 100}
+        widths = {
+            "ID": 50,
+            "Name": 200,
+            "File": 200,
+            "Min Weight": 80,
+            "Max Weight": 80,
+            "Prompt": 200,
+            "Status": 70,
+            "URL": 200
+        }
+        
         for col, width in widths.items():
             self.tree.column(col, width=width, minwidth=width)
             self.tree.heading(col, text=col, command=lambda c=col: self.sort_treeview(c))
@@ -661,7 +422,7 @@ class LoraEditor:
             ("Delete Entry", self.delete_entry, "✖"),
             ("Save", self.save_config, "💾"),
             ("Refresh Files", self.refresh_lora_files, "🔄"),
-            ("Reset LoRA", self.reset_lora, "⚠")  # Added Reset button
+            ("Reset LoRA", self.reset_lora, "⚠")
         ]
         
         for text, command, symbol in buttons:
@@ -670,7 +431,6 @@ class LoraEditor:
                 text=f"{symbol} {text}", 
                 command=command, 
                 width=15,
-                # Make Reset button red
                 style="Red.TButton" if text == "Reset LoRA" else "TButton"
             )
             btn.pack(side=tk.LEFT, padx=5)
@@ -809,15 +569,19 @@ class LoraEditor:
                             # Get trigger words from CivitAI
                             trigger_words = " ".join(self.downloader.get_model_trained_words(url))
                             
-                            # Show entry dialog
+                            # Show entry dialog with standardized weights
                             entry_dialog = EntryDialog(
                                 self.root,
                                 "Add LoRA Entry",
                                 {
                                     "name": os.path.splitext(dialog.result)[0].replace('_', ' ').title(),
                                     "file": dialog.result,
-                                    "weight": "0.5",
-                                    "prompt": trigger_words
+                                    "weight": {
+                                        "min": 0.5,  # Always set to 0.5
+                                        "max": 1.0   # Always set to 1.0
+                                    },
+                                    "prompt": trigger_words,
+                                    "URL": url
                                 },
                                 available_files=self.available_lora_files + [dialog.result]
                             )
@@ -828,15 +592,49 @@ class LoraEditor:
                                     file_name=dialog.result,
                                     display_name=entry_dialog.result["name"],
                                     trigger_words=entry_dialog.result["prompt"],
-                                    weight=float(entry_dialog.result["weight"])
+                                    weight={
+                                        "min": 0.5,  # Standardized min weight
+                                        "max": 1.0   # Standardized max weight
+                                    },
+                                    is_active=True
                                 ))
                                 
+                                # Add to JSON config
+                                new_entry = {
+                                    "id": len(self.config.data["available_loras"]) + 1,
+                                    "name": entry_dialog.result["name"],
+                                    "file": dialog.result,
+                                    "weight": {
+                                        "min": 0.5,
+                                        "max": 1.0
+                                    },
+                                    "add_prompt": entry_dialog.result["prompt"],
+                                    "URL": url
+                                }
+                                self.config.data["available_loras"].append(new_entry)
+
+                                # Save config file
+                                self.config.save_config()
+                                
+                                # Insert into treeview
+                                self.tree.insert("", tk.END, values=(
+                                    new_entry["id"],
+                                    new_entry["name"],
+                                    new_entry["file"],
+                                    "0.50",  # min weight formatted
+                                    "1.00",  # max weight formatted
+                                    new_entry["add_prompt"],
+                                    "Active",
+                                    new_entry["URL"]
+                                ))
+
                                 # Update UI
-                                self.refresh_tree()
                                 self.refresh_lora_files()
                                 self.status_var.set(f"Added new entry: {entry_dialog.result['name']}")
+
                         except Exception as e:
                             messagebox.showerror("Error", f"Failed to save file: {str(e)}")
+                            logging.error(f"Error saving file: {str(e)}", exc_info=True)
                     
                     # Clean up temp directory
                     try:
@@ -863,6 +661,189 @@ class LoraEditor:
         # Start download in separate thread
         threading.Thread(target=run_download, daemon=True).start()
 
+    def download_from_huggingface(self):
+        """Handle HuggingFace download process"""
+        input_url = self.hf_url_var.get().strip()
+        if not input_url:
+            messagebox.showerror("Error", "Please enter a HuggingFace URL")
+            return
+            
+        if not self.lora_folder:
+            messagebox.showerror("Error", "Please select a LoRA folder first")
+            return
+
+        # Show progress bar
+        self.progress_frame.pack(fill=tk.X, pady=5)
+
+        def run_download(input_url):
+            temp_dir = None
+            try:
+                # Parse repo ID and filename from URL
+                parsed_url = urlparse(input_url)
+                path_parts = parsed_url.path.strip('/').split('/')
+                if len(path_parts) < 2:
+                    raise ValueError("Invalid HuggingFace URL format")
+                
+                repo_id = '/'.join(path_parts[:2])
+                filename = path_parts[-1] if len(path_parts) > 2 else None
+
+                # Initialize HF API
+                hf_token = os.getenv('HUGGINGFACE_TOKEN')
+                api = HfApi(token=hf_token)
+
+                if not filename:
+                    # Get list of files in repo
+                    self.root.after(0, lambda: self.status_var.set("Searching for SafeTensor files..."))
+                    files = api.list_repo_files(repo_id)
+                    safetensor_files = [f for f in files if f.endswith('.safetensors')]
+                    if not safetensor_files:
+                        raise ValueError("No .safetensors files found in repository")
+                    filename = safetensor_files[0]
+
+                # Create temporary directory
+                temp_dir = os.path.join(self.lora_folder, 'temp_download')
+                os.makedirs(temp_dir, exist_ok=True)
+
+                # Get file size first
+                self.root.after(0, lambda: self.status_var.set("Getting file information..."))
+                headers = {}
+                if hf_token:
+                    headers["Authorization"] = f"Bearer {hf_token}"
+                
+                download_url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
+                response = requests.head(download_url, headers=headers, allow_redirects=True)
+                total_size = int(response.headers.get('content-length', 0))
+
+                # Download with progress tracking
+                self.root.after(0, lambda: self.status_var.set("Downloading LoRA file..."))
+                response = requests.get(download_url, headers=headers, stream=True)
+                temp_file = os.path.join(temp_dir, os.path.basename(filename))
+                
+                downloaded_size = 0
+                chunk_size = 1024 * 1024  # 1MB chunks
+
+                with open(temp_file, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=chunk_size):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded_size += len(chunk)
+                            progress = (downloaded_size / total_size) * 100 if total_size > 0 else 0
+                            self.root.after(0, lambda p=progress: self.progress_var.set(p))
+
+                downloaded_filename = os.path.basename(temp_file)
+
+                def show_file_dialog():
+                    self.progress_frame.pack_forget()
+                    
+                    # Show file naming dialog
+                    dialog = FileNamingDialog(
+                        self.root,
+                        downloaded_filename,
+                        self.lora_folder
+                    )
+                    
+                    if dialog.result:
+                        final_path = os.path.join(self.lora_folder, dialog.result)
+                        try:
+                            # Remove existing file if it exists
+                            if os.path.exists(final_path):
+                                os.remove(final_path)
+                            
+                            # Move file to final location
+                            shutil.move(temp_file, final_path)
+                            
+                            # Show entry dialog with standardized weights
+                            entry_dialog = EntryDialog(
+                                self.root,
+                                "Add LoRA Entry",
+                                {
+                                    "name": os.path.splitext(dialog.result)[0].replace('_', ' ').title(),
+                                    "file": dialog.result,
+                                    "weight": {
+                                        "min": 0.5,  # Always set to 0.5
+                                        "max": 1.0   # Always set to 1.0
+                                    },
+                                    "prompt": "",
+                                    "URL": input_url
+                                },
+                                available_files=self.available_lora_files + [dialog.result]
+                            )
+
+                            if entry_dialog.result:
+                                # Add to database
+                                self.db.add_lora(LoraHistoryEntry(
+                                    file_name=dialog.result,
+                                    display_name=entry_dialog.result["name"],
+                                    trigger_words=entry_dialog.result["prompt"],
+                                    weight={
+                                        "min": 0.5,
+                                        "max": 1.0
+                                    },
+                                    is_active=True
+                                ))
+
+                                # Add to JSON config
+                                new_entry = {
+                                    "id": len(self.config.data["available_loras"]) + 1,
+                                    "name": entry_dialog.result["name"],
+                                    "file": dialog.result,
+                                    "weight": {
+                                        "min": 0.5,
+                                        "max": 1.0
+                                    },
+                                    "add_prompt": entry_dialog.result["prompt"],
+                                    "URL": input_url
+                                }
+                                self.config.data["available_loras"].append(new_entry)
+                                
+                                # Save config file
+                                self.config.save_config()
+                                
+                                # Insert into treeview
+                                self.tree.insert("", tk.END, values=(
+                                    new_entry["id"],
+                                    new_entry["name"],
+                                    new_entry["file"],
+                                    "0.50",  # min weight formatted
+                                    "1.00",  # max weight formatted
+                                    new_entry["add_prompt"],
+                                    "Active",
+                                    new_entry["URL"]
+                                ))
+
+                                # Update UI
+                                self.refresh_lora_files()
+                                self.status_var.set(f"Added new entry: {entry_dialog.result['name']}")
+
+                        except Exception as e:
+                            messagebox.showerror("Error", f"Failed to save file: {str(e)}")
+                            logging.error(f"Error saving file: {str(e)}", exc_info=True)
+
+                    # Clean up temporary directory
+                    try:
+                        if os.path.exists(temp_dir):
+                            shutil.rmtree(temp_dir)
+                    except Exception as e:
+                        logging.error(f"Error cleaning up temp directory: {str(e)}")
+
+                self.root.after(0, show_file_dialog)
+
+            except Exception as e:
+                error_msg = f"Download error: {str(e)}"
+                logging.error(error_msg, exc_info=True)
+                self.root.after(0, lambda: messagebox.showerror("Error", error_msg))
+                self.progress_frame.pack_forget()
+                
+                # Clean up on error
+                try:
+                    if os.path.exists(temp_dir):
+                        shutil.rmtree(temp_dir)
+                except:
+                    pass
+
+        # Start the download thread with the URL parameter
+        threading.Thread(target=run_download, args=(input_url,), daemon=True).start()
+
     def update_default_lora(self, event=None):
         """Update the default LoRA selection"""
         self.config.data["default"] = self.default_var.get()
@@ -881,6 +862,42 @@ class LoraEditor:
         else:
             messagebox.showwarning("Warning", "Please select a LoRA folder first")
 
+    def refresh_tree(self):
+        """Refresh the treeview with current data"""
+        try:
+            self.tree.delete(*self.tree.get_children())
+            
+            # Get entries from database
+            entries = self.db.get_lora_history(include_inactive=self.show_inactive_var.get())
+            
+            # Update tree with entries
+            for i, entry in enumerate(entries, 1):
+                status = "Active" if entry.is_active else "Inactive"
+                
+                # Find URL from config
+                config_entry = next(
+                    (lora for lora in self.config.data.get("available_loras", [])
+                    if lora.get("file") == entry.file_name),
+                    None
+                )
+                url = config_entry.get("URL", "") if config_entry else ""
+                
+                self.tree.insert("", tk.END, values=(
+                    i,
+                    entry.display_name,
+                    entry.file_name,
+                    f"{entry.weight['min']:.2f}",
+                    f"{entry.weight['max']:.2f}",
+                    entry.trigger_words,
+                    status,
+                    url
+                ))
+                
+            self.update_status()
+        except Exception as e:
+            logging.error(f"Error refreshing tree: {e}")
+            messagebox.showerror("Error", f"Failed to refresh display: {str(e)}")
+
     def load_tree(self):
         """Load data into the treeview"""
         self.tree.delete(*self.tree.get_children())
@@ -888,13 +905,24 @@ class LoraEditor:
         
         for i, entry in enumerate(entries, 1):
             status = "Active" if entry.is_active else "Inactive"
+            
+            # Find URL from config
+            config_entry = next(
+                (lora for lora in self.config.data.get("available_loras", [])
+                if lora.get("file") == entry.file_name),
+                None
+            )
+            url = config_entry.get("URL", "") if config_entry else ""
+            
             self.tree.insert("", tk.END, values=(
                 i,
                 entry.display_name,
                 entry.file_name,
-                entry.weight,
+                f"{entry.weight['min']:.2f}",
+                f"{entry.weight['max']:.2f}",
                 entry.trigger_words,
-                status
+                status,
+                url
             ))
         self.update_status()
 
@@ -908,17 +936,33 @@ class LoraEditor:
         search_term = self.search_var.get().lower()
         self.tree.delete(*self.tree.get_children())
         
-        for lora in self.config.data["available_loras"]: 
-            if (search_term in str(lora.get("id", "")).lower() or
-                search_term in lora.get("name", "").lower() or
-                search_term in lora.get("file", "").lower() or
-                search_term in str(lora.get("add_prompt", "")).lower()):
+        entries = self.db.get_lora_history(include_inactive=self.show_inactive_var.get())
+        
+        for i, entry in enumerate(entries, 1):
+            if (search_term in str(i).lower() or
+                search_term in entry.display_name.lower() or
+                search_term in entry.file_name.lower() or
+                search_term in entry.trigger_words.lower()):
+                
+                status = "Active" if entry.is_active else "Inactive"
+                
+                # Find URL from config
+                config_entry = next(
+                    (lora for lora in self.config.data.get("available_loras", [])
+                    if lora.get("file") == entry.file_name),
+                    None
+                )
+                url = config_entry.get("URL", "") if config_entry else ""
+                
                 self.tree.insert("", tk.END, values=(
-                    lora.get("id", ""),
-                    lora.get("name", ""),
-                    lora.get("file", ""),
-                    lora.get("weight", ""),
-                    lora.get("add_prompt", "")
+                    i,
+                    entry.display_name,
+                    entry.file_name,
+                    f"{entry.weight['min']:.2f}",
+                    f"{entry.weight['max']:.2f}",
+                    entry.trigger_words,
+                    status,
+                    url
                 ))
 
     def sort_treeview(self, col):
@@ -928,114 +972,90 @@ class LoraEditor:
         for index, (val, item) in enumerate(items):
             self.tree.move(item, "", index)
 
-    def move_up(self):
-        """Move selected item up in the list"""
-        selected = self.tree.selection()
-        if not selected:
-            return
-
-        item = selected[0]
-        idx = self.tree.index(item)
-        if idx > 0:  # Ensure it's not the first item
-            # Get the previous item
-            prev = self.tree.prev(item)
-            
-            # Swap items in the treeview
-            self.tree.move(item, "", idx-1)
-            
-            # Swap items in the config data
-            self.config.data["available_loras"][idx], self.config.data["available_loras"][idx-1] = \
-                self.config.data["available_loras"][idx-1], self.config.data["available_loras"][idx]
-            
-            # Update IDs
-            self.config.update_ids()
-            
-            # Keep selection on moved item
-            self.tree.selection_set(item)
-            self.tree.see(item)
-
-    def move_down(self):
-        """Move selected item down in the list"""
-        selected = self.tree.selection()
-        if not selected:
-            return
-
-        item = selected[0]
-        idx = self.tree.index(item)
-        if idx < len(self.tree.get_children()) - 1:  # Ensure it's not the last item
-            # Get the next item
-            next_item = self.tree.next(item)
-            
-            # Swap items in the treeview
-            self.tree.move(item, "", idx+1)
-            
-            # Swap items in the config data
-            self.config.data["available_loras"][idx], self.config.data["available_loras"][idx+1] = \
-                self.config.data["available_loras"][idx+1], self.config.data["available_loras"][idx]
-            
-            # Update IDs
-            self.config.update_ids()
-            
-            # Keep selection on moved item
-            self.tree.selection_set(item)
-            self.tree.see(item)
-
-    def move_up_five(self):
-        """Move selected item up 5 positions"""
-        selected = self.tree.selection()
-        if not selected:
-            return
-
-        item = selected[0]
-        current_idx = self.tree.index(item)
-        target_idx = max(0, current_idx - 5)  # Don't go above 0
+    def create_history_controls(self):
+        """Create history control section"""
+        history_frame = ttk.LabelFrame(self.container, text="LoRA History", padding=10)
+        history_frame.grid(row=3, column=0, sticky="ew", pady=(0, 10))
         
-        if current_idx > target_idx:  # Only move if we're not already at the top
-            # Move the item
-            self.tree.move(item, "", target_idx)
-            
-            # Update the config data to match
-            entry = self.config.data["available_loras"].pop(current_idx)
-            self.config.data["available_loras"].insert(target_idx, entry)
-            
-            # Update database order
-            self.sync_database_order()
-            
-            # Update IDs
-            self.config.update_ids()
-            
-            # Keep selection on moved item
-            self.tree.selection_set(item)
-            self.tree.see(item)
+        # Checkbox for showing inactive LoRAs
+        self.show_inactive_var = tk.BooleanVar(value=False)
+        show_inactive_cb = ttk.Checkbutton(
+            history_frame, 
+            text="Show Inactive LoRAs",
+            variable=self.show_inactive_var,
+            command=self.refresh_tree
+        )
+        show_inactive_cb.pack(side=tk.LEFT, padx=5)
+        
+        # Buttons for activating/deactivating
+        ttk.Button(
+            history_frame,
+            text="Activate Selected",
+            command=self.activate_selected
+        ).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(
+            history_frame,
+            text="Deactivate Selected",
+            command=self.deactivate_selected
+        ).pack(side=tk.LEFT, padx=5)
 
-    def move_down_five(self):
-        """Move selected item down 5 positions"""
+    def activate_selected(self):
+        """Activate selected LoRA entries"""
         selected = self.tree.selection()
         if not selected:
+            messagebox.showwarning("Warning", "Please select entries to activate")
             return
 
-        item = selected[0]
-        current_idx = self.tree.index(item)
-        max_idx = len(self.tree.get_children()) - 1
-        target_idx = min(max_idx, current_idx + 5)  # Don't go below max index
+        for item in selected:
+            values = self.tree.item(item)["values"]
+            file_name = values[2]  # file_name is in the third column
+            if self.db.reactivate_lora(file_name):
+                # Update the status in the treeview
+                self.tree.set(item, "Status", "Active")
+                self.status_var.set(f"Activated: {file_name}")
         
-        if current_idx < target_idx:  # Only move if we're not already at the bottom
-            # Move the item
-            self.tree.move(item, "", target_idx)
-            
-            # Update the config data to match
-            entry = self.config.data["available_loras"].pop(current_idx)
-            self.config.data["available_loras"].insert(target_idx, entry)
-            
-            # Update database order
-            self.sync_database_order()
-            
-            # Update IDs
-            self.config.update_ids()
-            
-            # Keep selection on moved item
-            self.tree.selection_set(item)
-            self.tree.see(item)
+        # Save changes to config
+        self.save_config()
+        self.refresh_tree()
+
+    def activate_selected(self):
+        """Activate selected LoRA entries"""
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select entries to activate")
+            return
+
+        for item in selected:
+            values = self.tree.item(item)["values"]
+            file_name = values[2]  # file_name is in the third column
+            if self.db.reactivate_lora(file_name):
+                # Update the status in the treeview
+                self.tree.set(item, "Status", "Active")
+                self.status_var.set(f"Activated: {file_name}")
+        
+        # Save changes to config
+        self.save_config()
+        self.refresh_tree()
+
+    def deactivate_selected(self):
+        """Deactivate selected LoRA entries"""
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "Please select entries to deactivate")
+            return
+
+        for item in selected:
+            values = self.tree.item(item)["values"]
+            file_name = values[2]  # file_name is in the third column
+            if self.db.deactivate_lora(file_name):
+                # Update the status in the treeview
+                self.tree.set(item, "Status", "Inactive")
+                self.status_var.set(f"Deactivated: {file_name}")
+        
+        # Save changes to config
+        self.save_config()
+        self.refresh_tree()
 
     def add_entry(self):
         """Add a new LoRA entry"""
@@ -1045,28 +1065,55 @@ class LoraEditor:
             
         dialog = EntryDialog(self.root, "Add LoRA Entry", available_files=self.available_lora_files)
         if dialog.result:
-            new_id = len(self.config.data["available_loras"]) + 1
-            new_entry = {
-                "id": new_id,
-                "name": dialog.result["name"],
-                "file": dialog.result["file"],
-                "weight": float(dialog.result["weight"]),
-                "add_prompt": dialog.result["prompt"]
-            }
-            
-            # Add to JSON config
-            self.config.data["available_loras"].append(new_entry)
-            
-            # Add to database
-            self.db.add_lora(LoraHistoryEntry(
-                file_name=dialog.result["file"],
-                display_name=dialog.result["name"],
-                trigger_words=dialog.result["prompt"],
-                weight=float(dialog.result["weight"])
-            ))
-            
-            self.refresh_tree()
-            self.status_var.set(f"Added new entry: {dialog.result['name']}")
+            try:
+                new_id = len(self.config.data["available_loras"]) + 1
+                new_entry = {
+                    "id": new_id,
+                    "name": dialog.result["name"],
+                    "file": dialog.result["file"],
+                    "weight": {
+                        "min": 0.5,
+                        "max": 1.0
+                    },
+                    "add_prompt": dialog.result["prompt"],
+                    "URL": dialog.result["URL"]
+                }
+                
+                # Add to JSON config
+                self.config.data["available_loras"].append(new_entry)
+                
+                # Add to database
+                self.db.add_lora(LoraHistoryEntry(
+                    file_name=dialog.result["file"],
+                    display_name=dialog.result["name"],
+                    trigger_words=dialog.result["prompt"],
+                    weight={
+                        "min": 0.5,
+                        "max": 1.0
+                    },
+                    is_active=True
+                ))
+                
+                # Insert into treeview
+                self.tree.insert("", tk.END, values=(
+                    new_entry["id"],
+                    new_entry["name"],
+                    new_entry["file"],
+                    "0.50",  # min weight formatted
+                    "1.00",  # max weight formatted
+                    new_entry["add_prompt"],
+                    "Active",
+                    new_entry["URL"]
+                ))
+                
+                # Save and update
+                self.save_config()
+                self.refresh_lora_files()
+                self.status_var.set(f"Added new entry: {dialog.result['name']}")
+                
+            except Exception as e:
+                logging.error(f"Error adding entry: {e}")
+                messagebox.showerror("Error", f"Failed to add entry: {str(e)}")
 
     def edit_entry(self):
         """Edit the selected LoRA entry"""
@@ -1078,12 +1125,18 @@ class LoraEditor:
         item = self.tree.item(selected[0])
         values = item["values"]
         
-        dialog = EntryDialog(self.root, "Edit LoRA Entry", {
+        initial_data = {
             "name": values[1],
             "file": values[2],
-            "weight": values[3],
-            "prompt": values[4]
-        }, available_files=self.available_lora_files)
+            "weight": {
+                "min": float(values[3]),
+                "max": float(values[4])
+            },
+            "prompt": values[5],
+            "URL": values[7]
+        }
+        
+        dialog = EntryDialog(self.root, "Edit LoRA Entry", initial_data, available_files=self.available_lora_files)
         
         if dialog.result:
             try:
@@ -1092,34 +1145,44 @@ class LoraEditor:
                     file_name=dialog.result["file"],
                     display_name=dialog.result["name"],
                     trigger_words=dialog.result["prompt"],
-                    weight=float(dialog.result["weight"]),
+                    weight={
+                        "min": 0.5,
+                        "max": 1.0
+                    },
                     is_active=True
                 ))
                 
                 # Update JSON config
                 index = int(values[0]) - 1  # Get index from ID column
-                self.config.data["available_loras"][index].update({
+                updated_entry = {
+                    "id": index + 1,
                     "name": dialog.result["name"],
                     "file": dialog.result["file"],
-                    "weight": float(dialog.result["weight"]),
-                    "add_prompt": dialog.result["prompt"]
-                })
+                    "weight": {
+                        "min": 0.5,
+                        "max": 1.0
+                    },
+                    "add_prompt": dialog.result["prompt"],
+                    "URL": dialog.result["URL"]
+                }
+                self.config.data["available_loras"][index] = updated_entry
                 
-                # Save JSON config to file
-                self.config.save_config()
+                # Update treeview entry
+                self.tree.item(selected[0], values=(
+                    updated_entry["id"],
+                    updated_entry["name"],
+                    updated_entry["file"],
+                    "0.50",  # min weight formatted
+                    "1.00",  # max weight formatted
+                    updated_entry["add_prompt"],
+                    "Active",
+                    updated_entry["URL"]
+                ))
                 
-                # Update tree view
-                self.tree.set(selected[0], "Name", dialog.result["name"])
-                self.tree.set(selected[0], "File", dialog.result["file"])
-                self.tree.set(selected[0], "Weight", dialog.result["weight"])
-                self.tree.set(selected[0], "Prompt", dialog.result["prompt"])
-                
-                # Update status
-                self.status_var.set(f"Updated entry: {dialog.result['name']}")
-                
-                # Refresh the display
-                self.refresh_tree()
+                # Save and update
+                self.save_config()
                 self.refresh_lora_files()
+                self.status_var.set(f"Updated entry: {dialog.result['name']}")
                 
             except Exception as e:
                 logging.error(f"Error updating entry: {e}")
@@ -1235,13 +1298,17 @@ class LoraEditor:
             self.config.data["available_loras"] = []
             for i, item in enumerate(self.tree.get_children(), 1):
                 values = self.tree.item(item)["values"]
-                if values[5] == "Active":  # Only include active entries
+                if values[6] == "Active":  # Only include active entries
                     self.config.data["available_loras"].append({
                         "id": i,
                         "name": values[1],
                         "file": values[2],
-                        "weight": float(values[3]),
-                        "add_prompt": values[4]
+                        "weight": {
+                            "min": 0.5,
+                            "max": 1.0
+                        },
+                        "add_prompt": values[5],
+                        "URL": values[7]
                     })
             
             # Save to JSON file
@@ -1285,144 +1352,103 @@ class LoraEditor:
                 f.writelines(lines)
                 
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to update .env file: {str(e)}"
-        )
+            messagebox.showerror("Error", f"Failed to update .env file: {str(e)}")
 
-class EntryDialog:
-    def __init__(self, parent, title, initial=None, available_files=None):
-        self.result = None
-        self.available_files = available_files or []
-        
-        self.dialog = tk.Toplevel(parent)
-        self.dialog.title(title)
-        self.dialog.geometry("500x350")
-        self.dialog.resizable(False, False)
-        
-        self.setup_ui(initial)
-        self.center_dialog(parent)
-        
-        # Make dialog modal
-        self.dialog.transient(parent)
-        self.dialog.grab_set()
-        self.dialog.focus_force()
-        
-        parent.wait_window(self.dialog)
+    def move_up(self):
+        """Move selected item up in the list"""
+        selected = self.tree.selection()
+        if not selected:
+            return
 
-    def setup_ui(self, initial):
-        """Set up the dialog UI"""
-        main_frame = ttk.Frame(self.dialog, padding="20")
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Name field
-        name_frame = ttk.Frame(main_frame)
-        name_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(name_frame, text="Name:").pack(side=tk.LEFT)
-        self.name_entry = ttk.Entry(name_frame, width=40)
-        self.name_entry.pack(side=tk.LEFT, padx=(10, 0), fill=tk.X, expand=True)
-        
-        # File selection
-        file_frame = ttk.Frame(main_frame)
-        file_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(file_frame, text="File:").pack(side=tk.LEFT)
-        self.file_var = tk.StringVar()
-        self.file_combo = ttk.Combobox(file_frame, textvariable=self.file_var, width=37)
-        self.file_combo['values'] = self.available_files
-        self.file_combo.pack(side=tk.LEFT, padx=(10, 0), fill=tk.X, expand=True)
-        
-        # Weight field
-        weight_frame = ttk.Frame(main_frame)
-        weight_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(weight_frame, text="Weight:").pack(side=tk.LEFT)
-        vcmd = (self.dialog.register(self.validate_weight), '%P')
-        self.weight_entry = ttk.Entry(weight_frame, width=10, validate="key", validatecommand=vcmd)
-        self.weight_entry.pack(side=tk.LEFT, padx=(10, 0))
-        
-        # Prompt field
-        prompt_frame = ttk.Frame(main_frame)
-        prompt_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(prompt_frame, text="Add Prompt:").pack(side=tk.LEFT)
-        self.prompt_entry = ttk.Entry(prompt_frame, width=40)
-        self.prompt_entry.pack(side=tk.LEFT, padx=(10, 0), fill=tk.X, expand=True)
-        
-        # Set initial values
-        if initial:
-            self.name_entry.insert(0, initial["name"])
-            self.file_var.set(initial["file"])
-            self.weight_entry.insert(0, initial["weight"])
-            self.prompt_entry.insert(0, initial["prompt"])
-        else:
-            self.weight_entry.insert(0, "0.5")
-            self.file_var.trace('w', self.update_name_from_file)
-        
-        # Buttons
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(pady=20)
-        
-        ttk.Button(btn_frame, text="Save", command=self.save).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Cancel", command=self.dialog.destroy).pack(side=tk.LEFT, padx=5)
-
-    def center_dialog(self, parent):
-        """Center the dialog relative to parent window"""
-        parent_x = parent.winfo_x()
-        parent_y = parent.winfo_y()
-        parent_width = parent.winfo_width()
-        parent_height = parent.winfo_height()
-        
-        dialog_width = 500
-        dialog_height = 350
-        position_x = parent_x + (parent_width - dialog_width) // 2
-        position_y = parent_y + (parent_height - dialog_height) // 2
-        
-        self.dialog.geometry(f"{dialog_width}x{dialog_height}+{position_x}+{position_y}")
-
-    def validate_weight(self, new_value):
-        """Validate weight input"""
-        if new_value == "":
-            return True
-        try:
-            value = float(new_value)
-            return 0 <= value <= 1
-        except ValueError:
-            return False
-
-    def update_name_from_file(self, *args):
-        """Auto-fill name based on selected file"""
-        file_name = self.file_var.get()
-        if file_name and not self.name_entry.get():
-            base_name = os.path.splitext(file_name)[0]
-            suggested_name = base_name.replace('_', ' ').replace('-', ' ').title()
-            self.name_entry.delete(0, tk.END)
-            self.name_entry.insert(0, suggested_name)
-
-    def save(self):
-        """Save dialog results"""
-        try:
-            if not self.name_entry.get():
-                raise ValueError("Name is required")
-            if not self.file_var.get():
-                raise ValueError("Please select a LoRA file")
+        item = selected[0]
+        idx = self.tree.index(item)
+        if idx > 0:  # Ensure it's not the first item
+            # Get the previous item
+            prev = self.tree.prev(item)
             
-            weight = float(self.weight_entry.get())
-            if not (0 <= weight <= 1):
-                raise ValueError("Weight must be between 0 and 1")
-                
-            self.result = {
-                "name": self.name_entry.get(),
-                "file": self.file_var.get(),
-                "weight": str(weight),
-                "prompt": self.prompt_entry.get()
-            }
-            self.dialog.destroy()
-        except ValueError as e:
-            messagebox.showerror("Error", str(e))
+            # Swap items in the treeview
+            self.tree.move(item, "", idx-1)
+            
+            # Keep selection on moved item
+            self.tree.selection_set(item)
+            self.tree.see(item)
+
+            # Save changes
+            self.sync_database_order()
+            self.save_config()
+
+    def move_down(self):
+        """Move selected item down in the list"""
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        item = selected[0]
+        idx = self.tree.index(item)
+        if idx < len(self.tree.get_children()) - 1:  # Ensure it's not the last item
+            # Get the next item
+            next_item = self.tree.next(item)
+            
+            # Swap items in the treeview
+            self.tree.move(item, "", idx+1)
+            
+            # Keep selection on moved item
+            self.tree.selection_set(item)
+            self.tree.see(item)
+
+            # Save changes
+            self.sync_database_order()
+            self.save_config()
+
+    def move_up_five(self):
+        """Move selected item up 5 positions"""
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        item = selected[0]
+        current_idx = self.tree.index(item)
+        target_idx = max(0, current_idx - 5)  # Don't go above 0
+        
+        if current_idx > target_idx:  # Only move if we're not already at the top
+            # Move the item
+            self.tree.move(item, "", target_idx)
+            
+            # Keep selection on moved item
+            self.tree.selection_set(item)
+            self.tree.see(item)
+
+            # Save changes
+            self.sync_database_order()
+            self.save_config()
+
+    def move_down_five(self):
+        """Move selected item down 5 positions"""
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        item = selected[0]
+        current_idx = self.tree.index(item)
+        max_idx = len(self.tree.get_children()) - 1
+        target_idx = min(max_idx, current_idx + 5)  # Don't go below max index
+        
+        if current_idx < target_idx:  # Only move if we're not already at the bottom
+            # Move the item
+            self.tree.move(item, "", target_idx)
+            
+            # Keep selection on moved item
+            self.tree.selection_set(item)
+            self.tree.see(item)
+
+            # Save changes
+            self.sync_database_order()
+            self.save_config()
 
 def main():
     root = tk.Tk()
     app = LoraEditor(root)
     root.mainloop()
 
-
-
 if __name__ == "__main__":
     main()
-    

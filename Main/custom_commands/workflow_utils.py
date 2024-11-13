@@ -3,14 +3,10 @@ from Main.utils import load_json
 
 logger = logging.getLogger(__name__)
 
-import logging
-from Main.utils import load_json
-
-logger = logging.getLogger(__name__)
-
 def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
     """
     Updates the workflow with the provided parameters.
+    Handles dynamic LoRA weight adjustment based on number of selected LoRAs.
     """
     try:
         # Update prompt (Node 69)
@@ -36,15 +32,28 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
                 if key.startswith('lora_') and key != 'PowerLoraLoaderHeaderWidget':
                     del lora_loader[key]
 
-            # Add selected LoRAs
+            # Add selected LoRAs with dynamic weight adjustment
+            num_loras = len(loras)
             for i, lora in enumerate(loras, start=1):
                 lora_key = f'lora_{i}'
                 if lora in lora_info:
+                    lora_data = lora_info[lora]
+                    weight_config = lora_data.get('weight', 0.5)
+                    
+                    # Determine weight based on number of selected LoRAs
+                    if isinstance(weight_config, dict):
+                        # Use max weight for single LoRA, min weight for multiple LoRAs
+                        weight = weight_config.get('max', 1.0) if num_loras == 1 else weight_config.get('min', 0.5)
+                    else:
+                        # Fallback for old format - use direct weight value
+                        weight = float(weight_config)
+
                     lora_loader[lora_key] = {
                         'on': True,
                         'lora': lora,
-                        'strength': lora_info[lora]['weight']
+                        'strength': weight
                     }
+                    logger.debug(f"Set LoRA {lora} weight to {weight} (of {num_loras} total LoRAs)")
                 else:
                     logger.warning(f"LoRA {lora} not found in lora.json")
         else:
@@ -63,13 +72,6 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
             logger.debug(f"Updated seed in workflow. New seed: {seed}")
         else:
             logger.warning("Node 198:2 (seed node) not found in workflow")
-
-        # Update guidance value if it exists (Node 198:4)
-        if '198:4' in workflow:
-            if 'inputs' in workflow['198:4'] and 'guidance' in workflow['198:4']['inputs']:
-                workflow['198:4']['inputs']['guidance'] = 3.5  # Default guidance value
-        else:
-            logger.warning("Node 198:4 (guidance node) not found in workflow")
 
         return workflow
 

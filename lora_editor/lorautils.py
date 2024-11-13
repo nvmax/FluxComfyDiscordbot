@@ -26,22 +26,94 @@ def sanitize_filename(filename):
 class LoraConfig:
     def __init__(self, config_file: str = None):
         """Initialize LoRA configuration manager"""
-        self.config_file = config_file or os.getenv('LORA_JSON_PATH', 'lora.json')
+        if config_file:
+            self.config_file = os.path.abspath(config_file)
+        else:
+            # Default to Main/DataSets/lora.json relative to the project root
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            self.config_file = os.path.join(project_root, 'Main', 'DataSets', 'lora.json')
+        
+        logger.debug(f"Config file path: {self.config_file}")
         self.data = self.load_config()
         
     def load_config(self) -> Dict:
         """Load configuration from JSON file"""
         try:
             with open(self.config_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                data = json.load(f)
+                
+                # Ensure proper structure
+                if 'available_loras' not in data:
+                    data['available_loras'] = []
+                if 'default' not in data:
+                    data['default'] = ""
+                    
+                # Convert any old weight format to new format
+                for lora in data['available_loras']:
+                    if 'weight' in lora:
+                        if not isinstance(lora['weight'], dict):
+                            old_weight = float(lora['weight'])
+                            lora['weight'] = {
+                                "min": old_weight * 0.5,
+                                "max": old_weight
+                            }
+                    else:
+                        lora['weight'] = {"min": 0.5, "max": 1.0}
+                        
+                    # Ensure URL field exists
+                    if 'URL' not in lora:
+                        lora['URL'] = ""
+                        
+                    # Ensure add_prompt field exists
+                    if 'add_prompt' not in lora:
+                        lora['add_prompt'] = ""
+                        
+                return data
+                
         except FileNotFoundError:
+            return {"default": "", "available_loras": []}
+        except Exception as e:
+            logger.error(f"Error loading config: {e}")
             return {"default": "", "available_loras": []}
             
     def save_config(self) -> None:
         """Save configuration to JSON file"""
-        os.makedirs(os.path.dirname(os.path.abspath(self.config_file)), exist_ok=True)
-        with open(self.config_file, 'w', encoding='utf-8') as f:
-            json.dump(self.data, f, indent=2)
+        try:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(os.path.abspath(self.config_file)), exist_ok=True)
+            
+            # Ensure proper structure for each entry
+            for lora in self.data.get('available_loras', []):
+                # Ensure weight is in correct format
+                if not isinstance(lora.get('weight'), dict):
+                    weight_value = float(lora.get('weight', 0.5))
+                    lora['weight'] = {
+                        "min": weight_value * 0.5,
+                        "max": weight_value
+                    }
+                    
+                # Ensure all required fields exist
+                if 'URL' not in lora:
+                    lora['URL'] = ""
+                if 'add_prompt' not in lora:
+                    lora['add_prompt'] = ""
+                
+                # Format weight values
+                if isinstance(lora['weight'], dict):
+                    lora['weight'] = {
+                        "min": float(lora['weight'].get('min', 0.5)),
+                        "max": float(lora['weight'].get('max', 1.0))
+                    }
+            
+            # Write to file with proper formatting
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(self.data, f, indent=2, ensure_ascii=False)
+                
+            logger.debug(f"Saved config to {self.config_file}")
+            
+        except Exception as e:
+            logger.error(f"Error saving config: {e}")
+            raise
             
     def get_lora_files(self, folder: str) -> List[str]:
         """Get list of LoRA files from specified folder"""
@@ -49,7 +121,7 @@ class LoraConfig:
         
     def update_ids(self) -> None:
         """Update all IDs to match their position in the list"""
-        for i, lora in enumerate(self.data["available_loras"], 1):
+        for i, lora in enumerate(self.data.get("available_loras", []), 1):
             lora["id"] = i
 
 class HuggingFaceDownloader:

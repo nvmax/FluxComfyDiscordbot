@@ -9,13 +9,12 @@ class EntryDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title(title)
-        self.dialog.geometry("500x350")
+        self.dialog.geometry("500x450")  # Increased height for new fields
         self.dialog.resizable(False, False)
         
         self.setup_ui(initial)
         self.center_dialog(parent)
         
-        # Make dialog modal
         self.dialog.transient(parent)
         self.dialog.grab_set()
         self.dialog.focus_force()
@@ -43,13 +42,31 @@ class EntryDialog:
         self.file_combo['values'] = self.available_files
         self.file_combo.pack(side=tk.LEFT, padx=(10, 0), fill=tk.X, expand=True)
         
-        # Weight field
-        weight_frame = ttk.Frame(main_frame)
+        # Weight frame with min/max
+        weight_frame = ttk.LabelFrame(main_frame, text="Weight Range")
         weight_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(weight_frame, text="Weight:").pack(side=tk.LEFT)
+        
+        # Min weight
+        min_frame = ttk.Frame(weight_frame)
+        min_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(min_frame, text="Min Weight:").pack(side=tk.LEFT)
         vcmd = (self.dialog.register(self.validate_weight), '%P')
-        self.weight_entry = ttk.Entry(weight_frame, width=10, validate="key", validatecommand=vcmd)
-        self.weight_entry.pack(side=tk.LEFT, padx=(10, 0))
+        self.min_weight_entry = ttk.Entry(min_frame, width=10, validate="key", validatecommand=vcmd)
+        self.min_weight_entry.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # Max weight
+        max_frame = ttk.Frame(weight_frame)
+        max_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(max_frame, text="Max Weight:").pack(side=tk.LEFT)
+        self.max_weight_entry = ttk.Entry(max_frame, width=10, validate="key", validatecommand=vcmd)
+        self.max_weight_entry.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # URL field
+        url_frame = ttk.Frame(main_frame)
+        url_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(url_frame, text="URL:").pack(side=tk.LEFT)
+        self.url_entry = ttk.Entry(url_frame, width=40)
+        self.url_entry.pack(side=tk.LEFT, padx=(10, 0), fill=tk.X, expand=True)
         
         # Prompt field
         prompt_frame = ttk.Frame(main_frame)
@@ -62,10 +79,21 @@ class EntryDialog:
         if initial:
             self.name_entry.insert(0, initial["name"])
             self.file_var.set(initial["file"])
-            self.weight_entry.insert(0, initial["weight"])
-            self.prompt_entry.insert(0, initial["prompt"])
+            
+            # Handle weight values
+            if isinstance(initial.get("weight"), dict):
+                self.min_weight_entry.insert(0, str(initial["weight"].get("min", "0.5")))
+                self.max_weight_entry.insert(0, str(initial["weight"].get("max", "1.0")))
+            else:
+                # Legacy format support
+                self.min_weight_entry.insert(0, "0.5")
+                self.max_weight_entry.insert(0, str(initial.get("weight", "1.0")))
+                
+            self.url_entry.insert(0, initial.get("URL", ""))
+            self.prompt_entry.insert(0, initial.get("prompt", ""))
         else:
-            self.weight_entry.insert(0, "0.5")
+            self.min_weight_entry.insert(0, "0.5")
+            self.max_weight_entry.insert(0, "1.0")
             self.file_var.trace('w', self.update_name_from_file)
         
         # Buttons
@@ -116,15 +144,23 @@ class EntryDialog:
             if not self.file_var.get():
                 raise ValueError("Please select a LoRA file")
             
-            weight = float(self.weight_entry.get())
-            if not (0 <= weight <= 1):
-                raise ValueError("Weight must be between 0 and 1")
+            min_weight = float(self.min_weight_entry.get() or "0.5")
+            max_weight = float(self.max_weight_entry.get() or "1.0")
+            
+            if not (0 <= min_weight <= 1 and 0 <= max_weight <= 1):
+                raise ValueError("Weights must be between 0 and 1")
+            if min_weight > max_weight:
+                raise ValueError("Minimum weight cannot be greater than maximum weight")
                 
             self.result = {
                 "name": self.name_entry.get(),
                 "file": self.file_var.get(),
-                "weight": str(weight),
-                "prompt": self.prompt_entry.get()
+                "weight": {
+                    "min": min_weight,
+                    "max": max_weight
+                },
+                "prompt": self.prompt_entry.get(),
+                "URL": self.url_entry.get()
             }
             self.dialog.destroy()
         except ValueError as e:

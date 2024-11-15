@@ -179,10 +179,12 @@ class LoraDatabase:
                 
                 # Add each lora from the JSON to the database
                 for lora in config["available_loras"]:
+                    # Handle both old 'prompt' and new 'add_prompt' keys
+                    trigger_words = lora.get("add_prompt", lora.get("prompt", ""))
                     entry = LoraHistoryEntry(
                         file_name=lora["file"],
                         display_name=lora["name"],
-                        trigger_words=lora.get("add_prompt", ""),
+                        trigger_words=trigger_words,
                         weight=float(lora.get("weight", 1.0)),
                         url=lora.get("url", ""),
                         is_active=True,

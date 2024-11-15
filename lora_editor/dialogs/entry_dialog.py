@@ -71,7 +71,8 @@ class EntryDialog:
             self.name_entry.insert(0, initial["name"])
             self.file_var.set(initial["file"])
             self.weight_entry.insert(0, initial["weight"])
-            self.add_prompt_entry.insert(0, initial["add_prompt"])  
+            prompt_value = initial.get("add_prompt", initial.get("prompt", ""))
+            self.add_prompt_entry.insert(0, prompt_value)
             self.url_entry.insert(0, initial.get("url", ""))
         else:
             self.weight_entry.insert(0, "1.0")

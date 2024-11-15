@@ -12,7 +12,7 @@ class CivitAIDownloader:
         civitai_token = os.getenv('CIVITAI_API_TOKEN')
         self.headers = {'Authorization': f'Bearer {civitai_token}'} if civitai_token else {}
 
-    def get_download_url(self, url: str) -> str:
+    def get_download_url(self, url: str) -> tuple:
         """Get download URL from CivitAI model page URL"""
         try:
             # Extract model ID from URL
@@ -43,12 +43,22 @@ class CivitAIDownloader:
                     model_data['modelVersions'][0]
                 )
             
+            # Extract trigger words
+            trigger_words = ""
+            if 'trainedWords' in version:
+                trigger_words = ", ".join(version['trainedWords'])
+            
             # Find the first .safetensors file
+            download_url = None
             for file in version['files']:
                 if file['name'].endswith('.safetensors'):
-                    return file['downloadUrl']
+                    download_url = file['downloadUrl']
+                    break
             
-            raise ValueError("No .safetensors file found in model files")
+            if not download_url:
+                raise ValueError("No .safetensors file found in model files")
+                
+            return download_url, trigger_words
             
         except Exception as e:
             logger.error(f"Error getting download URL: {e}")
@@ -59,7 +69,7 @@ class CivitAIDownloader:
         try:
             # Get the direct download URL if needed
             if 'civitai.com/models/' in url:
-                url = self.get_download_url(url)
+                url, _ = self.get_download_url(url)
             
             # Start the download
             response = requests.get(url, headers=self.headers, stream=True)

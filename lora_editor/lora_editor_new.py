@@ -601,7 +601,7 @@ class LoraEditor:
             self.status_bar.set_status("Failed to save configuration")
             messagebox.showerror("Error", f"Failed to save configuration: {str(e)}")
 
-    def on_download_complete(self, file_name, url):
+    def on_download_complete(self, file_name, url, trigger_words):
         """Handle download completion"""
         self.refresh_lora_files()
         self.status_bar.set_status(f"Download complete: {file_name}")
@@ -615,7 +615,7 @@ class LoraEditor:
                 "name": name,
                 "file": file_name,
                 "weight": "1.0",
-                "prompt": "",
+                "add_prompt": trigger_words,
                 "url": url
             }
             
@@ -631,7 +631,7 @@ class LoraEditor:
                 entry = LoraHistoryEntry(
                     file_name=dialog.result["file"],
                     display_name=dialog.result["name"],
-                    trigger_words=dialog.result["prompt"],
+                    trigger_words=dialog.result["add_prompt"],
                     weight=float(dialog.result["weight"]),
                     url=dialog.result["url"]
                 )
@@ -652,15 +652,18 @@ class LoraEditor:
                 self.root.after(0, lambda: self.progress_frame.pack(fill=tk.X, pady=5))
                 self.root.after(0, lambda: self.progress_var.set(0))  # Reset progress
                 
+                # Get download URL and trigger words
+                download_url, trigger_words = self.civitai_downloader.get_download_url(url)
+                
                 # Start download
                 file_name = self.civitai_downloader.download(
-                    url,
+                    download_url,
                     self.lora_folder,
                     progress_callback=lambda p: self.root.after(0, lambda: self.update_progress(p))
                 )
                 
-                # Handle download completion
-                self.root.after(0, lambda: self.on_download_complete(file_name, url))
+                # Handle download completion with trigger words
+                self.root.after(0, lambda: self.on_download_complete(file_name, url, trigger_words))
                 
             except Exception as e:
                 logger.error(f"Error downloading from CivitAI: {e}")
@@ -692,8 +695,8 @@ class LoraEditor:
                     progress_callback=lambda p: self.root.after(0, lambda: self.update_progress(p))
                 )
                 
-                # Handle download completion
-                self.root.after(0, lambda: self.on_download_complete(file_name, url))
+                # Handle download completion (no trigger words for HF)
+                self.root.after(0, lambda: self.on_download_complete(file_name, url, ""))
                 
             except Exception as e:
                 logger.error(f"Error downloading from HuggingFace: {e}")

@@ -25,6 +25,12 @@ Whether you're an artist looking for inspiration, a writer wanting to visualize 
 So, are you ready to dive into a world where your words paint pictures? Where your imagination knows no bounds? Where you can create images you never even knew you could think of? Then you're in the right place! Let's embark on this exciting journey of AI-powered creativity together!
 
 ## New Updates:
+  * 11/14/2024
+  * Added robust use of lora weights, now when using loras if only 1 is selected it will use full weight, if 2 are selected it will scale down.
+  * Added Lorainfo slash command, it will now show you information on the loras and give a url link to show users what the lora can do. 
+  * Reworked lora editor, now has a better UI and is more user friendly, you can now double click to edit a lora details, Auto saves on changes. 
+  * COMPILED to exe YAY! now you can just run the exe to run the editor. 
+
   * 11/12/2024
   * Compiled the setup tool for windows, now run the Setup.exe to install the bot.
 
@@ -35,17 +41,6 @@ So, are you ready to dive into a world where your words paint pictures? Where yo
   * Updated setup tool with folder validation specify your base directory of Comfyui Example: C:/Comfyui_windows_portable/ComfyUI should contain the comfyui launcher in it.
   * Updated code for Lora_monitor resolves issues with timing of updating lora list with in the bot, better verification of update status.
 
-
-  * 11/9/2024
-  * Now Supports Docker - refer to "Setting up the Discord Bot" for more details
-  * Fixed issue with lora "confirm selection" button not updating the amount of loras selected.
-  * Loras are now monitored and when a new one is detected it will be added to the list of loras on the bot, no need to restart the bot(does not apply to Docker ran installation).
-  * Lora list now supports more than 25 loras, theoritically it can support north of 600 loras.
-  * Lora editor
-    * Added active and inactive status, you can now select what ones you want to show with out having to delete them.
-    * Added Jump 5 space buttons, will move the selected lora up or down 5 spaces
-    * Added reset lora this will wipe out all loras(destructive) does not delete your loras in your folder.
-    * Added Huggingface support, you can now download loras from huggingface.
 
 ## Table of Contents
 1. [Prerequisite](#prerequisite)
@@ -174,6 +169,8 @@ These models will go in your comfyui/models/Lora folder.
 ### New Tool: Lora_editor
 
     ### update: 
+    * Now saves URL links (support for /lorainfo command)
+    * Compiled to exe just run the loraEditor.exe 
     * Now supports more than 25 LoRA's, theoritically it can support north of 600 LoRA's.
     * You can activate and deactivate loras from the gui. 
     * Persistant lora information is stored in sqlite3 database.
@@ -196,8 +193,8 @@ These models will go in your comfyui/models/Lora folder.
   Benifits of using tool:
   - it autodownloads the lora's by pasting in the URL to the lora
   - it auto populates trigger words required for the lora to work
-  - no fuss easy and simple to use, weights are already set to 0.5 (for multiple loras this is HIGHLY recommended)
-  - for loras requiring less than 0.5 please change it to the lower option.
+  - no fuss easy and simple to use, weights are already set to 1.0
+  - for loras requiring less than 1.0 please change it to the lower option.
   - allows you to customize in what order they are shown in the bot easily.
       
 <img src="loraeditor.png" width="600">
@@ -208,7 +205,7 @@ These models will go in your comfyui/models/Lora folder.
   * add_prompt: if the lora requires a trigger word place it in this field
   * file: this is the exact name of the LoRA file with .safetensors, Example: MyLoRA.safetensors
   * weight: this is the weight required to get the desired effect from the lora.  
-    * 0.5 is ideal if you are wanting to use multiple LoRA's at one time, having many at 1.0 can cause mass hallucination on image generations.
+  * url: this is the full url to the LoRA, example: https://civitai.com/api/download/models/123456789/MyLoRA.safetensors
    
     
     
@@ -228,7 +225,8 @@ These models will go in your comfyui/models/Lora folder.
 	 * /remove_banned_word - removes specified word
 	 * /unban_user "discord id"
 	 * /whybanned "discord id" - gives reason why this person was banned and the prompt they tried to use. 
-     * /reboot - reboots the bot, this is useful if you are having issues with the bot and need to restart it.
+   * /reboot - reboots the bot, this is useful if you are having issues with the bot and need to restart it.
+   * /lorainfo - displays the loras and links to their respective civitai or huggingface page.
 
 #### Update: The banned words was pretty harsh, 1 use and banned no warnings.
   * implemented a warning system, 2 warnings 3rd time banned.
@@ -292,7 +290,7 @@ The most important rule is to have fun and let your imagination run wild! Every 
 ## Troubleshooting 
 Encountering issues? Don't worry! Here are some common problems and simple solutions to get you back to creating amazing images. 
 
-### Hardware Requirements For the best experience, we recommend:
+### RecommendedHardware Requirements for the best experience, I recommend:
  -  CPU: Recent Intel or AMD processor 
  -  RAM: 64GB of system memory 
  -  GPU: NVIDIA RTX 3090 or 4090 

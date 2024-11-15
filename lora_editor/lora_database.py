@@ -5,6 +5,8 @@ from typing import List, Dict, Optional
 from dataclasses import dataclass
 from pathlib import Path
 from dotenv import load_dotenv
+import os
+
 root_dir = Path(__file__).parent.parent
 load_dotenv(root_dir / '.env')
 
@@ -17,6 +19,7 @@ class LoraHistoryEntry:
     display_name: str
     trigger_words: str
     weight: float
+    url: str = ""
     is_active: bool = True
     id: Optional[int] = None
 
@@ -30,37 +33,65 @@ class LoraDatabase:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 c = conn.cursor()
+                
+                # Drop existing table to reset IDs
+                c.execute('DROP TABLE IF EXISTS lora_history')
+                
+                # Create table
                 c.execute('''CREATE TABLE IF NOT EXISTS lora_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     file_name TEXT UNIQUE NOT NULL,
                     display_name TEXT NOT NULL,
                     trigger_words TEXT,
                     weight REAL NOT NULL,
+                    url TEXT,
                     is_active BOOLEAN NOT NULL DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )''')
+                
+                # Reset the SQLite sequence
+                c.execute("DELETE FROM sqlite_sequence WHERE name='lora_history'")
+                
                 conn.commit()
                 logger.debug("Database initialized successfully")
         except Exception as e:
             logger.error(f"Error initializing database: {e}")
             raise
 
-    def add_lora(self, entry: LoraHistoryEntry) -> bool:
+    def add_lora(self, entry: LoraHistoryEntry) -> Optional[LoraHistoryEntry]:
         """Add or update a LoRA entry in the history"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 c = conn.cursor()
-                c.execute('''INSERT OR REPLACE INTO lora_history 
-                           (file_name, display_name, trigger_words, weight, is_active)
-                           VALUES (?, ?, ?, ?, ?)''',
-                        (entry.file_name, entry.display_name, entry.trigger_words, 
-                         entry.weight, entry.is_active))
+                
+                # Check if entry already exists
+                c.execute('SELECT id FROM lora_history WHERE file_name = ?', (entry.file_name,))
+                existing_id = c.fetchone()
+                
+                if existing_id:
+                    # Update existing entry
+                    c.execute('''UPDATE lora_history 
+                               SET display_name = ?, trigger_words = ?, weight = ?, url = ?, is_active = ?
+                               WHERE file_name = ?''',
+                            (entry.display_name, entry.trigger_words, entry.weight, 
+                             entry.url, entry.is_active, entry.file_name))
+                    entry.id = existing_id[0]
+                else:
+                    # Insert new entry
+                    c.execute('''INSERT INTO lora_history 
+                               (file_name, display_name, trigger_words, weight, url, is_active)
+                               VALUES (?, ?, ?, ?, ?, ?)''',
+                            (entry.file_name, entry.display_name, entry.trigger_words,
+                             entry.weight, entry.url, entry.is_active))
+                    entry.id = c.lastrowid
+                
                 conn.commit()
-                logger.debug(f"Added/Updated LoRA: {entry.file_name}")
-                return True
+                logger.debug(f"Added/Updated LoRA: {entry.file_name} with ID {entry.id}")
+                return entry
+                
         except Exception as e:
             logger.error(f"Error adding LoRA to history: {e}")
-            return False
+            return None
 
     def get_lora_history(self, include_inactive: bool = False) -> List[LoraHistoryEntry]:
         """Get all LoRA entries from history"""
@@ -72,14 +103,18 @@ class LoraDatabase:
                 else:
                     c.execute('SELECT * FROM lora_history WHERE is_active = 1 ORDER BY created_at DESC')
                 
-                return [LoraHistoryEntry(
-                    id=row[0],
-                    file_name=row[1],
-                    display_name=row[2],
-                    trigger_words=row[3],
-                    weight=row[4],
-                    is_active=bool(row[5])
-                ) for row in c.fetchall()]
+                entries = []
+                for row in c.fetchall():
+                    entries.append(LoraHistoryEntry(
+                        id=row[0],
+                        file_name=row[1],
+                        display_name=row[2],
+                        trigger_words=row[3],
+                        weight=row[4],
+                        url=row[5] if len(row) > 5 else "",
+                        is_active=bool(row[6] if len(row) > 6 else True)
+                    ))
+                return entries
         except Exception as e:
             logger.error(f"Error getting LoRA history: {e}")
             return []
@@ -98,7 +133,8 @@ class LoraDatabase:
                         display_name=row[2],
                         trigger_words=row[3],
                         weight=row[4],
-                        is_active=bool(row[5])
+                        url=row[5] if len(row) > 5 else "",
+                        is_active=bool(row[6] if len(row) > 6 else True)
                     )
                 return None
         except Exception as e:
@@ -131,39 +167,35 @@ class LoraDatabase:
             logger.error(f"Error reactivating LoRA: {e}")
             return False
 
-    def sync_with_json(self, json_data: Dict) -> bool:
-        """Sync the database with the LoRA configuration JSON"""
+    def sync_with_json(self, config: dict):
+        """Sync database with JSON configuration"""
         try:
-            current_entries = set()
+            if "available_loras" not in config:
+                logger.warning("No available_loras found in config")
+                return
+                
             with sqlite3.connect(self.db_path) as conn:
                 c = conn.cursor()
                 
-                # Add/Update entries from JSON
-                for lora in json_data.get('available_loras', []):
-                    file_name = lora.get('file')
-                    if not file_name:
-                        continue
-                        
-                    current_entries.add(file_name)
+                # Add each lora from the JSON to the database
+                for lora in config["available_loras"]:
                     entry = LoraHistoryEntry(
-                        file_name=file_name,
-                        display_name=lora.get('name', ''),
-                        trigger_words=lora.get('add_prompt', ''),
-                        weight=float(lora.get('weight', 0.5)),
-                        is_active=True
+                        file_name=lora["file"],
+                        display_name=lora["name"],
+                        trigger_words=lora.get("add_prompt", ""),
+                        weight=float(lora.get("weight", 1.0)),
+                        url=lora.get("url", ""),
+                        is_active=True,
+                        id=lora.get("id", None)
                     )
                     self.add_lora(entry)
-                
-                # Deactivate entries not in JSON
-                c.execute('SELECT file_name FROM lora_history WHERE is_active = 1')
-                for (file_name,) in c.fetchall():
-                    if file_name not in current_entries:
-                        self.deactivate_lora(file_name)
-                
-                return True
+                    
+            conn.commit()
+            logger.info(f"Synced {len(config['available_loras'])} entries from JSON")
+            
         except Exception as e:
             logger.error(f"Error syncing with JSON: {e}")
-            return False
+            raise
 
     def export_to_json(self) -> Dict:
         """Export active LoRA entries to JSON format"""
@@ -176,9 +208,41 @@ class LoraDatabase:
                     'name': entry.display_name,
                     'file': entry.file_name,
                     'weight': entry.weight,
-                    'add_prompt': entry.trigger_words
+                    'add_prompt': entry.trigger_words,
+                    'url': entry.url
                 })
             return {'default': '', 'available_loras': loras}
         except Exception as e:
             logger.error(f"Error exporting to JSON: {e}")
             return {'default': '', 'available_loras': []}
+
+    def update_entry(self, old_file_name: str, entry: dict) -> bool:
+        """Update an existing LoRA entry"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                c = conn.cursor()
+                c.execute('''UPDATE lora_history 
+                           SET file_name = ?, display_name = ?, trigger_words = ?, 
+                               weight = ?, url = ?, is_active = ?
+                           WHERE file_name = ?''',
+                        (entry["file_name"], entry["display_name"], entry["trigger_words"],
+                         entry["weight"], entry["url"], entry["is_active"], old_file_name))
+                conn.commit()
+                logger.debug(f"Updated LoRA: {old_file_name} -> {entry['file_name']}")
+                return True
+        except Exception as e:
+            logger.error(f"Error updating LoRA entry: {e}")
+            return False
+
+    def delete_entry(self, file_name: str) -> bool:
+        """Delete a LoRA entry from the database"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                c = conn.cursor()
+                c.execute('DELETE FROM lora_history WHERE file_name = ?', (file_name,))
+                conn.commit()
+                logger.debug(f"Deleted LoRA: {file_name}")
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting LoRA entry: {e}")
+            return False

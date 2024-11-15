@@ -553,6 +553,70 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
 
         logger.debug(f"PromptModal initialized with LoRAs: {self.loras}")
 
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            lora_config = load_json('lora.json')
+            base_prompt = re.sub(r'\s*\(Timestamp:.*?\)', '', self.prompt.value)
+            
+            # Clean base prompt of any existing LoRA trigger words
+            for lora in lora_config['available_loras']:
+                if lora.get('add_prompt'):
+                    base_prompt = base_prompt.replace(lora['add_prompt'], '').strip()
+            
+            # Clean up multiple commas and whitespace
+            base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
+            
+            # Get LoRA trigger words
+            additional_prompts = []
+            for lora in self.loras:
+                lora_info = next((l for l in lora_config['available_loras'] if l['file'] == lora), None)
+                if lora_info and lora_info.get('add_prompt') and lora_info['add_prompt'].strip():
+                    additional_prompts.append(lora_info['add_prompt'].strip())
+            
+            # Join trigger words with commas and append to prompt
+            trigger_words = ", ".join(additional_prompts) if additional_prompts else ""
+            full_prompt = f"{base_prompt}, {trigger_words}" if trigger_words else base_prompt
+            
+            try:
+                seed = int(self.seed.value) if self.seed.value else None
+            except ValueError:
+                seed = None
+
+            workflow = load_json(fluxversion)
+            request_uuid = str(uuid.uuid4())
+            
+            workflow = update_workflow(workflow, 
+                                  full_prompt,
+                                  self.resolution, 
+                                  self.loras, 
+                                  self.upscale_factor,
+                                  seed)
+
+            workflow_filename = f'flux3_{request_uuid}.json'
+            save_json(workflow_filename, workflow)
+
+            new_message = await interaction.response.send_message("Generating new image with updated options...")
+            message = await interaction.original_response()
+
+            request_item = RequestItem(
+                id=str(interaction.id),
+                user_id=str(interaction.user.id),
+                channel_id=str(interaction.channel.id),
+                interaction_id=str(interaction.id),
+                original_message_id=str(message.id),
+                prompt=full_prompt,
+                resolution=self.resolution,
+                loras=self.loras,
+                upscale_factor=self.upscale_factor,
+                workflow_filename=workflow_filename,
+                seed=seed
+            )
+            await interaction.client.subprocess_queue.put(request_item)
+            
+        except Exception as e:
+            logger.error(f"Error in modal submit: {e}", exc_info=True)
+            await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
+
 class ImageControlView(ui.View):
     def __init__(self, bot, original_prompt=None, image_filename=None, original_resolution=None, original_loras=None, original_upscale_factor=None, original_seed=None):
         super().__init__(timeout=None)
@@ -663,22 +727,24 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
             lora_config = load_json('lora.json')
             base_prompt = re.sub(r'\s*\(Timestamp:.*?\)', '', self.prompt.value)
             
-            # Clean base prompt
+            # Clean base prompt of any existing LoRA trigger words
             for lora in lora_config['available_loras']:
                 if lora.get('add_prompt'):
                     base_prompt = base_prompt.replace(lora['add_prompt'], '').strip()
             
+            # Clean up multiple commas and whitespace
             base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
             
-            # Add new LoRA prompts
-            additional_prompts = [
-                lora_info['add_prompt']
-                for lora in self.loras
-                if (lora_info := next((l for l in lora_config['available_loras'] if l['file'] == lora), None))
-                and lora_info.get('add_prompt')
-            ]
+            # Get LoRA trigger words
+            additional_prompts = []
+            for lora in self.loras:
+                lora_info = next((l for l in lora_config['available_loras'] if l['file'] == lora), None)
+                if lora_info and lora_info.get('add_prompt') and lora_info['add_prompt'].strip():
+                    additional_prompts.append(lora_info['add_prompt'].strip())
             
-            full_prompt = f"{base_prompt} {', '.join(additional_prompts)}".strip()
+            # Join trigger words with commas and append to prompt
+            trigger_words = ", ".join(additional_prompts) if additional_prompts else ""
+            full_prompt = f"{base_prompt}, {trigger_words}" if trigger_words else base_prompt
             
             try:
                 seed = int(self.seed.value) if self.seed.value else None
@@ -687,10 +753,9 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
 
             workflow = load_json(fluxversion)
             request_uuid = str(uuid.uuid4())
-            current_timestamp = int(time.time())
             
             workflow = update_workflow(workflow, 
-                                  f"{full_prompt} (Timestamp: {current_timestamp})", 
+                                  full_prompt,
                                   self.resolution, 
                                   self.loras, 
                                   self.upscale_factor,
@@ -721,6 +786,78 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
             logger.error(f"Error in modal submit: {e}", exc_info=True)
             await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
 
+class LoraInfoView(ui.View):
+    """A paginated view for displaying LoRA information"""
+    def __init__(self, loras: List[dict]):
+        super().__init__(timeout=300)  # 5 minute timeout
+        self.loras = loras
+        self.current_page = 0
+        self.items_per_page = 5
+        self.total_pages = (len(self.loras) + self.items_per_page - 1) // self.items_per_page
+        self.message = None
+        self.update_buttons()
+
+    def get_page_content(self) -> str:
+        """Get the content for the current page"""
+        start_idx = self.current_page * self.items_per_page
+        end_idx = min(start_idx + self.items_per_page, len(self.loras))
+        page_loras = self.loras[start_idx:end_idx]
+        
+        content = [f"Page {self.current_page + 1} of {self.total_pages}\n"]
+        for lora in page_loras:
+            name = lora.get('name', 'Unnamed')
+            url = lora.get('url', '')
+            
+            entry = [f"**{name}**"]
+            if url:
+                entry.append(f"[LoraInfo]({url})")
+            else:
+                entry.append("*No info available*")
+            
+            # Add an empty line between entries
+            entry.append("")
+            content.append("\n".join(entry))
+        
+        return "\n".join(content)
+
+    def update_buttons(self):
+        """Update button states based on current page"""
+        self.first_page.disabled = self.current_page == 0
+        self.prev_page.disabled = self.current_page == 0
+        self.next_page.disabled = self.current_page >= self.total_pages - 1
+        self.last_page.disabled = self.current_page >= self.total_pages - 1
+
+    async def update_message(self, interaction: discord.Interaction):
+        """Update the message with the current page content"""
+        await interaction.response.edit_message(
+            content=self.get_page_content(),
+            view=self
+        )
+
+    @ui.button(label="⏮️", style=discord.ButtonStyle.gray)
+    async def first_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = 0
+        self.update_buttons()
+        await self.update_message(interaction)
+
+    @ui.button(label="◀️", style=discord.ButtonStyle.gray)
+    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = max(0, self.current_page - 1)
+        self.update_buttons()
+        await self.update_message(interaction)
+
+    @ui.button(label="▶️", style=discord.ButtonStyle.gray)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = min(self.total_pages - 1, self.current_page + 1)
+        self.update_buttons()
+        await self.update_message(interaction)
+
+    @ui.button(label="⏭️", style=discord.ButtonStyle.gray)
+    async def last_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = self.total_pages - 1
+        self.update_buttons()
+        await self.update_message(interaction)
+
 # Optional interface class for better type hints and documentation
 class ViewInterface:
     """Interface class defining the expected view structure"""
@@ -730,6 +867,7 @@ class ViewInterface:
     PromptModal = PromptModal
     PaginatedLoRASelect = PaginatedLoRASelect
     ResolutionSelect = ResolutionSelect
+    LoraInfoView = LoraInfoView
 
 __all__ = [
     'ImageControlView',
@@ -738,5 +876,6 @@ __all__ = [
     'PromptModal',
     'PaginatedLoRASelect',
     'ResolutionSelect',
+    'LoraInfoView',
     'ViewInterface'
 ]

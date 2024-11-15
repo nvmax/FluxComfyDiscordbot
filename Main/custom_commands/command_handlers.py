@@ -1,5 +1,5 @@
 import discord
-from discord import app_commands
+from discord import app_commands, ui
 from discord.ext import commands as discord_commands
 from Main.custom_commands import views
 from config import BOT_MANAGER_ROLE_ID, CHANNEL_IDS
@@ -132,14 +132,16 @@ async def setup_commands(bot: discord.Client):
                 additional_prompts = []
                 for lora in selected_loras:
                     lora_info = next((l for l in lora_config['available_loras'] if l['file'] == lora), None)
-                    if lora_info and lora_info.get('add_prompt'):
-                        additional_prompts.append(lora_info['add_prompt'])
+                    if lora_info and lora_info.get('add_prompt') and lora_info['add_prompt'].strip():  # Only add non-empty trigger words
+                        additional_prompts.append(lora_info['add_prompt'].strip())
                 
-                full_prompt = f"{prompt} {' '.join(additional_prompts)}".strip()
-                current_timestamp = int(time.time())
+                # Join trigger words with commas and append to prompt
+                trigger_words = ", ".join(additional_prompts) if additional_prompts else ""
+                full_prompt = f"{prompt}, {trigger_words}" if trigger_words else prompt
+                
                 workflow = update_workflow(
                     workflow,
-                    f"{full_prompt} (Timestamp: {current_timestamp})",
+                    full_prompt,
                     resolution,
                     selected_loras,
                     upscale_factor,
@@ -395,6 +397,30 @@ async def setup_commands(bot: discord.Client):
                 ephemeral=True
             )
             
+    @bot.tree.command(name="lorainfo", description="View information about available LoRAs")
+    @in_allowed_channel()
+    async def lorainfo(interaction: discord.Interaction):
+        """Command to display information about available LoRAs in a paginated view"""
+        try:
+            # Load lora configuration
+            lora_config = load_json('lora.json')
+            loras = lora_config.get('available_loras', [])
+            
+            # Create view
+            view = views.LoraInfoView(loras)
+            
+            # Send initial message with first page content
+            await interaction.response.send_message(
+                content=view.get_page_content(),
+                view=view,
+                ephemeral=True
+            )
+        except Exception as e:
+            logger.error(f"Error in lorainfo command: {str(e)}", exc_info=True)
+            await interaction.response.send_message(
+                "An error occurred while fetching LoRA information.",
+                ephemeral=True
+            )
 
     @bot.tree.command(name="sync", description="Sync bot commands")
     @has_admin_or_bot_manager_role()

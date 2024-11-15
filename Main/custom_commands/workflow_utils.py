@@ -40,10 +40,11 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
             for i, lora in enumerate(loras, start=1):
                 lora_key = f'lora_{i}'
                 if lora in lora_info:
+                    lora_strength = lora_info[lora]['weight'] if lora_info[lora]['weight'] < 0.5 else (1.0 if len(loras) == 1 else 0.5)
                     lora_loader[lora_key] = {
                         'on': True,
                         'lora': lora,
-                        'strength': lora_info[lora]['weight']
+                        'strength': lora_strength
                     }
                 else:
                     logger.warning(f"LoRA {lora} not found in lora.json")

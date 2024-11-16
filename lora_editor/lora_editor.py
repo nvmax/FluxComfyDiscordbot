@@ -810,7 +810,8 @@ class LoraEditor:
                     "weight": float(dialog.result["weight"]),
                     "trigger_words": dialog.result["add_prompt"],  
                     "is_active": values[1] == "Active",
-                    "url": dialog.result.get("url", "")
+                    "url": dialog.result.get("url", ""),
+                    "display_order": int(values[0])  # Add display_order from the original entry
                 }
                 self.db.update_entry(current_entry["file"], entry)
                 self.save_config()

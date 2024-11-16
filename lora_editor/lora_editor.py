@@ -422,6 +422,21 @@ class LoraEditor:
         for item in selected:
             idx = self.tree.index(item)
             if idx > 0:
+                # Get the current values of both items
+                current_values = list(self.tree.item(item)["values"])
+                above_item = self.tree.prev(item)
+                above_values = list(self.tree.item(above_item)["values"])
+                
+                # Swap all values except the ID
+                current_id = current_values[0]
+                above_id = above_values[0]
+                current_values[0] = above_id
+                above_values[0] = current_id
+                
+                # Update both items
+                self.tree.item(item, values=current_values)
+                self.tree.item(above_item, values=above_values)
+                
                 # Move the item up in the treeview
                 self.tree.move(item, '', idx - 1)
                 moved = True
@@ -448,6 +463,21 @@ class LoraEditor:
         for item in reversed(selected):
             idx = self.tree.index(item)
             if idx < len(self.tree.get_children()) - 1:
+                # Get the current values of both items
+                current_values = list(self.tree.item(item)["values"])
+                below_item = self.tree.next(item)
+                below_values = list(self.tree.item(below_item)["values"])
+                
+                # Swap all values except the ID
+                current_id = current_values[0]
+                below_id = below_values[0]
+                current_values[0] = below_id
+                below_values[0] = current_id
+                
+                # Update both items
+                self.tree.item(item, values=current_values)
+                self.tree.item(below_item, values=below_values)
+                
                 # Move the item down in the treeview
                 self.tree.move(item, '', idx + 1)
                 moved = True

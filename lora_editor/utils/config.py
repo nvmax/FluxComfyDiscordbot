@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 import re
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,15 @@ def load_env(root_dir: Path):
 def update_env_file(key: str, value: str):
     """Update a value in the .env file"""
     try:
-        env_path = Path(__file__).parent.parent.parent / '.env'
+        # Get the correct base path whether running as exe or script
+        if getattr(sys, 'frozen', False):
+            # Running as compiled executable
+            base_path = Path(sys.executable).parent.parent
+        else:
+            # Running as script
+            base_path = Path(__file__).parent.parent.parent
+        
+        env_path = base_path / '.env'
         
         # Read existing content
         if env_path.exists():

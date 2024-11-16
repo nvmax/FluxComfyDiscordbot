@@ -3,19 +3,34 @@ from Main.utils import load_json
 
 logger = logging.getLogger(__name__)
 
-import logging
-from Main.utils import load_json
-
-logger = logging.getLogger(__name__)
-
 def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
     """
     Updates the workflow with the provided parameters.
     """
     try:
+        # Load lora config and get trigger words
+        lora_config = load_json('lora.json')
+        lora_info = {lora['file']: lora for lora in lora_config['available_loras']}
+
+        # Add trigger words from selected loras to prompt
+        trigger_words = []
+        for lora in loras:
+            if lora in lora_info and 'prompt' in lora_info[lora]:
+                trigger_word = lora_info[lora]['prompt'].strip()
+                if trigger_word:
+                    trigger_words.append(trigger_word)
+
+        # Combine original prompt with trigger words
+        if trigger_words:
+            if not prompt.endswith(','):
+                prompt += ','
+            prompt += ' ' + ', '.join(trigger_words)
+        prompt = prompt.strip(' ,')
+
         # Update prompt (Node 69)
         if '69' in workflow:
             workflow['69']['inputs']['prompt'] = prompt
+            logger.debug(f"Updated prompt with trigger words: {prompt}")
         else:
             logger.warning("Node 69 (prompt node) not found in workflow")
 
@@ -28,8 +43,6 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
         # Update LoRAs (Node 271)
         if '271' in workflow:
             lora_loader = workflow['271']['inputs']
-            lora_config = load_json('lora.json')
-            lora_info = {lora['file']: lora for lora in lora_config['available_loras']}
 
             # Clear existing LoRAs
             for key in list(lora_loader.keys()):
@@ -48,8 +61,6 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
                     }
                 else:
                     logger.warning(f"LoRA {lora} not found in lora.json")
-        else:
-            logger.warning("Node 271 (LoRA loader) not found in workflow")
 
         # Update CR Upscale Image node (Node 279)
         if '279' in workflow:

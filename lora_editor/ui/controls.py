@@ -44,11 +44,14 @@ class NavigationButtons(ttk.Frame):
     def __init__(self, parent, commands):
         super().__init__(parent)
         
-        # Create buttons
-        ttk.Button(self, text="↑↑↑↑↑", command=commands.get('up_five', None)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(self, text="↑", command=commands.get('up', None)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(self, text="↓", command=commands.get('down', None)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(self, text="↓↓↓↓↓", command=commands.get('down_five', None)).pack(side=tk.LEFT, padx=2)
+        # Create buttons with triangle symbols
+        ttk.Button(self, text="▲▲", width=3, command=commands.get('up_five', None)).pack(side=tk.TOP, pady=1)
+        ttk.Button(self, text="▲", width=3, command=commands.get('up', None)).pack(side=tk.TOP, pady=1)
+        ttk.Button(self, text="▼", width=3, command=commands.get('down', None)).pack(side=tk.TOP, pady=1)
+        ttk.Button(self, text="▼▼", width=3, command=commands.get('down_five', None)).pack(side=tk.TOP, pady=1)
+        
+        # Pack the frame itself
+        self.pack(side=tk.LEFT, padx=2, pady=2)
 
 class StatusBar(ttk.Frame):
     def __init__(self, parent):

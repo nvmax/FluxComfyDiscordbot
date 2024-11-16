@@ -17,7 +17,6 @@ from utils import load_json, save_json, generate_random_seed
 from aiohttp import web
 from config import fluxversion
 
-
 logger = logging.getLogger(__name__)
 
 def in_allowed_channel():
@@ -150,10 +149,92 @@ async def update_progress_message(bot, request_item, progress):
     except Exception as e:
         logger.error(f"Error updating progress message: {str(e)}")
 
+class LoraInfoModal(discord.ui.Modal):
+    def __init__(self, loras, page=0, *args, **kwargs):
+        super().__init__(title="Lora Information", *args, **kwargs)
+        self.loras = loras
+        self.page = page
+        self.items_per_page = 10
+        
+        # Calculate total pages
+        self.total_pages = (len(self.loras) + self.items_per_page - 1) // self.items_per_page
+        
+        # Get current page items
+        start_idx = self.page * self.items_per_page
+        end_idx = min(start_idx + self.items_per_page, len(self.loras))
+        current_loras = self.loras[start_idx:end_idx]
+        
+        # Create the text content
+        content = f"Page {self.page + 1}/{self.total_pages}\n\n"
+        for lora in current_loras:
+            content += f"**{lora['name']}**\n[lora info]({lora['url']})\n\n"
+            
+        self.text = discord.ui.TextInput(
+            label=f"Lora List",
+            style=discord.TextStyle.paragraph,
+            default=content,
+            required=False,
+            custom_id="lora_info_text"
+        )
+        self.add_item(self.text)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # Create navigation buttons
+        view = discord.ui.View()
+        
+        # Previous page button
+        prev_button = discord.ui.Button(
+            label="Previous", 
+            style=discord.ButtonStyle.gray, 
+            disabled=self.page <= 0,
+            custom_id="prev_page"
+        )
+        
+        # Next page button
+        next_button = discord.ui.Button(
+            label="Next", 
+            style=discord.ButtonStyle.gray, 
+            disabled=self.page >= self.total_pages - 1,
+            custom_id="next_page"
+        )
+        
+        async def prev_callback(interaction: discord.Interaction):
+            new_modal = LoraInfoModal(self.loras, self.page - 1)
+            await interaction.response.send_modal(new_modal)
+            
+        async def next_callback(interaction: discord.Interaction):
+            new_modal = LoraInfoModal(self.loras, self.page + 1)
+            await interaction.response.send_modal(new_modal)
+            
+        prev_button.callback = prev_callback
+        next_button.callback = next_callback
+        
+        view.add_item(prev_button)
+        view.add_item(next_button)
+        
+        await interaction.response.send_message("Use these buttons to navigate:", view=view, ephemeral=True)
+
+@app_commands.command(name="lorainfo", description="View available Loras information")
+@in_allowed_channel()
+async def lorainfo(interaction: discord.Interaction):
+    try:
+        # Load loras from the JSON file
+        loras_data = load_json('Datasets/lora.json')
+        available_loras = loras_data.get('available_loras', [])
+        
+        # Create and show the modal
+        modal = LoraInfoModal(available_loras)
+        await interaction.response.send_modal(modal)
+        
+    except Exception as e:
+        logger.error(f"Error in lorainfo command: {str(e)}")
+        await interaction.response.send_message("An error occurred while fetching Lora information.", ephemeral=True)
+
 async def setup(bot: discord_commands.Bot):
     try:
         await setup_commands(bot)
         bot.tree.add_command(comfy)
+        bot.tree.add_command(lorainfo)
         logger.info("Successfully added comfy command")
     except Exception as e:
         logger.error(f"Error setting up commands: {str(e)}", exc_info=True)

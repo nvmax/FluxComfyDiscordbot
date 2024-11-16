@@ -423,7 +423,6 @@ class OptionsView(ui.View):
         
         logger.debug(f"Updated selections: {self.all_selected_loras}")
 
-
     async def resolution_select_callback(self, interaction: discord.Interaction):
         """Handle resolution selection"""
         if self.resolution_select.values:
@@ -468,8 +467,8 @@ class OptionsView(ui.View):
             
             # Clean base prompt of existing trigger words
             for lora in lora_config['available_loras']:
-                if lora.get('add_prompt'):
-                    base_prompt = base_prompt.replace(lora['add_prompt'], '').strip()
+                if lora.get('prompt'):
+                    base_prompt = base_prompt.replace(lora['prompt'], '').strip()
             
             base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
             
@@ -480,8 +479,8 @@ class OptionsView(ui.View):
                     (l for l in lora_config['available_loras'] if l['file'] == lora_file),
                     None
                 )
-                if lora_info and lora_info.get('add_prompt'):
-                    trigger_word = lora_info['add_prompt'].strip()
+                if lora_info and lora_info.get('prompt'):
+                    trigger_word = lora_info['prompt'].strip()
                     if trigger_word:
                         additional_prompts.append(trigger_word)
             
@@ -551,8 +550,6 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
         )
         self.add_item(self.seed)
 
-        logger.debug(f"PromptModal initialized with LoRAs: {self.loras}")
-
     async def on_submit(self, interaction: discord.Interaction):
         try:
             lora_config = load_json('lora.json')
@@ -560,8 +557,8 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
             
             # Clean base prompt of any existing LoRA trigger words
             for lora in lora_config['available_loras']:
-                if lora.get('add_prompt'):
-                    base_prompt = base_prompt.replace(lora['add_prompt'], '').strip()
+                if lora.get('prompt'):
+                    base_prompt = base_prompt.replace(lora['prompt'], '').strip()
             
             # Clean up multiple commas and whitespace
             base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
@@ -570,8 +567,8 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
             additional_prompts = []
             for lora in self.loras:
                 lora_info = next((l for l in lora_config['available_loras'] if l['file'] == lora), None)
-                if lora_info and lora_info.get('add_prompt') and lora_info['add_prompt'].strip():
-                    additional_prompts.append(lora_info['add_prompt'].strip())
+                if lora_info and lora_info.get('prompt') and lora_info['prompt'].strip():
+                    additional_prompts.append(lora_info['prompt'].strip())
             
             # Join trigger words with commas and append to prompt
             trigger_words = ", ".join(additional_prompts) if additional_prompts else ""
@@ -729,8 +726,8 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
             
             # Clean base prompt of any existing LoRA trigger words
             for lora in lora_config['available_loras']:
-                if lora.get('add_prompt'):
-                    base_prompt = base_prompt.replace(lora['add_prompt'], '').strip()
+                if lora.get('prompt'):
+                    base_prompt = base_prompt.replace(lora['prompt'], '').strip()
             
             # Clean up multiple commas and whitespace
             base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
@@ -739,8 +736,8 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
             additional_prompts = []
             for lora in self.loras:
                 lora_info = next((l for l in lora_config['available_loras'] if l['file'] == lora), None)
-                if lora_info and lora_info.get('add_prompt') and lora_info['add_prompt'].strip():
-                    additional_prompts.append(lora_info['add_prompt'].strip())
+                if lora_info and lora_info.get('prompt') and lora_info['prompt'].strip():
+                    additional_prompts.append(lora_info['prompt'].strip())
             
             # Join trigger words with commas and append to prompt
             trigger_words = ", ".join(additional_prompts) if additional_prompts else ""

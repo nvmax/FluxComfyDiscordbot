@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 # Get the absolute path of the script
-script_path = os.path.abspath('lora_editor_new.py')
+script_path = os.path.abspath('lora_editor.py')
 base_path = os.path.dirname(script_path)
 
 # Initialize data files list

@@ -3,475 +3,467 @@
   "available_loras": [
     {
       "id": 1,
-      "name": "Delicate_Balance-000015",
-      "file": "Delicate_Balance-000015.safetensors",
-      "weight": 1.0,
-      "prompt": "del1cate_balance style",
-      "url": "https://civitai.com/models/931756/delicate-balance-semi-realistic-style-flux1-d-by-autopastel?modelVersionId=1042981"
+      "name": "aidmaMJ6.1-FLUX-v0.4",
+      "file": "aidmaMJ6.1-FLUX-v0.4.safetensors",
+      "weight": 0.6,
+      "prompt": "aidmaMJ6.1",
+      "url": "https://civitai.com/models/646411/midjourney-v61-meets-flux-sdxl?modelVersionId=981456"
     },
     {
       "id": 2,
-      "name": "glowing_flux",
-      "file": "glowing_flux.safetensors",
-      "weight": 0.5,
-      "prompt": "",
-      "url": "https://civitai.com/models/946728/ornate-crystal-mechanical?modelVersionId=1059974"
+      "name": "aidmaImageUprader",
+      "file": "aidmaImageUprader.safetensors",
+      "weight": 0.4,
+      "prompt": "aidmaimageupgrader",
+      "url": "https://civitai.com/models/562866/flux-image-upgrader-detail-maximizer-contrast-fix-for-low-cfg-sdxl-sd-15"
     },
     {
       "id": 3,
-      "name": "DreamyKolors_v1",
-      "file": "DreamyKolors_v1.safetensors",
-      "weight": 0.5,
-      "prompt": "",
-      "url": ""
+      "name": "Egon_Art",
+      "file": "Egon_Art.safetensors",
+      "weight": 0.8,
+      "prompt": " egonartCE_style",
+      "url": "https://civitai.com/models/922134?modelVersionId=1034555"
     },
     {
       "id": 4,
-      "name": "Undead Madness WOWstyle",
-      "file": "undeadmadness-warcraftstyle.safetensors",
-      "weight": 0.5,
-      "prompt": "warcraftundeadstyle",
-      "url": ""
+      "name": "aidmaHyperRealism-FLUX-V0.2",
+      "file": "aidmaHyperRealism-FLUX-V0.2.safetensors",
+      "weight": 1.0,
+      "prompt": "aidmaHyperrealism",
+      "url": "https://civitai.com/models/730373?modelVersionId=894049"
     },
     {
       "id": 5,
-      "name": "Aidma Hyper Realism",
-      "file": "aidmaHyperRealism-FLUX-V0.2.safetensors",
-      "weight": 0.5,
-      "prompt": "aidmaHyperrealism",
-      "url": ""
+      "name": "aidmaPsychadelicChaosWorld-FLUX-v0.1",
+      "file": "aidmaPsychadelicChaosWorld-FLUX-v0.1.safetensors",
+      "weight": 1.0,
+      "prompt": "PsychadelicChaos",
+      "url": "https://civitai.com/models/601245/flux-psychadelic-chaos-world-morph-sdxl"
     },
     {
       "id": 6,
-      "name": "Ultimate Enhancer",
-      "file": "Ultima_Flux_v1.safetensors",
-      "weight": 0.5,
-      "prompt": "",
-      "url": ""
+      "name": "flux_dev_NeoAndeanArchitecture",
+      "file": "flux_dev_NeoAndeanArchitecture.safetensors",
+      "weight": 0.7,
+      "prompt": "neo-andean architecture",
+      "url": "https://civitai.com/models/941383?modelVersionId=1053882"
     },
     {
       "id": 7,
-      "name": "Vanta Gold",
-      "file": "VantaGold.safetensors\n",
-      "weight": 0.5,
-      "prompt": "in the style of VNTGLD",
-      "url": ""
+      "name": "Midjourney_imitation_FLUX",
+      "file": "Midjourney_imitation_FLUX.safetensors",
+      "weight": 1.0,
+      "prompt": "Midjourney style",
+      "url": "https://civitai.com/models/733710/midjourney-imitationflux"
     },
     {
       "id": 8,
-      "name": "BoFlux Abstract",
-      "file": "boFLUX_AbstractMorph.safetensors",
-      "weight": 0.5,
-      "prompt": "bo-abstract",
-      "url": ""
+      "name": "Sketch_Flux",
+      "file": "Sketch_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "The sketch depicts",
+      "url": "https://civitai.com/models/651715?modelVersionId=750685"
     },
     {
       "id": 9,
-      "name": "Bo-bioluminescent\n Style",
-      "file": "boFLUX_Bioluminescent_Dreams_v1.safetensors",
-      "weight": 0.5,
-      "prompt": "bo-bioluminescent",
-      "url": ""
+      "name": "MothFX",
+      "file": "MothFX.safetensors",
+      "weight": 1.0,
+      "prompt": "MothFX",
+      "url": "https://civitai.com/models/927597?modelVersionId=1038352"
     },
     {
       "id": 10,
-      "name": "Beauty of Realism Flux",
-      "file": "The_beauty_of_realism_(FLUX).safetensors",
-      "weight": 0.5,
-      "prompt": "cinematic quality, realism, play of shadow and light",
-      "url": ""
+      "name": "Circuit_Board_FLUX",
+      "file": "Circuit_Board_FLUX.safetensors",
+      "weight": 1.0,
+      "prompt": "circuit trace",
+      "url": "https://civitai.com/models/906994/circuit-board-flux"
     },
     {
       "id": 11,
-      "name": "FLUX-SyntheticAnime",
-      "file": "Flux_1_Dev_LoRA_syntheticanime.safetensors",
-      "weight": 0.5,
-      "prompt": "syntheticanime",
-      "url": ""
+      "name": "Phlux_Texture&Lighting",
+      "file": "Phlux_Texture&Lighting.safetensors",
+      "weight": 1.0,
+      "prompt": "",
+      "url": "https://civitai.com/models/672963/phlux-photorealism-with-style-incredible-texture-and-lighting"
     },
     {
       "id": 12,
-      "name": "FLUX - Oil painting",
-      "file": "flux-oilpainting1.3-00001.safetensors",
-      "weight": 0.5,
-      "prompt": "",
-      "url": ""
+      "name": "RPGv6-itr15",
+      "file": "RPGv6-itr15.safetensors",
+      "weight": 1.0,
+      "prompt": "RPG STYLE,",
+      "url": "https://civitai.com/models/647159?modelVersionId=796427"
     },
     {
       "id": 13,
-      "name": "Oofas' Flux Style",
-      "file": "E_B_Leighton_Flux_resize.safetensors",
-      "weight": 0.5,
-      "prompt": "Lghtn",
-      "url": ""
+      "name": "DreamyKolors_v1",
+      "file": "DreamyKolors_v1.safetensors",
+      "weight": 0.8,
+      "prompt": "",
+      "url": "https://civitai.com/models/739314/dreamykolors-unleash-creativity-enhance-quality"
     },
     {
       "id": 14,
-      "name": "Steampunk BioMechanical Flux",
-      "file": "Steampunk_BioMechanical_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "Biomechanical, Steampunk",
-      "url": ""
+      "name": "undeadmadness-warcraftstyle",
+      "file": "undeadmadness-warcraftstyle.safetensors",
+      "weight": 1.0,
+      "prompt": "warcraftundeadstyle",
+      "url": "https://civitai.com/models/868586/undead-madness-unleashed-world-of-warcraft-inspired-style"
     },
     {
       "id": 15,
-      "name": "DeepFocus",
-      "file": "deepfocus.safetensors",
-      "weight": 0.5,
-      "prompt": "DF",
-      "url": ""
+      "name": "MetalArt01a_CE_FLUX_AIT3k",
+      "file": "MetalArt01a_CE_FLUX_AIT3k.safetensors",
+      "weight": 1.0,
+      "prompt": "mtlartCE_style",
+      "url": "https://civitai.com/models/925301/metal-art-ce-xl"
     },
     {
       "id": 16,
-      "name": "Aidma Flux Pro Details",
-      "file": "aidmaFLUXpro1.1-FLUX-V0.2.safetensors",
-      "weight": 0.5,
-      "prompt": "aidmafluxpro1.1",
-      "url": ""
+      "name": "Ultima_Flux_v1",
+      "file": "Ultima_Flux_v1.safetensors",
+      "weight": 0.3,
+      "prompt": "",
+      "url": "https://civitai.com/models/834435/ultima-flux"
     },
     {
       "id": 17,
-      "name": "Logo Vector",
-      "file": "Logo_vector.safetensors",
-      "weight": 0.5,
-      "prompt": "",
-      "url": ""
+      "name": "VantaGold",
+      "file": "VantaGold.safetensors\n",
+      "weight": 1.0,
+      "prompt": "in the style of VNTGLD",
+      "url": "https://civitai.com/models/816484/flux-lora-vantagold"
     },
     {
       "id": 18,
-      "name": "New Fantasy Corev2",
-      "file": "New Fantasy CoreV2.safetensors",
-      "weight": 0.5,
-      "prompt": "MyNewFantasy",
-      "url": ""
+      "name": "boFLUX_AbstractMorph",
+      "file": "boFLUX_AbstractMorph.safetensors",
+      "weight": 1.0,
+      "prompt": "bo-abstract",
+      "url": "https://civitai.com/models/776859/flux-abstractmorph"
     },
     {
       "id": 19,
-      "name": "Super Panavision 70 Technicolor",
-      "file": "Super Panavision 70 Technicolor.safetensors",
-      "weight": 0.5,
-      "prompt": "In Super Panavision 70 Technicolor Film style ",
-      "url": ""
+      "name": "boFLUX Digital Abstract",
+      "file": "boFLUX Digital Abstract.safetensors",
+      "weight": 1.0,
+      "prompt": "bo-digitalabstract",
+      "url": "https://civitai.com/models/939001/flux-digital-abstract"
     },
     {
       "id": 20,
-      "name": "Impasto Oil Paint Style",
-      "file": "Impasto Oil Paint Style.safetensors",
-      "weight": 0.5,
-      "prompt": "impaflux",
-      "url": ""
+      "name": "boFLUX_Bioluminescent_Dreams_v1",
+      "file": "boFLUX_Bioluminescent_Dreams_v1.safetensors",
+      "weight": 1.0,
+      "prompt": "bo-bioluminescent",
+      "url": "https://civitai.com/models/709663/flux-bioluminescent-dreams"
     },
     {
       "id": 21,
-      "name": "Godward Flux",
-      "file": "Godward_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "The painting by Godward depicts",
-      "url": ""
+      "name": "The_beauty_of_realism_(FLUX)",
+      "file": "The_beauty_of_realism_(FLUX).safetensors",
+      "weight": 1.0,
+      "prompt": "cinematic quality, realism, play of shadow and light",
+      "url": "https://civitai.com/models/695295/the-beauty-of-realism-flux"
     },
     {
       "id": 22,
-      "name": "Van Gogh Flux",
-      "file": "Van_Gogh_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "The painting by Van Gogh depicts",
-      "url": ""
+      "name": "Flux_1_Dev_LoRA_syntheticanime",
+      "file": "Flux_1_Dev_LoRA_syntheticanime.safetensors",
+      "weight": 1.0,
+      "prompt": "syntheticanime",
+      "url": "https://civitai.com/models/645425/flux-syntheticanime"
     },
     {
       "id": 23,
-      "name": "Monet Flux",
-      "file": "Monet_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "the painting by Monet",
-      "url": ""
+      "name": "flux-oilpainting1.3-00001",
+      "file": "flux-oilpainting1.3-00001.safetensors",
+      "weight": 1.0,
+      "prompt": "",
+      "url": "https://civitai.com/models/723141/flux-oil-painting"
     },
     {
       "id": 24,
-      "name": "Mucha Flux",
-      "file": "Mucha_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "The painting by Mucha depicts",
-      "url": ""
+      "name": "Steampunk_BioMechanical_Flux",
+      "file": "Steampunk_BioMechanical_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "Biomechanical, Steampunk",
+      "url": "https://huggingface.co/KurtcPhotoED/Biomechanical_Steampunk"
     },
     {
       "id": 25,
-      "name": "Caravaggio Flux",
-      "file": "Caravaggio_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "The painting by Caravaggio depicts",
-      "url": ""
+      "name": "deepfocus",
+      "file": "deepfocus.safetensors",
+      "weight": 1.0,
+      "prompt": "DF",
+      "url": "https://civitai.com/models/673483/deep-focus-lora"
     },
     {
       "id": 26,
-      "name": "Bougeureau Flux",
-      "file": "Bougeureau_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "The painting by bougeureau depicts",
-      "url": ""
-    },
-    {
-      "id": 27,
-      "name": "Aidma image uprader",
-      "file": "aidmaImageUprader.safetensors",
-      "weight": 0.5,
-      "prompt": "aidmaimageupgrader",
-      "url": ""
-    },
-    {
-      "id": 28,
-      "name": "Enjolras Flux",
-      "file": "Enjolras_Flux_2.safetensors",
-      "weight": 0.5,
-      "prompt": "The painting by Enjolras depicts",
-      "url": ""
-    },
-    {
-      "id": 29,
-      "name": "Chaplin Flux",
-      "file": "Chaplin_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "The painting by Chaplin depicts",
-      "url": ""
-    },
-    {
-      "id": 30,
-      "name": "Seignac Flux",
-      "file": "Seignac_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "by Sgnc",
-      "url": ""
-    },
-    {
-      "id": 31,
-      "name": "Cabanel Flux",
-      "file": "Cabanel_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "The painting by Cabanel depicts",
-      "url": ""
-    },
-    {
-      "id": 32,
-      "name": "Rubens Flux",
-      "file": "Rubens_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "a painting by Rbns",
-      "url": ""
-    },
-    {
-      "id": 33,
-      "name": "Henner Flux",
-      "file": "Henner_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "by Hnnr",
-      "url": ""
-    },
-    {
-      "id": 34,
-      "name": "Lautrec Flux",
-      "file": "Lautrec_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "The art by Ltrc depicts ",
-      "url": ""
-    },
-    {
-      "id": 35,
-      "name": "Rebecca Guay [Style] Flux",
-      "file": "Rebecca Guay [Style] Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "r3b3cc4gu4y",
-      "url": ""
-    },
-    {
-      "id": 36,
-      "name": "Midjourney_imitation",
-      "file": "Midjourney_imitation_FLUX.safetensors",
-      "weight": 0.5,
-      "prompt": "Midjourney style",
-      "url": ""
-    },
-    {
-      "id": 37,
-      "name": "Aidma Text Improver",
-      "file": "Textimprover-FLUX-V0.4.safetensors",
-      "weight": 0.5,
-      "prompt": "aidmatextimprover",
-      "url": ""
-    },
-    {
-      "id": 38,
-      "name": "Aidma Experimental Photography",
-      "file": "aidmaExperimentalPhotography-FLUX-V0.1.safetensors",
-      "weight": 0.5,
-      "prompt": "aidmaExperimentalPhotography",
-      "url": ""
-    },
-    {
-      "id": 39,
-      "name": "Aidm dark fantasy",
-      "file": "aidmaDarkFantasy-FLUX-V0.1.safetensors",
-      "weight": 0.5,
-      "prompt": "aidmaDarkfantasy",
-      "url": ""
-    },
-    {
-      "id": 40,
-      "name": "Aidma psychadelic chaos",
-      "file": "aidmaPsychadelicChaosWorld-FLUX-v0.1.safetensors",
-      "weight": 0.5,
-      "prompt": "PsychadelicChaos",
-      "url": ""
-    },
-    {
-      "id": 41,
-      "name": "Turbo_Detailer",
-      "file": "Turbo_Detailer.safetensors",
+      "name": "Flux.1_Turbo_Detailer",
+      "file": "Flux.1_Turbo_Detailer.safetensors",
       "weight": 1.0,
       "prompt": "",
       "url": "https://civitai.com/models/930386/flux1-turbo-detailer"
     },
     {
-      "id": 42,
-      "name": "Metal Art",
-      "file": "MetalArt01a_CE_FLUX_AIT3k.safetensors",
-      "weight": 0.6,
-      "prompt": "mtlartCE_style",
-      "url": ""
-    },
-    {
-      "id": 43,
-      "name": "Flux.1 Turbo Detailer",
-      "file": "Flux.1_Turbo_Detailer.safetensors",
-      "weight": 0.7,
+      "id": 27,
+      "name": "Logo_vector",
+      "file": "Logo_vector.safetensors",
+      "weight": 1.0,
       "prompt": "",
       "url": ""
     },
     {
-      "id": 44,
-      "name": "Aidma pony style SFW",
-      "file": "aidmaPonyStyle-FLUX-V0.1.safetensors",
-      "weight": 0.5,
-      "prompt": "aidmaponystyle",
-      "url": ""
+      "id": 28,
+      "name": "New Fantasy CoreV2",
+      "file": "New Fantasy CoreV2.safetensors",
+      "weight": 1.0,
+      "prompt": "MyNewFantasy",
+      "url": "https://civitai.com/models/810000?modelVersionId=1034430"
     },
     {
-      "id": 45,
-      "name": "Aidma niji anime style",
-      "file": "aidmaNijiAnimeStyle.safetensors",
-      "weight": 0.5,
-      "prompt": "aidmanijiv6",
-      "url": ""
+      "id": 29,
+      "name": "Super Panavision 70 Technicolor",
+      "file": "Super Panavision 70 Technicolor.safetensors",
+      "weight": 1.0,
+      "prompt": "In Super Panavision 70 Technicolor Film style ",
+      "url": "https://civitai.com/models/812212?modelVersionId=931164"
     },
     {
-      "id": 46,
-      "name": "Flux Vividizer",
+      "id": 30,
+      "name": "Impasto Oil Paint Style",
+      "file": "Impasto Oil Paint Style.safetensors",
+      "weight": 1.0,
+      "prompt": "impaflux",
+      "url": "https://civitai.com/models/899132/impasto-virtuoso-flux"
+    },
+    {
+      "id": 31,
+      "name": "Godward_Flux",
+      "file": "Godward_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "The painting by Godward depicts",
+      "url": "https://civitai.com/models/651715?modelVersionId=812674"
+    },
+    {
+      "id": 32,
+      "name": "Van_Gogh_Flux",
+      "file": "Van_Gogh_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "The painting by Van Gogh depicts",
+      "url": "https://civitai.com/models/651715?modelVersionId=733643"
+    },
+    {
+      "id": 33,
+      "name": "Monet_Flux",
+      "file": "Monet_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "the painting by Monet",
+      "url": "https://civitai.com/models/651715?modelVersionId=729105"
+    },
+    {
+      "id": 34,
+      "name": "Mucha_Flux",
+      "file": "Mucha_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "The painting by Mucha depicts",
+      "url": "https://civitai.com/models/651715?modelVersionId=738708"
+    },
+    {
+      "id": 35,
+      "name": "E_B_Leighton_Flux_resize",
+      "file": "E_B_Leighton_Flux_resize.safetensors",
+      "weight": 1.0,
+      "prompt": "Lghtn",
+      "url": "https://civitai.com/models/651715?modelVersionId=826858"
+    },
+    {
+      "id": 36,
+      "name": "Caravaggio_Flux",
+      "file": "Caravaggio_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "The painting by Caravaggio depicts",
+      "url": "https://civitai.com/models/651715?modelVersionId=742188"
+    },
+    {
+      "id": 37,
+      "name": "flux_vividizer",
       "file": "flux_vividizer.safetensors",
       "weight": 0.6,
       "prompt": "",
-      "url": ""
+      "url": "https://civitai.com/models/663742?modelVersionId=742813"
+    },
+    {
+      "id": 38,
+      "name": "Bougeureau_Flux",
+      "file": "Bougeureau_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "The painting by bougeureau depicts",
+      "url": "https://civitai.com/models/651715?modelVersionId=746449"
+    },
+    {
+      "id": 39,
+      "name": "Enjolras_Flux_2",
+      "file": "Enjolras_Flux_2.safetensors",
+      "weight": 1.0,
+      "prompt": "The painting by Enjolras depicts",
+      "url": "https://civitai.com/models/651715?modelVersionId=754822"
+    },
+    {
+      "id": 40,
+      "name": "Chaplin_Flux",
+      "file": "Chaplin_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "The painting by Chaplin depicts",
+      "url": "https://civitai.com/models/651715?modelVersionId=754822"
+    },
+    {
+      "id": 41,
+      "name": "Seignac_Flux",
+      "file": "Seignac_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "by Sgnc",
+      "url": "https://civitai.com/models/651715?modelVersionId=775426"
+    },
+    {
+      "id": 42,
+      "name": "Cabanel_Flux",
+      "file": "Cabanel_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "The painting by Cabanel depicts",
+      "url": "https://civitai.com/models/651715?modelVersionId=783639"
+    },
+    {
+      "id": 43,
+      "name": "Rubens_Flux",
+      "file": "Rubens_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "a painting by Rbns",
+      "url": "https://civitai.com/models/651715?modelVersionId=790504"
+    },
+    {
+      "id": 44,
+      "name": "Henner_Flux",
+      "file": "Henner_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "by Hnnr",
+      "url": "https://civitai.com/models/651715?modelVersionId=798353"
+    },
+    {
+      "id": 45,
+      "name": "Lautrec_Flux",
+      "file": "Lautrec_Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "The art by Ltrc depicts ",
+      "url": "https://civitai.com/models/651715?modelVersionId=805351"
+    },
+    {
+      "id": 46,
+      "name": "Rebecca Guay [Style] Flux",
+      "file": "Rebecca Guay [Style] Flux.safetensors",
+      "weight": 1.0,
+      "prompt": "r3b3cc4gu4y",
+      "url": "https://civitai.com/models/928101/rebecca-guay-style-flux"
     },
     {
       "id": 47,
-      "name": "Aura Flux 2.0",
-      "file": "Aura Flux 2.0.safetensors",
-      "weight": 0.5,
-      "prompt": "auralora",
-      "url": ""
+      "name": "aidmaFLUXpro1.1-FLUX-V0.2",
+      "file": "aidmaFLUXpro1.1-FLUX-V0.2.safetensors",
+      "weight": 1.0,
+      "prompt": "aidmafluxpro1.1",
+      "url": "https://civitai.com/models/832683/flux-pro-11-style-lora-extreme-detailer-for-flux1-dev"
     },
     {
       "id": 48,
-      "name": "AuraFlux",
-      "file": "Aura_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "",
-      "url": ""
+      "name": "Aura Flux 2.0",
+      "file": "Aura Flux 2.0.safetensors",
+      "weight": 1.0,
+      "prompt": "auralora",
+      "url": "https://civitai.com/models/600793?modelVersionId=925656"
     },
     {
       "id": 49,
-      "name": "FluxTastic Details",
-      "file": "FluxDFaeTasticDetails.safetensors",
-      "weight": 0.5,
-      "prompt": "",
-      "url": ""
+      "name": "aidma Textimprover",
+      "file": "Textimprover-FLUX-V0.4.safetensors",
+      "weight": 0.6,
+      "prompt": "aidmatextimprover",
+      "url": "https://civitai.com/models/793052/text-improver-flux"
     },
     {
       "id": 50,
-      "name": "Fantasy Flux",
-      "file": "fantasy-flux-v1.safetensors",
-      "weight": 0.5,
-      "prompt": "",
-      "url": ""
+      "name": "aidmaPonyStyle-SFW",
+      "file": "aidmaPonyStyle-FLUX-V0.1.safetensors",
+      "weight": 1.0,
+      "prompt": "aidmaponystyle",
+      "url": "https://civitai.com/models/721586/pony-style-sfw-flux"
     },
     {
       "id": 51,
-      "name": "Mysticsplash",
-      "file": "MysticSplash.safetensors",
-      "weight": 0.5,
-      "prompt": "MysticSplash",
-      "url": ""
+      "name": "aidmaNijiAnimeStyle",
+      "file": "aidmaNijiAnimeStyle.safetensors",
+      "weight": 0.4,
+      "prompt": "aidmanijiv6",
+      "url": "https://civitai.com/models/488923/niji-anime-style-niji-v6-midjourney-fluxsdxl"
     },
     {
       "id": 52,
-      "name": "Aidma Midjourney 6.1",
-      "file": "aidmaMJ6.1-FLUX-v0.4.safetensors",
-      "weight": 0.6,
-      "prompt": "aidmaMJ6.1",
-      "url": ""
+      "name": "aidmaExperimentalPhotography-FLUX-V0.1",
+      "file": "aidmaExperimentalPhotography-FLUX-V0.1.safetensors",
+      "weight": 1.0,
+      "prompt": "aidmaExperimentalPhotography",
+      "url": "https://civitai.com/models/727417/experimental-photography-flux"
     },
     {
       "id": 53,
-      "name": "vision_realistic",
-      "file": "vision_realistic_flux_lora_v1.safetensors",
-      "weight": 0.5,
-      "prompt": "",
-      "url": ""
+      "name": "aidmaDarkFantasy-FLUX-V0.1",
+      "file": "aidmaDarkFantasy-FLUX-V0.1.safetensors",
+      "weight": 1.0,
+      "prompt": "aidmaDarkfantasy",
+      "url": "https://civitai.com/models/753466/dark-fantasy-style-flux-training-comparison-rapid-and-normal"
     },
     {
       "id": 54,
-      "name": "Egon Art",
-      "file": "Egon_Art.safetensors",
-      "weight": 0.5,
-      "prompt": " egonartCE_style",
-      "url": ""
+      "name": "FluxDFaeTasticDetails",
+      "file": "FluxDFaeTasticDetails.safetensors",
+      "weight": 1.0,
+      "prompt": "",
+      "url": "https://civitai.com/models/643886/flux-faetastic-details"
     },
     {
       "id": 55,
-      "name": "Sketch Flux",
-      "file": "Sketch_Flux.safetensors",
-      "weight": 0.5,
-      "prompt": "The sketch depicts",
-      "url": ""
+      "name": "fantasy-flux-v1",
+      "file": "fantasy-flux-v1.safetensors",
+      "weight": 1.0,
+      "prompt": "",
+      "url": "https://civitai.com/models/714852?modelVersionId=1031155"
     },
     {
       "id": 56,
-      "name": "Mothfx",
-      "file": "MothFX.safetensors",
-      "weight": 0.5,
-      "prompt": "MothFX",
-      "url": ""
+      "name": "MysticSplash",
+      "file": "MysticSplash.safetensors",
+      "weight": 1.0,
+      "prompt": "MysticSplash",
+      "url": "https://civitai.com/models/853829?modelVersionId=955591"
     },
     {
       "id": 57,
-      "name": "Circuit Board Flux",
-      "file": "Circuit_Board_FLUX.safetensors",
-      "weight": 0.5,
-      "prompt": "circuit trace",
-      "url": ""
+      "name": "vision_realistic_flux_lora_v2",
+      "file": "vision_realistic_flux_lora_v2.safetensors",
+      "weight": 0.8,
+      "prompt": "",
+      "url": "https://civitai.com/models/648905?modelVersionId=871696"
     },
     {
       "id": 58,
-      "name": "Phlux_Texture&Lighting",
-      "file": "Phlux_Texture&Lighting.safetensors",
-      "weight": 0.5,
-      "prompt": "",
-      "url": ""
-    },
-    {
-      "id": 59,
-      "name": "RPGv6-itr15",
-      "file": "RPGv6-itr15.safetensors",
-      "weight": 0.5,
-      "prompt": "RPG STYLE,",
-      "url": ""
+      "name": "Art Nouveau architecture",
+      "file": "Art Nouveau architecture.safetensors",
+      "weight": 1.0,
+      "prompt": "ArtNvArkt",
+      "url": "https://civitai.com/models/950418/art-nouveau-architecture?modelVersionId=1064079"
     }
   ]
 }

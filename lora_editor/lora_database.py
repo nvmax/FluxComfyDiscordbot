@@ -22,6 +22,7 @@ class LoraHistoryEntry:
     url: str = ""
     is_active: bool = True
     id: Optional[int] = None
+    display_order: int = 0
 
 class LoraDatabase:
     def __init__(self, db_path: str = "lora_history.db"):
@@ -46,6 +47,7 @@ class LoraDatabase:
                     weight REAL NOT NULL,
                     url TEXT,
                     is_active BOOLEAN NOT NULL DEFAULT 1,
+                    display_order INTEGER NOT NULL DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )''')
                 
@@ -58,32 +60,47 @@ class LoraDatabase:
             logger.error(f"Error initializing database: {e}")
             raise
 
-    def add_lora(self, entry: LoraHistoryEntry) -> Optional[LoraHistoryEntry]:
+    def add_lora(self, entry: LoraHistoryEntry, order: int = None) -> Optional[LoraHistoryEntry]:
         """Add or update a LoRA entry in the history"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 c = conn.cursor()
+                
+                # If no order specified, put it at the end
+                if order is None:
+                    c.execute('SELECT MAX(display_order) FROM lora_history')
+                    max_order = c.fetchone()[0]
+                    order = (max_order or 0) + 1
                 
                 # Check if entry already exists
                 c.execute('SELECT id FROM lora_history WHERE file_name = ?', (entry.file_name,))
                 existing_id = c.fetchone()
                 
                 if existing_id:
-                    # Update existing entry
+                    # Update existing entry, preserving the original ID
                     c.execute('''UPDATE lora_history 
-                               SET display_name = ?, trigger_words = ?, weight = ?, url = ?, is_active = ?
+                               SET display_name = ?, trigger_words = ?, weight = ?, url = ?, 
+                               is_active = ?, display_order = ?
                                WHERE file_name = ?''',
                             (entry.display_name, entry.trigger_words, entry.weight, 
-                             entry.url, entry.is_active, entry.file_name))
+                             entry.url, entry.is_active, order, entry.file_name))
                     entry.id = existing_id[0]
                 else:
-                    # Insert new entry
-                    c.execute('''INSERT INTO lora_history 
-                               (file_name, display_name, trigger_words, weight, url, is_active)
-                               VALUES (?, ?, ?, ?, ?, ?)''',
-                            (entry.file_name, entry.display_name, entry.trigger_words,
-                             entry.weight, entry.url, entry.is_active))
-                    entry.id = c.lastrowid
+                    # For new entries, use the provided ID if available
+                    if entry.id is not None:
+                        c.execute('''INSERT INTO lora_history 
+                                   (id, file_name, display_name, trigger_words, weight, url, is_active, display_order)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                                (entry.id, entry.file_name, entry.display_name, entry.trigger_words,
+                                 entry.weight, entry.url, entry.is_active, order))
+                    else:
+                        # If no ID provided, let SQLite auto-generate one
+                        c.execute('''INSERT INTO lora_history 
+                                   (file_name, display_name, trigger_words, weight, url, is_active, display_order)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                                (entry.file_name, entry.display_name, entry.trigger_words,
+                                 entry.weight, entry.url, entry.is_active, order))
+                        entry.id = c.lastrowid
                 
                 conn.commit()
                 logger.debug(f"Added/Updated LoRA: {entry.file_name} with ID {entry.id}")
@@ -99,9 +116,14 @@ class LoraDatabase:
             with sqlite3.connect(self.db_path) as conn:
                 c = conn.cursor()
                 if include_inactive:
-                    c.execute('SELECT * FROM lora_history ORDER BY created_at DESC')
+                    c.execute('''SELECT id, file_name, display_name, trigger_words, weight, url, is_active, display_order 
+                               FROM lora_history 
+                               ORDER BY display_order ASC''')
                 else:
-                    c.execute('SELECT * FROM lora_history WHERE is_active = 1 ORDER BY created_at DESC')
+                    c.execute('''SELECT id, file_name, display_name, trigger_words, weight, url, is_active, display_order 
+                               FROM lora_history 
+                               WHERE is_active = 1
+                               ORDER BY display_order ASC''')
                 
                 entries = []
                 for row in c.fetchall():
@@ -112,7 +134,8 @@ class LoraDatabase:
                         trigger_words=row[3],
                         weight=row[4],
                         url=row[5] if len(row) > 5 else "",
-                        is_active=bool(row[6] if len(row) > 6 else True)
+                        is_active=bool(row[6] if len(row) > 6 else True),
+                        display_order=row[7]
                     ))
                 return entries
         except Exception as e:
@@ -134,7 +157,8 @@ class LoraDatabase:
                         trigger_words=row[3],
                         weight=row[4],
                         url=row[5] if len(row) > 5 else "",
-                        is_active=bool(row[6] if len(row) > 6 else True)
+                        is_active=bool(row[6] if len(row) > 6 else True),
+                        display_order=row[7]
                     )
                 return None
         except Exception as e:
@@ -188,9 +212,11 @@ class LoraDatabase:
                         weight=float(lora.get("weight", 1.0)),
                         url=lora.get("url", ""),
                         is_active=True,
-                        id=lora.get("id", None)
+                        id=lora.get("id"),  # Use the ID from JSON directly
+                        display_order=lora.get("display_order", 0)
                     )
-                    self.add_lora(entry)
+                    # Pass the ID to add_lora
+                    self.add_lora(entry, order=entry.display_order)
                     
             conn.commit()
             logger.info(f"Synced {len(config['available_loras'])} entries from JSON")
@@ -204,14 +230,15 @@ class LoraDatabase:
         try:
             entries = self.get_lora_history(include_inactive=False)
             loras = []
-            for i, entry in enumerate(entries, 1):
+            for entry in entries:
                 loras.append({
-                    'id': i,
+                    'id': entry.id,  # Use the original ID from the database
                     'name': entry.display_name,
                     'file': entry.file_name,
                     'weight': entry.weight,
                     'add_prompt': entry.trigger_words,
-                    'url': entry.url
+                    'url': entry.url,
+                    'display_order': entry.display_order
                 })
             return {'default': '', 'available_loras': loras}
         except Exception as e:
@@ -225,10 +252,10 @@ class LoraDatabase:
                 c = conn.cursor()
                 c.execute('''UPDATE lora_history 
                            SET file_name = ?, display_name = ?, trigger_words = ?, 
-                               weight = ?, url = ?, is_active = ?
+                               weight = ?, url = ?, is_active = ?, display_order = ?
                            WHERE file_name = ?''',
                         (entry["file_name"], entry["display_name"], entry["trigger_words"],
-                         entry["weight"], entry["url"], entry["is_active"], old_file_name))
+                         entry["weight"], entry["url"], entry["is_active"], entry["display_order"], old_file_name))
                 conn.commit()
                 logger.debug(f"Updated LoRA: {old_file_name} -> {entry['file_name']}")
                 return True

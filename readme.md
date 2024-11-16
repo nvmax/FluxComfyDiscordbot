@@ -25,7 +25,7 @@ Whether you're an artist looking for inspiration, a writer wanting to visualize 
 So, are you ready to dive into a world where your words paint pictures? Where your imagination knows no bounds? Where you can create images you never even knew you could think of? Then you're in the right place! Let's embark on this exciting journey of AI-powered creativity together!
 
 ## New Updates:
-  * 11/14/2024
+  * 11/16/2024
   * Added robust use of lora weights, now when using loras if only 1 is selected it will use full weight, if 2 are selected it will scale down.
   * Added Lorainfo slash command, it will now show you information on the loras and give a url link to show users what the lora can do. 
   * Reworked lora editor, now has a better UI and is more user friendly, you can now double click to edit a lora details, Auto saves on changes. 
@@ -137,6 +137,12 @@ Note: If you close the terminal, it ends the bot.
   * at any point you want to change the checkpoint just run the setup tool again and select the new model you want that easy.
   * if its already downloaded it will not download again it will just change your .env variable to support the change (reboot bot)
 
+  ### Setup.exe and LoraEditor.exe may get detected as threats by antivirus. 
+     * Compile the setup.exe and LoraEditor.exe using pyinstaller
+     * pip install pyinstaller
+     * pyinstaller setup.spec --clean --noconfirm
+     * pyinstaller LoraEditor.spec --clean --noconfirm
+
 
     
     
@@ -190,6 +196,7 @@ These models will go in your comfyui/models/Lora folder.
   * You can also add new LoRA's from Civitai by clicking the add LoRA button and pasting the full civitai url of the lora you want to download.
   * Civitai API token is required to download from Civitai, you can get one for free by creating an account on Civitai and clicking on your profile picture on the top right and click settings, scroll all the way down to the bottom and click add API key, copy and paste the API key into the CIVITAI_API_TOKEN field in the .env file.  (yes you will need your token here too seperate tool)
 
+  
   Benifits of using tool:
   - it autodownloads the lora's by pasting in the URL to the lora
   - it auto populates trigger words required for the lora to work

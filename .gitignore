@@ -5,3 +5,7 @@ image_history.db
 logs/
 logs/setup.logs
 /lora_editor/lora_history.db
+/lora_editor/build/
+/lora_editor/dist/
+build/
+dist/

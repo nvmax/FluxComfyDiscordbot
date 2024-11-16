@@ -10,11 +10,6 @@ base_path = os.path.dirname(script_path)
 # Initialize data files list
 datas = []
 
-# Add .env file if it exists
-env_file = os.path.join(base_path, '.env')
-if os.path.exists(env_file):
-    datas.append(('.env', '.'))
-
 # Add database file if it exists
 db_file = os.path.join(base_path, 'lora_history.db')
 if os.path.exists(db_file):

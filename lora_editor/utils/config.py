@@ -11,8 +11,22 @@ logger = logging.getLogger(__name__)
 def load_env(root_dir: Path):
     """Load environment variables from .env file"""
     try:
-        load_dotenv(root_dir / '.env')
-        return True
+        # List of potential .env file locations
+        potential_paths = [
+            root_dir / '.env',  # Original location
+            Path(root_dir).parent / '.env',  # One level up
+            Path(root_dir).parent.parent / '.env',  # Two levels up (root directory)
+        ]
+        
+        # Try each location until we find a .env file
+        for env_path in potential_paths:
+            if env_path.exists():
+                logger.info(f"Loading .env from: {env_path}")
+                load_dotenv(env_path)
+                return True
+                
+        logger.warning("No .env file found in any of the expected locations")
+        return False
     except Exception as e:
         logger.error(f"Error loading .env file: {e}")
         return False
@@ -23,12 +37,27 @@ def update_env_file(key: str, value: str):
         # Get the correct base path whether running as exe or script
         if getattr(sys, 'frozen', False):
             # Running as compiled executable
-            base_path = Path(sys.executable).parent.parent
+            base_paths = [
+                Path(sys.executable).parent.parent,  # Two levels up from exe
+                Path(sys.executable).parent.parent.parent,  # Three levels up (root directory)
+            ]
         else:
             # Running as script
-            base_path = Path(__file__).parent.parent.parent
+            base_paths = [
+                Path(__file__).parent.parent.parent,  # Project root when running as script
+            ]
         
-        env_path = base_path / '.env'
+        # Try to find existing .env file
+        env_path = None
+        for base_path in base_paths:
+            temp_path = base_path / '.env'
+            if temp_path.exists():
+                env_path = temp_path
+                break
+        
+        # If no existing .env found, use the first base path
+        if not env_path:
+            env_path = base_paths[0] / '.env'
         
         # Read existing content
         if env_path.exists():

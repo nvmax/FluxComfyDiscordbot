@@ -11,21 +11,21 @@ logger = logging.getLogger(__name__)
 def load_env(root_dir: Path):
     """Load environment variables from .env file"""
     try:
-        # List of potential .env file locations
-        potential_paths = [
-            root_dir / '.env',  # Original location
-            Path(root_dir).parent / '.env',  # One level up
-            Path(root_dir).parent.parent / '.env',  # Two levels up (root directory)
-        ]
-        
-        # Try each location until we find a .env file
-        for env_path in potential_paths:
-            if env_path.exists():
-                logger.info(f"Loading .env from: {env_path}")
-                load_dotenv(env_path)
-                return True
+        env_path = root_dir / '.env'
+        if env_path.exists():
+            logger.info(f"Found .env file at: {env_path}")
+            load_dotenv(env_path)
+            
+            # Verify that key environment variables were loaded
+            required_vars = ['LORA_JSON_PATH', 'LORA_FOLDER_PATH']
+            missing_vars = [var for var in required_vars if not os.getenv(var)]
+            
+            if missing_vars:
+                logger.warning(f"Missing required environment variables: {missing_vars}")
+                return False
                 
-        logger.warning("No .env file found in any of the expected locations")
+            logger.info("Successfully loaded environment variables")
+            return True
         return False
     except Exception as e:
         logger.error(f"Error loading .env file: {e}")

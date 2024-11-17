@@ -31,12 +31,32 @@ class LoraEditor:
         # Load environment variables
         if getattr(sys, 'frozen', False):
             # Running as compiled executable
-            base_path = Path(sys.executable).parent.parent
+            exe_dir = Path(sys.executable).parent
+            potential_paths = [
+                exe_dir,  # Same directory as exe
+                exe_dir.parent,  # One level up
+                exe_dir.parent.parent,  # Two levels up
+                exe_dir.parent.parent.parent,  # Three levels up
+            ]
         else:
             # Running as script
-            base_path = Path(__file__).parent.parent
-        load_env(base_path)
-        
+            script_dir = Path(__file__).parent
+            potential_paths = [
+                script_dir,  # Same directory as script
+                script_dir.parent,  # One level up (root)
+            ]
+
+        # Try to load environment variables from each potential path
+        env_loaded = False
+        for base_path in potential_paths:
+            if load_env(base_path):
+                logger.info(f"Loaded environment variables from: {base_path}")
+                env_loaded = True
+                break
+
+        if not env_loaded:
+            logger.warning("Could not find .env file in any of the expected locations")
+            
         # Initialize database and variables
         self.db = LoraDatabase()
         self.init_variables()

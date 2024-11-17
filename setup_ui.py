@@ -371,6 +371,16 @@ class SetupUI:
             if not self.setup_manager.validator.copy_gguf_reader(os.getcwd(), self.base_dir.get()):
                 raise Exception("Failed to copy gguf_reader.py")
 
+            # Copy upscaler model
+            self.update_progress(20, "Copying upscaler model...")
+            if not self.setup_manager.validator.copy_upscaler(os.getcwd(), self.base_dir.get()):
+                raise Exception("Failed to copy upscaler model")
+
+            # Copy ratios.json
+            self.update_progress(30, "Copying ratios.json...")
+            if not self.setup_manager.validator.copy_ratios_json(os.getcwd(), self.base_dir.get()):
+                raise Exception("Failed to copy ratios.json")
+
             # Save all configuration values
             self.save_configuration()
             

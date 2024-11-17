@@ -12,10 +12,12 @@ from huggingface_hub import HfApi
 import shutil
 from comfyui_validator import ComfyUIValidator
 
+# Configure root logger
+logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-logger = logging.getLogger(__name__)
 
 # Required base models
 BASE_MODELS = {
@@ -153,8 +155,12 @@ class SetupManager:
             raise
 
     def download_file(self, file_info: dict, output_path: str, token: str = None, source: str = 'huggingface'):
-        """Download file with progress tracking"""
+        """Download file with progress tracking and size verification"""
         try:
+            # Skip local files - they should be handled by copy operation
+            if source == 'local':
+                return
+                
             logger.info(f"Starting download for source: {source}")
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             
@@ -169,10 +175,30 @@ class SetupManager:
                 )
                 headers = {'Authorization': f'Bearer {token}'} if token else {}
             
+            # First make a HEAD request to get the expected file size
+            head_response = requests.head(url, headers=headers, verify=False)
+            head_response.raise_for_status()
+            expected_size = int(head_response.headers.get('content-length', 0))
+            logger.info(f"Expected file size: {expected_size} bytes")
+            
+            # Check if file already exists and verify its size
+            if os.path.exists(output_path):
+                current_size = os.path.getsize(output_path)
+                if current_size == expected_size:
+                    logger.info(f"File already exists with correct size ({current_size} bytes), skipping download")
+                    if self.progress_callback:
+                        self.progress_callback(100)
+                    return
+                else:
+                    logger.warning(f"File exists but size mismatch (expected: {expected_size}, got: {current_size}), redownloading")
+                    os.remove(output_path)
+            
             response = requests.get(url, headers=headers, stream=True, verify=False)
             response.raise_for_status()
             
             total_size = int(response.headers.get('content-length', 0))
+            if total_size != expected_size:
+                raise ValueError(f"Download size mismatch (HEAD: {expected_size}, GET: {total_size})")
             
             with open(output_path, 'wb') as f:
                 if total_size == 0:
@@ -189,6 +215,12 @@ class SetupManager:
                             if self.progress_callback:
                                 progress = int((downloaded / total_size) * 100)
                                 self.progress_callback(progress)
+            
+            # Verify final file size
+            final_size = os.path.getsize(output_path)
+            if final_size != expected_size:
+                raise ValueError(f"Final file size mismatch (expected: {expected_size}, got: {final_size})")
+            logger.info(f"Download completed and verified. File size: {final_size} bytes")
                                 
         except Exception as e:
             logger.error(f"Download failed: {str(e)}")
@@ -196,28 +228,167 @@ class SetupManager:
                 os.remove(output_path)
             raise
 
+    def verify_file_placement(self) -> Dict[str, bool]:
+        """Verify that all required files are in their correct locations"""
+        verification_results = {}
+        total_files = len(BASE_MODELS) + 2  # +2 for gguf_reader and checkpoint
+        current_file = 0
+        
+        # Progress callback for verification
+        def update_progress(file_name: str, exists: bool):
+            nonlocal current_file
+            current_file += 1
+            status = "exists, skipping..." if exists else "not found!"
+            if self.progress_callback:
+                progress = int((current_file / total_files) * 100)
+                self.progress_callback(progress, f"Verifying {file_name} ({current_file}/{total_files})... {status}")
+        
+        # Verify gguf_reader.py
+        python_folder = self.validator.find_python_folder(Path(self.base_dir))
+        gguf_path = Path(self.base_dir) / python_folder / "Lib" / "site-packages" / "gguf" / "gguf_reader.py"
+        exists = gguf_path.exists()
+        verification_results['gguf_reader.py'] = exists
+        update_progress('gguf_reader.py', exists)
+
+        # Verify all base models
+        for model_name, model_info in BASE_MODELS.items():
+            model_path = Path(self.models_path) / model_info['path'].strip('/') / model_info['filename']
+            exists = model_path.exists()
+            verification_results[model_info['filename']] = exists
+            update_progress(model_info['filename'], exists)
+
+        # Verify selected checkpoint
+        if hasattr(self, 'selected_checkpoint_info'):
+            checkpoint_path = Path(self.models_path) / self.selected_checkpoint_info['path'].strip('/') / self.selected_checkpoint_info['filename']
+            exists = checkpoint_path.exists()
+            verification_results[self.selected_checkpoint_info['filename']] = exists
+            update_progress(self.selected_checkpoint_info['filename'], exists)
+
+        return verification_results
+
+    def print_verification_checklist(self, results: Dict[str, bool]):
+        """Print a formatted verification checklist"""
+        print("\nFile Placement Verification:")
+        print("--------------------------------------------------")
+        for file, exists in results.items():
+            status = "[OK]" if exists else "[MISSING]"
+            print(f"{status} {file}")
+        print("--------------------------------------------------")
+        
+        if all(results.values()):
+            print("All files are in their correct locations! [OK]")
+        else:
+            print("Some files are missing or in incorrect locations. [MISSING]")
+            missing_files = [file for file, exists in results.items() if not exists]
+            print("Missing files:")
+            for file in missing_files:
+                print(f"  - {file}")
+
     def check_and_download_dependencies(self, models_dir: str):
         """Check and download required base models"""
-        logger.info("Starting dependency check...")
+        print(f"\nChecking dependencies in: {models_dir}")
+        logger.info(f"Starting dependency check in directory: {models_dir}")
+        
+        # Convert to Path object for better path handling
+        models_dir = Path(models_dir)
+        
+        # Debug: List contents of models directory
+        if models_dir.exists():
+            print(f"Models directory exists: {models_dir}")
+            print("Contents:")
+            for item in models_dir.rglob('*'):
+                print(f"  {'Dir: ' if item.is_dir() else 'File: '}{item}")
+        else:
+            print(f"Models directory does not exist: {models_dir}")
+            models_dir.mkdir(parents=True, exist_ok=True)
+            print(f"Created models directory: {models_dir}")
+
         for model_name, model_info in BASE_MODELS.items():
-            model_path = os.path.join(
-                models_dir, 
-                model_info['path'].strip('/'), 
-                model_info['filename']
-            )
+            print(f"\nProcessing {model_name}...")
             
-            if not os.path.exists(model_path):
-                print(f"\nDownloading required model: {model_name}")
-                try:
+            # Create full model directory path using Path for better handling
+            model_dir = models_dir / model_info['path'].strip('/')
+            model_path = model_dir / model_info['filename']
+            
+            print(f"Target directory: {model_dir}")
+            print(f"Target file path: {model_path}")
+            
+            logger.info(f"=== Processing {model_name} ===")
+            logger.info(f"Target directory: {model_dir}")
+            logger.info(f"Target file path: {model_path}")
+            
+            # Skip if file already exists
+            if model_path.exists():
+                print(f"{model_name} already exists at {model_path}")
+                logger.info(f"Model {model_name} already exists at {model_path}")
+                if self.progress_callback:
+                    self.progress_callback(100, f"{model_name} already exists, skipping...")
+                continue
+
+            try:
+                # Create model directory if it doesn't exist
+                model_dir.mkdir(parents=True, exist_ok=True)
+                print(f"Created/verified directory: {model_dir}")
+                logger.info(f"Created/verified model directory: {model_dir}")
+
+                # Handle local files (like upscaler) differently from downloadable models
+                if model_info.get('source') == 'local':
+                    # For local files, construct the source path relative to the project root
+                    source_path = Path(os.getcwd()) / 'required_files' / 'Comfyui files' / 'models' / 'upscale_models' / model_info['filename']
+                    source_path = source_path.resolve()  # Resolve to absolute path
+                    
+                    print(f"\nProcessing local file: {model_name}")
+                    print(f"Source path: {source_path}")
+                    print(f"Destination path: {model_path}")
+                    
+                    if source_path.exists() and source_path.is_file():
+                        print(f"Found {model_name} at {source_path}")
+                        print(f"Source file size: {source_path.stat().st_size} bytes")
+                        
+                        if self.progress_callback:
+                            self.progress_callback(0, f"Copying {model_name} from local files...")
+                        
+                        # Create parent directories if they don't exist
+                        model_path.parent.mkdir(parents=True, exist_ok=True)
+                        print(f"Copying {model_name}...")
+                        
+                        # Copy the file
+                        shutil.copy2(str(source_path), str(model_path))
+                        
+                        if model_path.exists():
+                            print(f"Successfully copied {model_name}")
+                            print(f"Source path: {source_path}")
+                            print(f"Destination path: {model_path}")
+                            print(f"Destination file size: {model_path.stat().st_size} bytes")
+                            logger.info(f"Successfully copied {model_name} to {model_path}")
+                            if self.progress_callback:
+                                self.progress_callback(100, f"Successfully copied {model_name}")
+                        else:
+                            error_msg = f"Failed to copy {model_name} - destination file not found after copy"
+                            print(f"Error: {error_msg}")
+                            logger.error(error_msg)
+                            raise FileNotFoundError(error_msg)
+                    else:
+                        error_msg = f"{model_name} not found at source path: {source_path}"
+                        print(f"Error: {error_msg}")
+                        logger.error(error_msg)
+                        raise FileNotFoundError(error_msg)
+                else:
+                    # Download remote models (HuggingFace, CivitAI)
+                    if self.progress_callback:
+                        self.progress_callback(0, f"Downloading {model_name}...")
+                    print(f"Downloading {model_name}...")
                     self.download_file(
                         file_info=model_info,
-                        output_path=model_path,
+                        output_path=str(model_path),
                         token=self.hf_token if model_info['source'] == 'huggingface' else self.civitai_token,
                         source=model_info['source']
                     )
-                except Exception as e:
-                    logger.error(f"Failed to download {model_name}: {str(e)}")
-                    raise
+            except Exception as e:
+                error_msg = f"Error handling {model_name}: {str(e)}"
+                print(f"Error: {error_msg}")
+                logger.error(error_msg)
+                raise
 
     def load_env(self) -> Dict[str, str]:
         """Load existing environment variables from .env file"""
@@ -350,15 +521,62 @@ class SetupManager:
             print("\nCopying required files...")
             if not self.validator.copy_gguf_reader(os.getcwd(), base_dir):
                 raise Exception("Failed to copy gguf_reader.py")
+                
+            print("\n!!!!!!!!!! BEFORE UPSCALER SECTION !!!!!!!!!!")
+            
+            # Copy upscaler
+            print("\n=== Copying Upscaler ===")
+            source_dir = os.getcwd()
+            print(f"DEBUG: Current working directory: {os.getcwd()}")
+            print(f"DEBUG: Source directory absolute path: {os.path.abspath(source_dir)}")
+            print(f"DEBUG: Base directory absolute path: {os.path.abspath(base_dir)}")
+            
+            # Check if source file exists
+            expected_source = os.path.join(source_dir, "required_files", "Comfyui files", "models", "upscale_models", "4x-ClearRealityV1.pth")
+            if os.path.isfile(expected_source):
+                print(f"DEBUG: Source file exists at: {expected_source}")
+            else:
+                print(f"DEBUG: Source file NOT found at: {expected_source}")
+                # List contents of the directory
+                try:
+                    parent_dir = os.path.dirname(expected_source)
+                    print(f"DEBUG: Contents of {parent_dir}:")
+                    if os.path.exists(parent_dir):
+                        for item in os.listdir(parent_dir):
+                            print(f"DEBUG:   {item}")
+                    else:
+                        print(f"DEBUG: Directory does not exist: {parent_dir}")
+                except Exception as e:
+                    print(f"DEBUG: Error listing directory: {e}")
+            
+            # Get models path from .env before copy
+            env_vars = self.load_env()
+            models_path = env_vars.get('COMFYUI_MODELS_PATH')
+            print(f"DEBUG: COMFYUI_MODELS_PATH from .env: {models_path}")
+            
+            print("\nAttempting to call copy_upscaler...")
+            success = self.validator.copy_upscaler(source_dir, base_dir)
+            print(f"DEBUG: copy_upscaler returned: {success}")
+            
+            if not success:
+                error_msg = "Failed to copy upscaler model - check logs for details"
+                print(f"DEBUG: {error_msg}")
+                raise Exception(error_msg)
+            else:
+                print("DEBUG: Successfully called copy_upscaler")
+            
+            print("\n!!!!!!!!!! AFTER UPSCALER SECTION !!!!!!!!!!")
 
             # Save the models path to .env
             env_vars = self.load_env()
+            self.models_path = os.path.join(base_dir, 'ComfyUI', 'models')
             env_vars['COMFYUI_MODELS_PATH'] = self.models_path
             self.save_env(env_vars)
 
             # Check and download dependencies
             print("\nChecking and downloading required models...")
             logger.info("Starting dependency downloads")
+            logger.info(f"Using models directory: {self.models_path}")
             self.check_and_download_dependencies(self.models_path)
 
             # Select and download checkpoint
@@ -366,22 +584,12 @@ class SetupManager:
             for i, (name, info) in enumerate(CHECKPOINTS.items(), 1):
                 print(f"{i}. {name}")
             
-            while True:
-                try:
-                    choice = int(input("\nSelect checkpoint number to download (or 0 to cancel): "))
-                    if choice == 0:
-                        logger.info("Setup cancelled by user")
-                        print("Setup cancelled.")
-                        return False
-                    if 1 <= choice <= len(CHECKPOINTS):
-                        checkpoint_name = list(CHECKPOINTS.keys())[choice - 1]
-                        break
-                    print("Invalid selection. Please try again.")
-                except ValueError:
-                    print("Please enter a number.")
-
+            # Default to FLUXFusion 24GB if in CLI mode
+            checkpoint_name = "FLUXFusion 24GB"
+            print(f"\nAutomatic selection in CLI mode: {checkpoint_name}")
             checkpoint_info = CHECKPOINTS[checkpoint_name]
             logger.info(f"Selected checkpoint: {checkpoint_name}")
+            self.selected_checkpoint_info = checkpoint_info  # Store for verification
 
             # Download selected checkpoint
             checkpoint_path = os.path.join(
@@ -390,20 +598,27 @@ class SetupManager:
                 checkpoint_info['filename']
             )
             
-            print(f"\nDownloading checkpoint: {checkpoint_name}")
-            logger.info(f"Starting checkpoint download: {checkpoint_name}")
-            token = self.hf_token if checkpoint_info['source'] == 'huggingface' else self.civitai_token
-            self.download_file(
-                file_info=checkpoint_info,
-                output_path=checkpoint_path,
-                token=token,
-                source=checkpoint_info['source']
-            )
+            if not os.path.exists(checkpoint_path):
+                print(f"\nDownloading checkpoint: {checkpoint_name}")
+                logger.info(f"Starting checkpoint download: {checkpoint_name}")
+                token = self.hf_token if checkpoint_info['source'] == 'huggingface' else self.civitai_token
+                self.download_file(
+                    file_info=checkpoint_info,
+                    output_path=checkpoint_path,
+                    token=token,
+                    source=checkpoint_info['source']
+                )
+            else:
+                print(f"\nCheckpoint {checkpoint_name} already exists, skipping download...")
 
             # Update .env file with workflow
             logger.info(f"Updating .env with workflow: {checkpoint_info['workflow']}")
             self.update_env_file(checkpoint_info['workflow'])
             
+            # After all files are copied/downloaded, verify placement
+            verification_results = self.verify_file_placement()
+            self.print_verification_checklist(verification_results)
+
             print("\nSetup completed successfully!")
             logger.info("Setup completed successfully")
             return True

@@ -7,7 +7,16 @@ from typing import Optional, Dict
 class ComfyUIValidator:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
         
+        # Create console handler if it doesn't exist
+        if not self.logger.handlers:
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.INFO)
+            formatter = logging.Formatter('%(levelname)s - %(message)s')
+            console_handler.setFormatter(formatter)
+            self.logger.addHandler(console_handler)
+
     def find_folder(self, base_path: Path, possible_names: list) -> Optional[str]:
         """
         Find a folder with any of the possible naming variations.
@@ -58,36 +67,46 @@ class ComfyUIValidator:
     def validate_comfyui_directory(self, base_dir: str) -> bool:
         """
         Validate that the specified directory contains required ComfyUI folders.
+        If folders don't exist, create them.
         """
         try:
-            self.logger.debug(f"Validating directory: {base_dir}")
+            print(f"\nValidating/creating directory structure in: {base_dir}")
             base_path = Path(base_dir)
             
-            # List all contents of the directory
-            self.logger.debug("Directory contents:")
-            for item in base_path.iterdir():
-                self.logger.debug(f"- {item.name} ({'directory' if item.is_dir() else 'file'})")
+            # Create base directory if it doesn't exist
+            base_path.mkdir(parents=True, exist_ok=True)
             
-            # Find folders using the new methods
+            # List all contents of the directory
+            print("Current directory contents:")
+            for item in base_path.iterdir():
+                print(f"- {item.name} ({'directory' if item.is_dir() else 'file'})")
+            
+            # Find or create folders
             comfyui_folder = self.find_comfyui_folder(base_path)
             python_folder = self.find_python_folder(base_path)
             
-            self.logger.debug(f"Validation results:")
-            self.logger.debug(f"ComfyUI folder: {comfyui_folder}")
-            self.logger.debug(f"Python folder: {python_folder}")
-            
+            # Create ComfyUI folder if not found
             if not comfyui_folder:
-                self.logger.error("ComfyUI folder not found in specified directory")
-                return False
+                print("ComfyUI folder not found, creating it...")
+                comfyui_path = base_path / "ComfyUI"
+                comfyui_path.mkdir(exist_ok=True)
+                comfyui_folder = "ComfyUI"
                 
+            # Create python_embeded folder if not found
             if not python_folder:
-                self.logger.error("Python folder (python_embeded) not found in specified directory")
-                return False
+                print("Python folder not found, creating it...")
+                python_path = base_path / "python_embeded"
+                python_path.mkdir(exist_ok=True)
+                python_folder = "python_embeded"
+            
+            print(f"\nDirectory structure validated/created:")
+            print(f"- ComfyUI folder: {comfyui_folder}")
+            print(f"- Python folder: {python_folder}")
             
             return True
             
         except Exception as e:
-            self.logger.error(f"Error validating ComfyUI directory: {str(e)}")
+            self.logger.error(f"Error validating/creating ComfyUI directory: {str(e)}")
             return False
     
     def setup_required_paths(self, base_dir: str) -> Dict[str, str]:
@@ -163,4 +182,192 @@ class ComfyUIValidator:
             
         except Exception as e:
             self.logger.error(f"Error copying gguf_reader.py: {str(e)}", exc_info=True)
+            return False
+
+    def copy_upscaler(self, source_dir: str, dest_dir: str) -> bool:
+        """
+        Copy the upscaler model file to its destination.
+        Uses COMFYUI_MODELS_PATH from .env for destination.
+        """
+        try:
+            print("\nDEBUG: Starting copy_upscaler")
+            # Load the models path from .env
+            try:
+                with open('.env', 'r') as f:
+                    env_content = f.read()
+                    print(f"DEBUG: .env file contents:\n{env_content}")
+            except Exception as e:
+                print(f"DEBUG: Error reading .env file: {e}")
+                return False
+
+            env_vars = {}
+            for line in env_content.splitlines():
+                if '=' in line:
+                    key, value = line.strip().split('=', 1)
+                    env_vars[key.strip()] = value.strip().strip('"')  # Remove quotes if present
+            
+            models_path = env_vars.get('COMFYUI_MODELS_PATH')
+            if not models_path:
+                print("DEBUG: COMFYUI_MODELS_PATH not found in .env file")
+                print(f"DEBUG: Available environment variables: {env_vars}")
+                return False
+
+            print(f"DEBUG: Models path from .env: {models_path}")
+
+            # Define source and destination paths
+            source_path = Path(source_dir) / "required_files" / "Comfyui files" / "models" / "upscale_models" / "4x-ClearRealityV1.pth"
+            dest_path = Path(models_path) / "upscale_models" / "4x-ClearRealityV1.pth"
+
+            # Convert to absolute paths and resolve any .. or .
+            source_path = source_path.resolve()
+            dest_path = dest_path.resolve()
+
+            print(f"DEBUG: Source path: {source_path}")
+            print(f"DEBUG: Source exists: {source_path.exists()}")
+            print(f"DEBUG: Destination path: {dest_path}")
+
+            # List contents of source directory
+            try:
+                parent_dir = source_path.parent
+                if parent_dir.exists():
+                    print(f"\nDEBUG: Contents of {parent_dir}:")
+                    for item in parent_dir.iterdir():
+                        print(f"DEBUG:   {item.name}")
+                else:
+                    print(f"DEBUG: Source directory does not exist: {parent_dir}")
+            except Exception as e:
+                print(f"DEBUG: Error listing source directory: {e}")
+
+            # Verify source exists
+            if not source_path.is_file():
+                print(f"DEBUG: Source file not found at: {source_path}")
+                # Try to find the file in the source directory
+                try:
+                    for root, dirs, files in os.walk(source_dir):
+                        if "4x-ClearRealityV1.pth" in files:
+                            found_path = Path(root) / "4x-ClearRealityV1.pth"
+                            print(f"DEBUG: Found file at alternate location: {found_path}")
+                            source_path = found_path
+                            break
+                    else:
+                        print("DEBUG: File not found in any subdirectory")
+                        return False
+                except Exception as e:
+                    print(f"DEBUG: Error searching for file: {e}")
+                    return False
+
+            # Create destination directory
+            try:
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                print(f"DEBUG: Created destination directory: {dest_path.parent}")
+            except Exception as e:
+                print(f"DEBUG: Error creating destination directory: {e}")
+                return False
+
+            # Copy file
+            try:
+                print("DEBUG: Attempting to copy file...")
+                shutil.copy2(str(source_path), str(dest_path))
+                print("DEBUG: Copy operation completed")
+            except Exception as e:
+                print(f"DEBUG: Error during copy operation: {e}")
+                return False
+            
+            # Verify copy was successful
+            if dest_path.is_file():
+                print(f"DEBUG: Successfully copied upscaler to: {dest_path}")
+                return True
+            else:
+                print("DEBUG: Failed to verify upscaler copy")
+                return False
+
+        except Exception as e:
+            print(f"DEBUG: Error in copy_upscaler: {str(e)}")
+            return False
+
+    def copy_ratios_json(self, source_dir: str, dest_dir: str) -> bool:
+        """
+        Copy the ratios.json file to its destination in ComfyUI/custom_nodes/mikey_nodes.
+        Uses COMFYUI_MODELS_PATH from .env as base path.
+        """
+        try:
+            print("\nDEBUG: Starting copy_ratios_json")
+            
+            # Load the models path from .env
+            try:
+                with open('.env', 'r') as f:
+                    env_content = f.read()
+                    print(f"DEBUG: .env file contents:\n{env_content}")
+            except Exception as e:
+                print(f"DEBUG: Error reading .env file: {e}")
+                return False
+
+            env_vars = {}
+            for line in env_content.splitlines():
+                if '=' in line:
+                    key, value = line.strip().split('=', 1)
+                    env_vars[key.strip()] = value.strip().strip('"')  # Remove quotes if present
+            
+            models_path = env_vars.get('COMFYUI_MODELS_PATH')
+            if not models_path:
+                print("DEBUG: COMFYUI_MODELS_PATH not found in .env file")
+                print(f"DEBUG: Available environment variables: {env_vars}")
+                return False
+
+            print(f"DEBUG: Models path from .env: {models_path}")
+            
+            # Get base ComfyUI path by going up one level from models path
+            comfyui_path = str(Path(models_path).parent)
+            print(f"DEBUG: ComfyUI path: {comfyui_path}")
+            
+            # Define source and destination paths
+            source_path = Path(source_dir) / "required_files" / "ratios.json"
+            dest_path = Path(comfyui_path) / "custom_nodes" / "mikey_nodes" / "ratios.json"
+
+            # Convert to absolute paths and resolve any .. or .
+            source_path = source_path.resolve()
+            dest_path = dest_path.resolve()
+
+            print(f"DEBUG: Source path: {source_path}")
+            print(f"DEBUG: Source exists: {source_path.exists()}")
+            print(f"DEBUG: Destination path: {dest_path}")
+
+            # Create destination directory if it doesn't exist
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            print(f"DEBUG: Created/verified destination directory: {dest_path.parent}")
+
+            # Remove existing file if it exists
+            if dest_path.exists():
+                print(f"DEBUG: Removing existing file at: {dest_path}")
+                try:
+                    dest_path.unlink()
+                    print("DEBUG: Successfully removed existing file")
+                except Exception as e:
+                    print(f"DEBUG: Error removing existing file: {e}")
+                    return False
+
+            # Verify source exists
+            if not source_path.is_file():
+                print(f"DEBUG: Source file not found at: {source_path}")
+                return False
+
+            # Copy file
+            try:
+                print("DEBUG: Attempting to copy file...")
+                shutil.copy2(str(source_path), str(dest_path))
+                print("DEBUG: Copy operation completed")
+            except Exception as e:
+                print(f"DEBUG: Error during copy operation: {e}")
+                return False
+            
+            # Verify copy was successful
+            if dest_path.is_file():
+                print(f"DEBUG: Successfully copied ratios.json to: {dest_path}")
+                return True
+            else:
+                print("DEBUG: Failed to verify ratios.json copy")
+                return False
+
+        except Exception as e:
+            print(f"DEBUG: Error in copy_ratios_json: {str(e)}")
             return False

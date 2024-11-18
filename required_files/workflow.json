@@ -339,7 +339,7 @@
         "Node name for S&R": "RandomNoise"
       },
       "widgets_values": [
-        1079328036578518,
+        33399283882214,
         "randomize"
       ]
     },
@@ -445,38 +445,6 @@
       ]
     },
     {
-      "id": 258,
-      "type": "Empty Latent Ratio Select SDXL",
-      "pos": {
-        "0": 100,
-        "1": 1096
-      },
-      "size": {
-        "0": 478.8000183105469,
-        "1": 82
-      },
-      "flags": {},
-      "order": 5,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            36
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "Empty Latent Ratio Select SDXL"
-      },
-      "widgets_values": [
-        "16:9 [1344x768 landscape]",
-        1
-      ]
-    },
-    {
       "id": 8,
       "type": "VAEDecode",
       "pos": {
@@ -516,6 +484,42 @@
         "Node name for S&R": "VAEDecode"
       },
       "widgets_values": []
+    },
+    {
+      "id": 69,
+      "type": "CR Prompt Text",
+      "pos": {
+        "0": 100,
+        "1": 130
+      },
+      "size": {
+        "0": 400,
+        "1": 200
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            27
+          ]
+        },
+        {
+          "name": "show_help",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CR Prompt Text"
+      },
+      "widgets_values": [
+        "a highly detailed cinematic closeup frontal portrait, humanoid robot with a reflective, dome-shaped head, contains a galaxy cosmos and nebula inside it, the robot's body, in shades of white, purple and black, features an array of textures and protrusions suggesting a complex internal structure, set against a soft-focus background with bokeh effect in cool blue tones, dark environment, moody and epic"
+      ]
     },
     {
       "id": 279,
@@ -560,7 +564,7 @@
       "widgets_values": [
         "4x-ClearRealityV1.pth",
         "rescale",
-        1,
+        2,
         1024,
         "lanczos",
         "true",
@@ -568,15 +572,15 @@
       ]
     },
     {
-      "id": 69,
-      "type": "CR Prompt Text",
+      "id": 258,
+      "type": "Empty Latent Ratio Select SDXL",
       "pos": {
         "0": 100,
-        "1": 130
+        "1": 1096
       },
       "size": {
-        "0": 400,
-        "1": 200
+        "0": 478.8000183105469,
+        "1": 82
       },
       "flags": {},
       "order": 6,
@@ -584,31 +588,27 @@
       "inputs": [],
       "outputs": [
         {
-          "name": "prompt",
-          "type": "STRING",
+          "name": "LATENT",
+          "type": "LATENT",
           "links": [
-            27
+            36
           ]
-        },
-        {
-          "name": "show_help",
-          "type": "STRING",
-          "links": null
         }
       ],
       "properties": {
-        "Node name for S&R": "CR Prompt Text"
+        "Node name for S&R": "Empty Latent Ratio Select SDXL"
       },
       "widgets_values": [
-        ""
+        "16:9 [1920x1080 landscape]",
+        1
       ]
     },
     {
       "id": 286,
       "type": "Image Save",
       "pos": {
-        "0": 3449,
-        "1": 190
+        "0": 3435,
+        "1": 143
       },
       "size": {
         "0": 315,
@@ -647,11 +647,11 @@
         "_",
         5,
         "false",
-        "jpeg",
+        "webp",
         2400,
         100,
         "true",
-        "false",
+        "true",
         "false",
         "false",
         "false",
@@ -685,7 +685,7 @@
         "Node name for S&R": "UnetLoaderGGUF"
       },
       "widgets_values": [
-        "flux1-dev-Q5_0.gguf"
+        "fluxFusionV24StepsGGUFNF4_V2GGUFQ80.gguf"
       ]
     }
   ],
@@ -831,10 +831,10 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.8140274938684031,
+      "scale": 0.8954302432552539,
       "offset": [
-        545.9827853300304,
-        -227.31922215614335
+        -300.13032334431654,
+        131.4778015775109
       ]
     }
   },

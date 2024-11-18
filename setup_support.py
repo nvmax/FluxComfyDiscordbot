@@ -87,7 +87,7 @@ CHECKPOINTS = {
     },
     'FLUXFusion 24GB': {
         'filename': 'fluxFusionV24StepsGGUFNF4_V2Fp16.safetensors',
-        'path': '/checkpoints',
+        'path': '/diffusion_models',
         'model_id': '630820',
         'version_id': '936309',
         'workflow': 'fluxfusion24GB4step.json',
@@ -179,7 +179,19 @@ class SetupManager:
             head_response = requests.head(url, headers=headers, verify=False)
             head_response.raise_for_status()
             expected_size = int(head_response.headers.get('content-length', 0))
-            logger.info(f"Expected file size: {expected_size} bytes")
+            logger.info(f"Expected file size from HEAD: {expected_size} bytes")
+            
+            # Make the GET request to get actual size
+            response = requests.get(url, headers=headers, stream=True, verify=False)
+            response.raise_for_status()
+            
+            total_size = int(response.headers.get('content-length', 0))
+            logger.info(f"Actual file size from GET: {total_size} bytes")
+            
+            # If HEAD request returned 0, use the GET size instead
+            if expected_size == 0:
+                expected_size = total_size
+                logger.info("Using GET request size as HEAD request returned 0")
             
             # Check if file already exists and verify its size
             if os.path.exists(output_path):
@@ -193,11 +205,8 @@ class SetupManager:
                     logger.warning(f"File exists but size mismatch (expected: {expected_size}, got: {current_size}), redownloading")
                     os.remove(output_path)
             
-            response = requests.get(url, headers=headers, stream=True, verify=False)
-            response.raise_for_status()
-            
-            total_size = int(response.headers.get('content-length', 0))
-            if total_size != expected_size:
+            # Only validate sizes if both HEAD and GET returned non-zero values
+            if expected_size != 0 and total_size != 0 and total_size != expected_size:
                 raise ValueError(f"Download size mismatch (HEAD: {expected_size}, GET: {total_size})")
             
             with open(output_path, 'wb') as f:

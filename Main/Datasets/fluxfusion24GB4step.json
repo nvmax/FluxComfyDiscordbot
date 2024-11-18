@@ -10,28 +10,19 @@
         0
       ]
     },
-    "class_type": "VAEDecode",
-    "_meta": {
-      "title": "VAE Decode"
-    }
+    "class_type": "VAEDecode"
   },
   "69": {
     "inputs": {
       "prompt": "a highly detailed cinematic closeup frontal portrait, humanoid robot with a reflective, dome-shaped head, contains a galaxy cosmos and nebula inside it, the robot's body, in shades of white, purple and black, features an array of textures and protrusions suggesting a complex internal structure, set against a soft-focus background with bokeh effect in cool blue tones, dark environment, moody and epic AIDMAMJ6.1 aidmaHyperrealism\n"
     },
-    "class_type": "CR Prompt Text",
-    "_meta": {
-      "title": "⚙️ CR Prompt Text"
-    }
+    "class_type": "CR Prompt Text"
   },
   "152": {
     "inputs": {
       "vae_name": "ae.safetensors"
     },
-    "class_type": "VAELoader",
-    "_meta": {
-      "title": "Load VAE"
-    }
+    "class_type": "VAELoader"
   },
   "153": {
     "inputs": {
@@ -39,20 +30,14 @@
       "clip_name2": "clip_l.safetensors",
       "type": "flux"
     },
-    "class_type": "DualCLIPLoader",
-    "_meta": {
-      "title": "DualCLIPLoader"
-    }
+    "class_type": "DualCLIPLoader"
   },
   "258": {
     "inputs": {
       "ratio_selected": "16:9 [1920x1080 landscape]",
       "batch_size": 1
     },
-    "class_type": "Empty Latent Ratio Select SDXL",
-    "_meta": {
-      "title": "Empty Latent Ratio Select SDXL (Mikey)"
-    }
+    "class_type": "Empty Latent Ratio Select SDXL"
   },
   "271": {
     "inputs": {
@@ -61,7 +46,7 @@
       },
       "➕ Add Lora": "",
       "model": [
-        "287",
+        "288",
         0
       ],
       "clip": [
@@ -69,10 +54,7 @@
         0
       ]
     },
-    "class_type": "Power Lora Loader (rgthree)",
-    "_meta": {
-      "title": "Power Lora Loader (rgthree)"
-    }
+    "class_type": "Power Lora Loader (rgthree)"
   },
   "279": {
     "inputs": {
@@ -88,10 +70,7 @@
         0
       ]
     },
-    "class_type": "CR Upscale Image",
-    "_meta": {
-      "title": "🔍 CR Upscale Image"
-    }
+    "class_type": "CR Upscale Image"
   },
   "286": {
     "inputs": {
@@ -100,11 +79,11 @@
       "filename_delimiter": "_",
       "filename_number_padding": 5,
       "filename_number_start": "false",
-      "extension": "jpeg",
+      "extension": "webp",
       "dpi": 2400,
       "quality": 100,
       "optimize_image": "true",
-      "lossless_webp": "false",
+      "lossless_webp": "true",
       "overwrite_mode": "false",
       "show_history": "false",
       "show_history_by_prefix": "false",
@@ -115,47 +94,32 @@
         0
       ]
     },
-    "class_type": "Image Save",
-    "_meta": {
-      "title": "Image Save"
-    }
+    "class_type": "Image Save"
   },
   "287": {
     "inputs": {
       "unet_name": "fluxFusionV24StepsGGUFNF4_V2GGUFQ5KS.gguf"
     },
-    "class_type": "UnetLoaderGGUF",
-    "_meta": {
-      "title": "Unet Loader (GGUF)"
-    }
+    "class_type": "UnetLoaderGGUF"
   },
   "288": {
     "inputs": {
       "unet_name": "fluxFusionV24StepsGGUFNF4_V2Fp16.safetensors",
       "weight_dtype": "fp8_e4m3fn"
     },
-    "class_type": "UNETLoader",
-    "_meta": {
-      "title": "Load Diffusion Model"
-    }
+    "class_type": "UNETLoader"
   },
   "198:0": {
     "inputs": {
       "sampler_name": "euler"
     },
-    "class_type": "KSamplerSelect",
-    "_meta": {
-      "title": "KSamplerSelect"
-    }
+    "class_type": "KSamplerSelect"
   },
   "198:2": {
     "inputs": {
-      "noise_seed": 618404471428495
+      "noise_seed": 979137603837381
     },
-    "class_type": "RandomNoise",
-    "_meta": {
-      "title": "RandomNoise"
-    }
+    "class_type": "RandomNoise"
   },
   "198:1": {
     "inputs": {
@@ -167,10 +131,7 @@
         0
       ]
     },
-    "class_type": "BasicScheduler",
-    "_meta": {
-      "title": "BasicScheduler"
-    }
+    "class_type": "BasicScheduler"
   },
   "198:3": {
     "inputs": {
@@ -183,10 +144,7 @@
         1
       ]
     },
-    "class_type": "CLIPTextEncode",
-    "_meta": {
-      "title": "CLIP Text Encode (Prompt)"
-    }
+    "class_type": "CLIPTextEncode"
   },
   "198:4": {
     "inputs": {
@@ -196,10 +154,7 @@
         0
       ]
     },
-    "class_type": "FluxGuidance",
-    "_meta": {
-      "title": "FluxGuidance"
-    }
+    "class_type": "FluxGuidance"
   },
   "198:5": {
     "inputs": {
@@ -212,10 +167,7 @@
         0
       ]
     },
-    "class_type": "BasicGuider",
-    "_meta": {
-      "title": "BasicGuider"
-    }
+    "class_type": "BasicGuider"
   },
   "198:6": {
     "inputs": {
@@ -240,9 +192,6 @@
         0
       ]
     },
-    "class_type": "SamplerCustomAdvanced",
-    "_meta": {
-      "title": "SamplerCustomAdvanced"
-    }
+    "class_type": "SamplerCustomAdvanced"
   }
 }

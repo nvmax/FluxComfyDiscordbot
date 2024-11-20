@@ -29,12 +29,9 @@ So, are you ready to dive into a world where your words paint pictures? Where yo
   * Added robust use of lora weights, now when using loras if only 1 is selected it will use full weight, if 2 are selected it will scale down.
   * Added Lorainfo slash command, it will now show you information on the loras and give a url link to show users what the lora can do. 
   * Reworked lora editor, now has a better UI and is more user friendly, you can now double click to edit a lora details, Auto saves on changes. 
-  * COMPILED to exe YAY! now you can just run the exe to run the editor. 
+  
 
-  * 11/12/2024
-  * Compiled the setup tool for windows, now run the Setup.exe to install the bot.
-
-
+  
   * 11/11/2024
   * New comfyui installs were giving errors loading the workflow due to changes in "numpy 2" support.
   * Setup tool now copies over a modified file for this bot to work with "numpy 2" (does not break numpy 2 in any newer nodes, only fixes older nodes using less than 2.0 version)

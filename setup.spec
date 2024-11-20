@@ -2,8 +2,12 @@
 
 import os
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+import download_upx
 
 block_cipher = None
+
+# Download and set up UPX
+upx_dir = download_upx.download_upx()
 
 a = Analysis(
     ['setup.py'],
@@ -65,6 +69,7 @@ exe = EXE(
     strip=False,
     upx=True,
     upx_exclude=[],
+    upx_dir=upx_dir,
     runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,

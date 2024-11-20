@@ -2,6 +2,9 @@
 
 import os
 from pathlib import Path
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # Add parent directory to path
+import download_upx
 
 # Get the absolute path of the script
 script_path = os.path.abspath('lora_editor.py')
@@ -9,6 +12,9 @@ base_path = os.path.dirname(script_path)
 
 # Initialize data files list
 datas = []
+
+# Download and set up UPX
+upx_dir = download_upx.download_upx()
 
 a = Analysis(
     [script_path],
@@ -55,6 +61,7 @@ exe = EXE(
     strip=False,
     upx=True,
     upx_exclude=[],
+    upx_dir=upx_dir,
     runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,

@@ -1,0 +1,3 @@
+[submodule "lora_editor/upx"]
+	path = lora_editor/upx
+	url = https://github.com/upx/upx.git

@@ -78,10 +78,10 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
             workflow['198:4']['inputs']['guidance'] = 3.5
             logger.debug("Set default guidance value to 3.5")
         
-        # Update steps value if present
+        # Keep original steps value from workflow template
         if '198:1' in workflow and 'inputs' in workflow['198:1']:
-            workflow['198:1']['inputs']['steps'] = 20
-            logger.debug("Set default steps value to 20")
+            original_steps = workflow['198:1']['inputs'].get('steps', 20)  # fallback to 20 if not found
+            logger.debug(f"Using steps value from workflow: {original_steps}")
 
         return workflow
 

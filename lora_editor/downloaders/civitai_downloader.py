@@ -88,9 +88,24 @@ class CivitAIDownloader:
             total_size = int(response.headers.get('content-length', 0))
             
             # Download the file
-            dest_path = os.path.join(dest_folder, filename)
+            dest_path = os.path.normpath(os.path.join(dest_folder, filename))
+            
+            # Check if file already exists
+            if os.path.exists(dest_path):
+                logger.info(f"File already exists at {dest_path}")
+                try:
+                    # Try to remove the existing file
+                    os.remove(dest_path)
+                    logger.info(f"Successfully removed existing file at {dest_path}")
+                except Exception as e:
+                    logger.error(f"Failed to remove existing file: {e}")
+                    raise ValueError(f"File already exists at {dest_path} and could not be removed")
+
             block_size = 1024  # 1 Kibibyte
             downloaded = 0
+            
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
             
             with open(dest_path, 'wb') as f:
                 for data in response.iter_content(block_size):

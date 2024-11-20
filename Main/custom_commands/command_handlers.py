@@ -9,6 +9,7 @@ import sys
 import uuid
 import time
 import sqlite3
+import re
 from typing import Optional
 from config import BOT_MANAGER_ROLE_ID, CHANNEL_IDS
 from config import fluxversion
@@ -118,26 +119,27 @@ async def setup_commands(bot: discord.Client):
                 try:
                     await lora_message.delete()
                 except discord.NotFound:
-                    pass  # Message already deleted
+                    pass
                 
-                # Process the selection and generate image
-                workflow = load_json(fluxversion)
-                request_uuid = str(uuid.uuid4())
-                
-                if seed is None:
-                    seed = generate_random_seed()
-                    
-                # Update prompt with LoRA trigger words
+                # Process LoRA trigger words
                 lora_config = load_json('lora.json')
                 additional_prompts = []
                 for lora in selected_loras:
                     lora_info = next((l for l in lora_config['available_loras'] if l['file'] == lora), None)
-                    if lora_info and lora_info.get('add_prompt') and lora_info['add_prompt'].strip():  # Only add non-empty trigger words
-                        additional_prompts.append(lora_info['add_prompt'].strip())
+                    if lora_info and lora_info.get('prompt') and lora_info['prompt'].strip():
+                        additional_prompts.append(lora_info['prompt'].strip())
                 
                 # Join trigger words with commas and append to prompt
-                trigger_words = ", ".join(additional_prompts) if additional_prompts else ""
+                trigger_words = ", ".join(filter(None, additional_prompts))
                 full_prompt = f"{prompt}, {trigger_words}" if trigger_words else prompt
+                full_prompt = re.sub(r'\s*,\s*,\s*', ', ', full_prompt).strip(' ,')
+                
+                if seed is None:
+                    seed = generate_random_seed()
+                
+                workflow = load_json(fluxversion)
+                request_uuid = str(uuid.uuid4())
+                current_timestamp = int(time.time())
                 
                 workflow = update_workflow(
                     workflow,
@@ -151,13 +153,11 @@ async def setup_commands(bot: discord.Client):
                 workflow_filename = f'flux3_{request_uuid}.json'
                 save_json(workflow_filename, workflow)
 
-                # Send initial message
                 original_message = await interaction.followup.send(
                     "🔄 Starting generation process...",
                     ephemeral=False
                 )
 
-                # Create request item
                 request_item = RequestItem(
                     id=str(interaction.id),
                     user_id=str(interaction.user.id),
@@ -179,7 +179,7 @@ async def setup_commands(bot: discord.Client):
                 if len(error_message) > 1900:
                     error_message = error_message[:1900] + "..."
                 await interaction.followup.send(f"An error occurred during setup: {error_message}", ephemeral=True)
-                
+            
         except Exception as e:
             logger.error(f"Error in comfy command: {str(e)}", exc_info=True)
             try:
@@ -195,6 +195,22 @@ async def setup_commands(bot: discord.Client):
                     )
             except Exception as e2:
                 logger.error(f"Error sending error message: {str(e2)}", exc_info=True)
+                    
+            except Exception as e:
+                logger.error(f"Error in comfy command: {str(e)}", exc_info=True)
+                try:
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message(
+                            "An error occurred. Please try again.",
+                            ephemeral=True
+                        )
+                    else:
+                        await interaction.followup.send(
+                            "An error occurred. Please try again.",
+                            ephemeral=True
+                        )
+                except Exception as e2:
+                    logger.error(f"Error sending error message: {str(e2)}", exc_info=True)
 
     @bot.tree.command(name="reboot", description="Reboot the bot (Restricted to specific admin)")
     async def reboot(interaction: discord.Interaction):

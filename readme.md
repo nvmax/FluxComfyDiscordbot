@@ -134,7 +134,8 @@ Note: If you close the terminal, it ends the bot.
   * at any point you want to change the checkpoint just run the setup tool again and select the new model you want that easy.
   * if its already downloaded it will not download again it will just change your .env variable to support the change (reboot bot)
 
-  ### Setup.exe and LoraEditor.exe may get detected as threats by antivirus. 
+  ### Setup.exe and LoraEditor.exe may get detected as threats by antivirus.
+     * removed previous exe's that I compiled, you can use the steps below to create your own since its OS dependent.  
      * Compile the setup.exe and LoraEditor.exe using pyinstaller
      * pip install pyinstaller
      * pyinstaller setup.spec --clean --noconfirm
@@ -173,7 +174,7 @@ These models will go in your comfyui/models/Lora folder.
 
     ### update: 
     * Now saves URL links (support for /lorainfo command)
-    * Compiled to exe just run the loraEditor.exe 
+    * Compile to exe just run the loraEditor.exe or run 'python lora_editor.py'
     * Now supports more than 25 LoRA's, theoritically it can support north of 600 LoRA's.
     * You can activate and deactivate loras from the gui. 
     * Persistant lora information is stored in sqlite3 database.
@@ -184,7 +185,7 @@ These models will go in your comfyui/models/Lora folder.
     * Loras are now instantly available on the bot as soon as they are added to the list. 
 
   * This tool will allow you to configure your LoRA's with a simple gui, it will also allow you to download new LoRA's from Civitai and Huggingface.
-  * Open lora_editor.py  using "python lora_editor.py", it will open a gui window.
+  * compile the exe or run "python lora_editor.py", it will open a gui window.
   * Select the LORA_JSON_PATH to the lora.json file in the datasets folder.
   * Select the LORA_FOLDER_PATH to the lora folder in your comfyui models folder.
   * populate your civitai and huggingface tokens.

@@ -60,6 +60,10 @@ class LoraDatabase:
             logger.error(f"Error initializing database: {e}")
             raise
 
+    def reset_database(self):
+        """Reset the database by reinitializing it"""
+        self.init_db()
+
     def add_lora(self, entry: LoraHistoryEntry, order: int = None) -> Optional[LoraHistoryEntry]:
         """Add or update a LoRA entry in the history"""
         try:

@@ -19,8 +19,12 @@ import json
 import uuid
 from Main.lora_monitor import setup_lora_monitor, cleanup_lora_monitor
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Reduce discord.py websocket spam
+discord_logger = logging.getLogger('discord.gateway')
+discord_logger.setLevel(logging.WARNING)
 
 class MyBot(discord_commands.Bot):
     def __init__(self):
@@ -47,7 +51,7 @@ class MyBot(discord_commands.Bot):
 
             lora_data = load_json('lora.json')
             self.lora_options = lora_data['available_loras']
-            logger.info("Loaded LoRA and Resolution options")
+            #logger.info("Loaded LoRA and Resolution options")
         except Exception as e:
             logger.error(f"Error loading options: {str(e)}")
 
@@ -76,7 +80,7 @@ class MyBot(discord_commands.Bot):
                 request_item = await self.subprocess_queue.get()
                 request_id = str(uuid.uuid4())
                 self.pending_requests[request_id] = request_item
-                logger.debug(f"Processing subprocess queue: {request_item}")
+                #logger.debug(f"Processing subprocess queue: {request_item}")
                 await asyncio.sleep(5)
 
                 python_cmd = self.get_python_command()
@@ -105,12 +109,12 @@ class MyBot(discord_commands.Bot):
         await self.change_presence(activity=discord.Game(name="with image generation"))
         try:
             await self.tree.sync()
-            logger.info("Successfully synced application commands")
+            #logger.info("Successfully synced application commands")
         except Exception as e:
             logger.error(f"Failed to sync commands: {e}")
 
     async def on_tree_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
-        logger.error(f"Command error occurred: {str(error)}")
+        #logger.error(f"Command error occurred: {str(error)}")
         if isinstance(error, discord.app_commands.CommandOnCooldown):
             await interaction.response.send_message(f"Command is on cooldown. Try again in {error.retry_after:.2f}s", ephemeral=True)
         else:

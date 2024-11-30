@@ -40,7 +40,7 @@ def has_admin_or_bot_manager_role():
 def in_allowed_channel():
     async def predicate(interaction: discord.Interaction):
         if interaction.channel_id not in CHANNEL_IDS:
-            await interaction.response.send_message("This command can only be used in specific channels.", ephemeral=True)
+            await interaction.followup.send_message("This command can only be used in specific channels.", ephemeral=True)
             return False
         return True
     return app_commands.check(predicate)
@@ -78,7 +78,7 @@ class CreativityModal(discord.ui.Modal, title='Select Creativity Level'):
         try:
             creativity_level = int(self.creativity.value)
             if not 1 <= creativity_level <= 10:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     "Creativity level must be between 1 and 10, Default is 1.", 
                     ephemeral=True
                 )
@@ -90,32 +90,42 @@ class CreativityModal(discord.ui.Modal, title='Select Creativity Level'):
             from LMstudio_bot.lora_manager.prompt_enhancer import PromptEnhancer
             enhancer = PromptEnhancer()
             
-            # Enhance the prompt with the specified creativity level
+            # Clean prompt of any existing LoRA trigger words and timestamps
+            base_prompt = re.sub(r'\s*\(Timestamp:.*?\)', '', self.original_prompt)
+            lora_config = load_json('lora.json')
+            
+            # Remove existing LoRA trigger words from base prompt
+            for lora in lora_config['available_loras']:
+                if lora.get('prompt'):
+                    base_prompt = base_prompt.replace(lora['prompt'], '').strip()
+            
+            # Clean up multiple commas and whitespace
+            base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
+            
+            # Enhance the cleaned prompt
             enhanced_prompt = enhancer.enhance_prompt(
-                self.original_prompt,
+                base_prompt,
                 {"name": "default", "description": "Default prompt enhancement", "keywords": []},
                 creativity=creativity_level
             )
             
-            if enhanced_prompt:
-                logger.info(f"Original prompt: {self.original_prompt}")
-                logger.info(f"Enhanced prompt: {enhanced_prompt}")
-            else:
-                enhanced_prompt = self.original_prompt
+            if not enhanced_prompt:
+                enhanced_prompt = base_prompt
                 logger.warning("No enhanced prompt generated, using original")
 
-            # Show the user both prompts
+            # Show the original and enhanced prompts (without LoRA trigger words)
             await interaction.followup.send(
                 f"Original prompt: {self.original_prompt}\n"
-                f"Enhanced prompt: {enhanced_prompt}\n"
-                "Processing image generation...",
+                f"Enhanced prompt (before LoRA): {enhanced_prompt}\n"
+                "Proceeding to LoRA selection...",
                 ephemeral=True
             )
 
-            # Process with enhanced prompt
+            # Pass the enhanced prompt to process_image_request
+            # LoRA trigger words will be added there after selection
             await process_image_request(
                 interaction,
-                enhanced_prompt,  # Use enhanced prompt here
+                enhanced_prompt,
                 self.resolution,
                 self.upscale_factor,
                 self.seed
@@ -136,6 +146,23 @@ class CreativityModal(discord.ui.Modal, title='Select Creativity Level'):
 async def process_image_request(interaction, prompt, resolution, upscale_factor, seed):
     """Process the image generation request"""
     try:
+        # First clean the prompt of any existing LoRA trigger words
+        lora_config = load_json('lora.json')
+        cleaned_prompt = prompt.strip()
+        
+        # Remove any existing LoRA trigger words from the prompt
+        for lora in lora_config['available_loras']:
+            if lora.get('add_prompt'):
+                trigger_word = lora['add_prompt'].strip()
+                # Remove trigger word and any trailing commas/spaces
+                cleaned_prompt = re.sub(f',?\s*{re.escape(trigger_word)},?\s*', '', cleaned_prompt, flags=re.IGNORECASE)
+        
+        # Clean up any duplicate commas and extra whitespace
+        cleaned_prompt = re.sub(r'\s*,\s*,\s*', ', ', cleaned_prompt.strip(' ,')).strip()
+        
+        logger.debug(f"Cleaned prompt (before LoRA selection): {cleaned_prompt}")
+        
+        # Show LoRA selection view
         lora_view = LoRAView(interaction.client)
         lora_message = await interaction.followup.send(
             "Please select the LoRAs you want to use:",
@@ -158,25 +185,49 @@ async def process_image_request(interaction, prompt, resolution, upscale_factor,
         except discord.NotFound:
             pass
         
-        # Process LoRA trigger words
-        lora_config = load_json('lora.json')
+        # Get LoRA trigger words for currently selected LoRAs
         additional_prompts = []
-        for lora in selected_loras:
-            lora_info = next((l for l in lora_config['available_loras'] if l['file'] == lora), None)
-            if lora_info and lora_info.get('prompt') and lora_info['prompt'].strip():
-                additional_prompts.append(lora_info['prompt'].strip())
+        for lora_file in selected_loras:
+            lora_info = next(
+                (l for l in lora_config['available_loras'] if l['file'] == lora_file),
+                None
+            )
+            logger.debug(f"Processing LoRA: {lora_file}, Info: {lora_info}")
+            if lora_info and lora_info.get('add_prompt') and lora_info['add_prompt'].strip():
+                additional_prompts.append(lora_info['add_prompt'].strip())
+                logger.debug(f"Added trigger word: {lora_info['add_prompt'].strip()}")
         
-        # Join trigger words with commas and append to enhanced prompt
-        trigger_words = ", ".join(filter(None, additional_prompts))
-        full_prompt = f"{prompt}, {trigger_words}" if trigger_words else prompt
-        full_prompt = re.sub(r'\s*,\s*,\s*', ', ', full_prompt).strip(' ,')
+        logger.debug(f"New trigger words to add: {additional_prompts}")
+        
+        # Construct final prompt with new trigger words
+        full_prompt = cleaned_prompt
+        if additional_prompts:
+            if not full_prompt.endswith(','):
+                full_prompt += ','
+            full_prompt += ' ' + ', '.join(additional_prompts)
+        
+        full_prompt = full_prompt.strip(' ,')
+        logger.debug(f"Final prompt with new LoRA triggers: {full_prompt}")
+        
+        # Show the user the prompt changes
+        #prompt_message = (
+        #    f"Prompt changes:\n\n"
+        #    f"Original Prompt: {prompt}\n"
+        #    f"Cleaned Prompt (without LoRA triggers): {cleaned_prompt}\n"
+        #    f"Added LoRA Triggers: {', '.join(additional_prompts) if additional_prompts else 'None'}\n"
+        #    f"Final Combined Prompt: {full_prompt}"
+        #)
+        
+        #await interaction.followup.send(
+        #    prompt_message,
+        #    ephemeral=True
+        #)
         
         if seed is None:
             seed = generate_random_seed()
         
         workflow = load_json(fluxversion)
         request_uuid = str(uuid.uuid4())
-        current_timestamp = int(time.time())
         
         workflow = update_workflow(
             workflow,
@@ -255,12 +306,13 @@ async def setup_commands(bot: discord_commands.Bot):
     async def comfy(interaction: discord.Interaction, prompt: str, resolution: str, 
                     upscale_factor: int = 1, seed: Optional[int] = None):
         try:
+           
             logger.info(f"Comfy command invoked by {interaction.user.id}")
             
             # Check for banned status first
             is_banned, ban_message = check_banned(str(interaction.user.id), prompt)
             if is_banned:
-                await interaction.response.send_message(ban_message, ephemeral=True)
+                await interaction.followup.send(ban_message, ephemeral=True)
                 return
 
             if ENABLE_PROMPT_ENHANCEMENT:
@@ -269,13 +321,13 @@ async def setup_commands(bot: discord_commands.Bot):
                         interaction.client.ai_provider = AIProviderFactory.get_provider(AI_PROVIDER)
                     except Exception as e:
                         logger.error(f"Failed to initialize AI provider: {e}")
-                        await interaction.response.send_message(
+                        await interaction.followup.send(
                             "Prompt enhancement is enabled but the AI provider could not be initialized. "
                             "Please contact an administrator.",
                             ephemeral=True
                         )
                         return
-                        
+                            
                 # Send creativity selection modal
                 creativity_modal = CreativityModal(bot, prompt, resolution, upscale_factor, seed)
                 await interaction.response.send_modal(creativity_modal)
@@ -287,25 +339,25 @@ async def setup_commands(bot: discord_commands.Bot):
         except Exception as e:
             logger.error(f"Error in comfy command: {str(e)}")
             if not interaction.response.is_done():
-                await interaction.response.send_message(f"An error occurred: {str(e)}", ephemeral=True)
+                await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
             else:
                 await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
 
     @bot.tree.command(name="reboot", description="Reboot the bot (Restricted to specific admin)")
     async def reboot(interaction: discord.Interaction):
         if interaction.user.id == BOT_MANAGER_ROLE_ID:
-            await interaction.response.send_message("Rebooting bot...", ephemeral=True)
+            await interaction.followup.send("Rebooting bot...", ephemeral=True)
             await bot.close()
             os.execv(sys.executable, ['python'] + sys.argv)
         else:
-            await interaction.response.send_message("You don't have permission.", ephemeral=True)
+            await interaction.followup.send("You don't have permission.", ephemeral=True)
 
     @bot.tree.command(name="add_banned_word", description="Add a word to the banned list")
     @app_commands.checks.has_permissions(administrator=True)
     async def add_banned_word_command(interaction: discord.Interaction, word: str):
         word = word.lower()
         add_banned_word(word)
-        await interaction.response.send_message(f"Added '{word}' to the banned words list.", ephemeral=True)
+        await interaction.followup.send(f"Added '{word}' to the banned words list.", ephemeral=True)
 
     @bot.tree.command(name="remove_banned_word", description="Remove a word from the banned list")
     @app_commands.checks.has_permissions(administrator=True)
@@ -373,18 +425,18 @@ async def setup_commands(bot: discord_commands.Bot):
         try:
             success, message = remove_user_warnings(str(user.id))
             if success:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     f"Successfully removed all warnings from {user.name} ({user.id}).\n{message}", 
                     ephemeral=True
                 )
             else:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     f"Could not remove warnings from {user.name} ({user.id}).\n{message}", 
                     ephemeral=True
                 )
         except Exception as e:
             logger.error(f"Error in remove_warning command: {str(e)}")
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"An error occurred while removing warnings: {str(e)}", 
                 ephemeral=True
             )
@@ -396,7 +448,7 @@ async def setup_commands(bot: discord_commands.Bot):
             success, result = get_all_warnings()
             
             if not success:
-                await interaction.response.send_message(result, ephemeral=True)
+                await interaction.followup.send(result, ephemeral=True)
                 return
             
             embeds = []
@@ -437,12 +489,12 @@ async def setup_commands(bot: discord_commands.Bot):
                 embeds.append(embed)
             
             if len(embeds) == 0:
-                await interaction.response.send_message("No warnings found in the database.", ephemeral=True)
+                await interaction.followup.send("No warnings found in the database.", ephemeral=True)
                 return
                 
             # If only one embed, send it without navigation
             if len(embeds) == 1:
-                await interaction.response.send_message(embed=embeds[0], ephemeral=True)
+                await interaction.followup.send(embed=embeds[0], ephemeral=True)
             else:
                 # Create navigation view for multiple embeds
                 class NavigationView(discord.ui.View):
@@ -502,8 +554,8 @@ async def setup_commands(bot: discord_commands.Bot):
             logger.info(f"Synced {len(synced)} commands")
         except discord.app_commands.errors.CheckFailure as e:
             logger.error(f"Check failure in sync_commands: {str(e)}", exc_info=True)
-            await interaction.response.send_message("You don't have permission to use this command.", 
-                                                  ephemeral=True)
+            await interaction.followup.send("You don't have permission to use this command.", 
+                                          ephemeral=True)
         except Exception as e:
             logger.error(f"Error in sync_commands: {str(e)}", exc_info=True)
             await interaction.followup.send(f"An error occurred: {str(e)}")
@@ -513,11 +565,11 @@ async def setup_commands(bot: discord_commands.Bot):
     async def reload_options_command(interaction: discord.Interaction):
         try:
             await bot.reload_options()
-            await interaction.response.send_message("LoRA and Resolution options have been reloaded.",
-                                                  ephemeral=True)
+            await interaction.followup.send("LoRA and Resolution options have been reloaded.",
+                                            ephemeral=True)
         except Exception as e:
             logger.error(f"Error reloading options: {str(e)}", exc_info=True, stack_info=True)
-            await interaction.response.send_message(f"Error reloading options: {str(e)}", ephemeral=True)
+            await interaction.followup.send(f"Error reloading options: {str(e)}", ephemeral=True)
 
     @bot.tree.error
     async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
@@ -543,9 +595,9 @@ async def setup_commands(bot: discord_commands.Bot):
                     await interaction.followup.send("An error occurred. Please try again.", ephemeral=True)
             else:
                 try:
-                    await interaction.response.send_message(response_message, ephemeral=True)
+                    await interaction.followup.send_message(response_message, ephemeral=True)
                 except discord.HTTPException:
-                    await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
+                    await interaction.followup.send_message("An error occurred. Please try again.", ephemeral=True)
 
         except Exception as e:
             logger.error(f"Error in error handler: {str(e)}", exc_info=True)

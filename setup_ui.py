@@ -327,6 +327,7 @@ class SetupUI:
                 'LMSTUDIO_HOST': self.lmstudio_host.get(),
                 'LMSTUDIO_PORT': self.lmstudio_port.get(),
                 'BOT_SERVER': self.bot_server.get(),
+                'server_address': self.server_address.get(),
                 'ALLOWED_SERVERS': self.allowed_servers.get(),
                 'CHANNEL_IDS': self.channel_ids.get(),
                 'BOT_MANAGER_ROLE_ID': self.bot_manager_role_id.get(),

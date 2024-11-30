@@ -2,9 +2,17 @@
   "default": "aidmaHyperRealism-FLUX-V0.2.safetensors",
   "available_loras": [
     {
+      "file": "Ars_MidJourney_Watercolor.safetensors",
+      "name": "Ars_MidJourney_Watercolor",
+      "weight": 1.0,
+      "add_prompt": "ArsMJStyle, Watercolor",
+      "url": "https://civitai.com/models/551903/ars-midjourney-watercolor-sd-15-sdxl-pony-flux",
+      "is_active": true
+    },
+    {
       "file": "aidmaMJ6.1-FLUX-v0.4.safetensors",
       "name": "aidmaMJ6.1-FLUX-v0.4",
-      "weight": "0.6",
+      "weight": 0.6,
       "add_prompt": "aidmaMJ6.1",
       "url": "https://civitai.com/models/646411/midjourney-v61-meets-flux-sdxl?modelVersionId=981456",
       "is_active": true
@@ -12,7 +20,7 @@
     {
       "file": "aidmaImageUprader.safetensors",
       "name": "aidmaImageUprader",
-      "weight": "0.4",
+      "weight": 0.4,
       "add_prompt": "aidmaimageupgrader",
       "url": "https://civitai.com/models/562866/flux-image-upgrader-detail-maximizer-contrast-fix-for-low-cfg-sdxl-sd-15",
       "is_active": true
@@ -20,7 +28,7 @@
     {
       "file": "Egon_Art.safetensors",
       "name": "Egon_Art",
-      "weight": "0.8",
+      "weight": 0.8,
       "add_prompt": " egonartCE_style",
       "url": "https://civitai.com/models/922134?modelVersionId=1034555",
       "is_active": true
@@ -28,7 +36,7 @@
     {
       "file": "aidmaHyperRealism-FLUX-V0.2.safetensors",
       "name": "aidmaHyperRealism-FLUX-V0.2",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "aidmaHyperrealism",
       "url": "https://civitai.com/models/730373?modelVersionId=894049",
       "is_active": true
@@ -36,7 +44,7 @@
     {
       "file": "aidmaPsychadelicChaosWorld-FLUX-v0.1.safetensors",
       "name": "aidmaPsychadelicChaosWorld-FLUX-v0.1",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "PsychadelicChaos",
       "url": "https://civitai.com/models/601245/flux-psychadelic-chaos-world-morph-sdxl",
       "is_active": true
@@ -44,7 +52,7 @@
     {
       "file": "flux_dev_NeoAndeanArchitecture.safetensors",
       "name": "flux_dev_NeoAndeanArchitecture",
-      "weight": "0.7",
+      "weight": 0.7,
       "add_prompt": "neo-andean architecture",
       "url": "https://civitai.com/models/941383?modelVersionId=1053882",
       "is_active": true
@@ -52,7 +60,7 @@
     {
       "file": "Midjourney_imitation_FLUX.safetensors",
       "name": "Midjourney_imitation_FLUX",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "Midjourney style",
       "url": "https://civitai.com/models/733710/midjourney-imitationflux",
       "is_active": true
@@ -60,7 +68,7 @@
     {
       "file": "Sketch_Flux.safetensors",
       "name": "Sketch_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "The sketch depicts",
       "url": "https://civitai.com/models/651715?modelVersionId=750685",
       "is_active": true
@@ -68,7 +76,7 @@
     {
       "file": "MothFX.safetensors",
       "name": "MothFX",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "MothFX",
       "url": "https://civitai.com/models/927597?modelVersionId=1038352",
       "is_active": true
@@ -76,7 +84,7 @@
     {
       "file": "Circuit_Board_FLUX.safetensors",
       "name": "Circuit_Board_FLUX",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "circuit trace",
       "url": "https://civitai.com/models/906994/circuit-board-flux",
       "is_active": true
@@ -84,7 +92,7 @@
     {
       "file": "Phlux_Texture&Lighting.safetensors",
       "name": "Phlux_Texture&Lighting",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "",
       "url": "https://civitai.com/models/672963/phlux-photorealism-with-style-incredible-texture-and-lighting",
       "is_active": true
@@ -92,7 +100,7 @@
     {
       "file": "RPGv6-itr15.safetensors",
       "name": "RPGv6-itr15",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "RPG STYLE,",
       "url": "https://civitai.com/models/647159?modelVersionId=796427",
       "is_active": true
@@ -100,7 +108,7 @@
     {
       "file": "DreamyKolors_v1.safetensors",
       "name": "DreamyKolors_v1",
-      "weight": "0.8",
+      "weight": 0.8,
       "add_prompt": "",
       "url": "https://civitai.com/models/739314/dreamykolors-unleash-creativity-enhance-quality",
       "is_active": true
@@ -108,7 +116,7 @@
     {
       "file": "undeadmadness-warcraftstyle.safetensors",
       "name": "undeadmadness-warcraftstyle",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "warcraftundeadstyle",
       "url": "https://civitai.com/models/868586/undead-madness-unleashed-world-of-warcraft-inspired-style",
       "is_active": true
@@ -116,7 +124,7 @@
     {
       "file": "MetalArt01a_CE_FLUX_AIT3k.safetensors",
       "name": "MetalArt01a_CE_FLUX_AIT3k",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "mtlartCE_style",
       "url": "https://civitai.com/models/925301/metal-art-ce-xl",
       "is_active": true
@@ -124,7 +132,7 @@
     {
       "file": "Ultima_Flux_v1.safetensors",
       "name": "Ultima_Flux_v1",
-      "weight": "0.3",
+      "weight": 0.3,
       "add_prompt": "",
       "url": "https://civitai.com/models/834435/ultima-flux",
       "is_active": true
@@ -132,7 +140,7 @@
     {
       "file": "VantaGold.safetensors\n",
       "name": "VantaGold",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "in the style of VNTGLD",
       "url": "https://civitai.com/models/816484/flux-lora-vantagold",
       "is_active": true
@@ -140,7 +148,7 @@
     {
       "file": "boFLUX_AbstractMorph.safetensors",
       "name": "boFLUX_AbstractMorph",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "bo-abstract",
       "url": "https://civitai.com/models/776859/flux-abstractmorph",
       "is_active": true
@@ -148,7 +156,7 @@
     {
       "file": "boFLUX Digital Abstract.safetensors",
       "name": "boFLUX Digital Abstract",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "bo-digitalabstract",
       "url": "https://civitai.com/models/939001/flux-digital-abstract",
       "is_active": true
@@ -156,7 +164,7 @@
     {
       "file": "boFLUX_Bioluminescent_Dreams_v1.safetensors",
       "name": "boFLUX_Bioluminescent_Dreams_v1",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "bo-bioluminescent",
       "url": "https://civitai.com/models/709663/flux-bioluminescent-dreams",
       "is_active": true
@@ -164,7 +172,7 @@
     {
       "file": "The_beauty_of_realism_(FLUX).safetensors",
       "name": "The_beauty_of_realism_(FLUX)",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "cinematic quality, realism, play of shadow and light",
       "url": "https://civitai.com/models/695295/the-beauty-of-realism-flux",
       "is_active": true
@@ -172,7 +180,7 @@
     {
       "file": "Flux_1_Dev_LoRA_syntheticanime.safetensors",
       "name": "Flux_1_Dev_LoRA_syntheticanime",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "syntheticanime",
       "url": "https://civitai.com/models/645425/flux-syntheticanime",
       "is_active": true
@@ -180,7 +188,7 @@
     {
       "file": "flux-oilpainting1.3-00001.safetensors",
       "name": "flux-oilpainting1.3-00001",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "",
       "url": "https://civitai.com/models/723141/flux-oil-painting",
       "is_active": true
@@ -188,7 +196,7 @@
     {
       "file": "Steampunk_BioMechanical_Flux.safetensors",
       "name": "Steampunk_BioMechanical_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "Biomechanical, Steampunk",
       "url": "https://huggingface.co/KurtcPhotoED/Biomechanical_Steampunk",
       "is_active": true
@@ -196,7 +204,7 @@
     {
       "file": "deepfocus.safetensors",
       "name": "deepfocus",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "DF",
       "url": "https://civitai.com/models/673483/deep-focus-lora",
       "is_active": true
@@ -204,7 +212,7 @@
     {
       "file": "Flux.1_Turbo_Detailer.safetensors",
       "name": "Flux.1_Turbo_Detailer",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "",
       "url": "https://civitai.com/models/930386/flux1-turbo-detailer",
       "is_active": true
@@ -212,7 +220,7 @@
     {
       "file": "New Fantasy CoreV2.safetensors",
       "name": "New Fantasy CoreV2",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "MyNewFantasy",
       "url": "https://civitai.com/models/810000?modelVersionId=1034430",
       "is_active": true
@@ -220,7 +228,7 @@
     {
       "file": "Super Panavision 70 Technicolor.safetensors",
       "name": "Super Panavision 70 Technicolor",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "In Super Panavision 70 Technicolor Film style ",
       "url": "https://civitai.com/models/812212?modelVersionId=931164",
       "is_active": true
@@ -228,7 +236,7 @@
     {
       "file": "Impasto Oil Paint Style.safetensors",
       "name": "Impasto Oil Paint Style",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "impaflux",
       "url": "https://civitai.com/models/899132/impasto-virtuoso-flux",
       "is_active": true
@@ -236,7 +244,7 @@
     {
       "file": "Godward_Flux.safetensors",
       "name": "Godward_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "The painting by Godward depicts",
       "url": "https://civitai.com/models/651715?modelVersionId=812674",
       "is_active": true
@@ -244,7 +252,7 @@
     {
       "file": "Van_Gogh_Flux.safetensors",
       "name": "Van_Gogh_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "The painting by Van Gogh depicts",
       "url": "https://civitai.com/models/651715?modelVersionId=733643",
       "is_active": true
@@ -252,7 +260,7 @@
     {
       "file": "Monet_Flux.safetensors",
       "name": "Monet_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "the painting by Monet",
       "url": "https://civitai.com/models/651715?modelVersionId=729105",
       "is_active": true
@@ -260,7 +268,7 @@
     {
       "file": "Mucha_Flux.safetensors",
       "name": "Mucha_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "The painting by Mucha depicts",
       "url": "https://civitai.com/models/651715?modelVersionId=738708",
       "is_active": true
@@ -268,7 +276,7 @@
     {
       "file": "E_B_Leighton_Flux_resize.safetensors",
       "name": "E_B_Leighton_Flux_resize",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "Lghtn",
       "url": "https://civitai.com/models/651715?modelVersionId=826858",
       "is_active": true
@@ -276,7 +284,7 @@
     {
       "file": "Caravaggio_Flux.safetensors",
       "name": "Caravaggio_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "The painting by Caravaggio depicts",
       "url": "https://civitai.com/models/651715?modelVersionId=742188",
       "is_active": true
@@ -284,7 +292,7 @@
     {
       "file": "flux_vividizer.safetensors",
       "name": "flux_vividizer",
-      "weight": "0.6",
+      "weight": 0.6,
       "add_prompt": "",
       "url": "https://civitai.com/models/663742?modelVersionId=742813",
       "is_active": true
@@ -292,7 +300,7 @@
     {
       "file": "Bougeureau_Flux.safetensors",
       "name": "Bougeureau_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "The painting by bougeureau depicts",
       "url": "https://civitai.com/models/651715?modelVersionId=746449",
       "is_active": true
@@ -300,7 +308,7 @@
     {
       "file": "Enjolras_Flux_2.safetensors",
       "name": "Enjolras_Flux_2",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "The painting by Enjolras depicts",
       "url": "https://civitai.com/models/651715?modelVersionId=754822",
       "is_active": true
@@ -308,7 +316,7 @@
     {
       "file": "Chaplin_Flux.safetensors",
       "name": "Chaplin_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "The painting by Chaplin depicts",
       "url": "https://civitai.com/models/651715?modelVersionId=754822",
       "is_active": true
@@ -316,7 +324,7 @@
     {
       "file": "Seignac_Flux.safetensors",
       "name": "Seignac_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "by Sgnc",
       "url": "https://civitai.com/models/651715?modelVersionId=775426",
       "is_active": true
@@ -324,7 +332,7 @@
     {
       "file": "Cabanel_Flux.safetensors",
       "name": "Cabanel_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "The painting by Cabanel depicts",
       "url": "https://civitai.com/models/651715?modelVersionId=783639",
       "is_active": true
@@ -332,7 +340,7 @@
     {
       "file": "Rubens_Flux.safetensors",
       "name": "Rubens_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "a painting by Rbns",
       "url": "https://civitai.com/models/651715?modelVersionId=790504",
       "is_active": true
@@ -340,7 +348,7 @@
     {
       "file": "Henner_Flux.safetensors",
       "name": "Henner_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "by Hnnr",
       "url": "https://civitai.com/models/651715?modelVersionId=798353",
       "is_active": true
@@ -348,7 +356,7 @@
     {
       "file": "Lautrec_Flux.safetensors",
       "name": "Lautrec_Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "The art by Ltrc depicts ",
       "url": "https://civitai.com/models/651715?modelVersionId=805351",
       "is_active": true
@@ -356,7 +364,7 @@
     {
       "file": "Rebecca Guay [Style] Flux.safetensors",
       "name": "Rebecca Guay [Style] Flux",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "r3b3cc4gu4y",
       "url": "https://civitai.com/models/928101/rebecca-guay-style-flux",
       "is_active": true
@@ -364,7 +372,7 @@
     {
       "file": "aidmaFLUXpro1.1-FLUX-V0.2.safetensors",
       "name": "aidmaFLUXpro1.1-FLUX-V0.2",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "aidmafluxpro1.1",
       "url": "https://civitai.com/models/832683/flux-pro-11-style-lora-extreme-detailer-for-flux1-dev",
       "is_active": true
@@ -372,7 +380,7 @@
     {
       "file": "Aura Flux 2.0.safetensors",
       "name": "Aura Flux 2.0",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "auralora",
       "url": "https://civitai.com/models/600793?modelVersionId=925656",
       "is_active": true
@@ -380,7 +388,7 @@
     {
       "file": "Textimprover-FLUX-V0.4.safetensors",
       "name": "aidma Textimprover",
-      "weight": "0.6",
+      "weight": 0.6,
       "add_prompt": "aidmatextimprover",
       "url": "https://civitai.com/models/793052/text-improver-flux",
       "is_active": true
@@ -388,7 +396,7 @@
     {
       "file": "aidmaPonyStyle-FLUX-V0.1.safetensors",
       "name": "aidmaPonyStyle-SFW",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "aidmaponystyle",
       "url": "https://civitai.com/models/721586/pony-style-sfw-flux",
       "is_active": true
@@ -396,7 +404,7 @@
     {
       "file": "aidmaNijiAnimeStyle.safetensors",
       "name": "aidmaNijiAnimeStyle",
-      "weight": "0.4",
+      "weight": 0.4,
       "add_prompt": "aidmanijiv6",
       "url": "https://civitai.com/models/488923/niji-anime-style-niji-v6-midjourney-fluxsdxl",
       "is_active": true
@@ -404,7 +412,7 @@
     {
       "file": "aidmaExperimentalPhotography-FLUX-V0.1.safetensors",
       "name": "aidmaExperimentalPhotography-FLUX-V0.1",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "aidmaExperimentalPhotography",
       "url": "https://civitai.com/models/727417/experimental-photography-flux",
       "is_active": true
@@ -412,7 +420,7 @@
     {
       "file": "aidmaDarkFantasy-FLUX-V0.1.safetensors",
       "name": "aidmaDarkFantasy-FLUX-V0.1",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "aidmaDarkfantasy",
       "url": "https://civitai.com/models/753466/dark-fantasy-style-flux-training-comparison-rapid-and-normal",
       "is_active": true
@@ -420,7 +428,7 @@
     {
       "file": "FluxDFaeTasticDetails.safetensors",
       "name": "FluxDFaeTasticDetails",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "",
       "url": "https://civitai.com/models/643886/flux-faetastic-details",
       "is_active": true
@@ -428,7 +436,7 @@
     {
       "file": "fantasy-flux-v1.safetensors",
       "name": "fantasy-flux-v1",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "",
       "url": "https://civitai.com/models/714852?modelVersionId=1031155",
       "is_active": true
@@ -436,7 +444,7 @@
     {
       "file": "MysticSplash.safetensors",
       "name": "MysticSplash",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "MysticSplash",
       "url": "https://civitai.com/models/853829?modelVersionId=955591",
       "is_active": true
@@ -444,7 +452,7 @@
     {
       "file": "vision_realistic_flux_lora_v2.safetensors",
       "name": "vision_realistic_flux_lora_v2",
-      "weight": "0.8",
+      "weight": 0.8,
       "add_prompt": "",
       "url": "https://civitai.com/models/648905?modelVersionId=871696",
       "is_active": true
@@ -452,7 +460,7 @@
     {
       "file": "Art Nouveau architecture.safetensors",
       "name": "Art Nouveau architecture",
-      "weight": "1.0",
+      "weight": 1.0,
       "add_prompt": "ArtNvArkt",
       "url": "https://civitai.com/models/950418/art-nouveau-architecture?modelVersionId=1064079",
       "is_active": true

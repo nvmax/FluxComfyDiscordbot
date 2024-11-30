@@ -33,6 +33,7 @@ class LoraFileHandler(FileSystemEventHandler):
         self.processing = False
 
     def is_valid_json(self, file_path: str) -> bool:
+        """Validate the LoRA configuration file"""
         try:
             if not os.path.exists(file_path):
                 return False
@@ -51,18 +52,43 @@ class LoraFileHandler(FileSystemEventHandler):
                 
             if not isinstance(config, dict):
                 return False
+
             if 'available_loras' not in config:
                 return False
+
             if not isinstance(config['available_loras'], list):
                 return False
                 
+            # Convert any string weights to float and save back to file
+            need_save = False
             for lora in config['available_loras']:
-                if not all(key in lora for key in ['id', 'name', 'file', 'weight']):
-                    logger.error(f"Invalid LoRA entry structure: {lora}")
+                # Check required fields
+                required_fields = ['file', 'name', 'weight']
+                if not all(key in lora for key in required_fields):
+                    logger.error(f"Missing required field(s) in LoRA entry: {lora}")
+                    return False
+                
+                # Convert weight to float if it's a string
+                if isinstance(lora['weight'], str):
+                    try:
+                        lora['weight'] = float(lora['weight'])
+                        need_save = True
+                    except ValueError:
+                        logger.error(f"Invalid weight value for LoRA {lora['name']}: {lora['weight']}")
+                        return False
+                        
+            # If we converted any weights, save the updated config
+            if need_save:
+                try:
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        json.dump(config, f, indent=2)
+                    logger.info("Updated lora.json with float weights")
+                except Exception as e:
+                    logger.error(f"Failed to save updated lora.json: {e}")
                     return False
                     
             return True
-            
+                
         except json.JSONDecodeError as e:
             logger.error(f"JSON parsing error: {str(e)}")
             return False
@@ -71,6 +97,7 @@ class LoraFileHandler(FileSystemEventHandler):
             return False
 
     def reload_lora_config(self) -> bool:
+        """Reload and validate LoRA configuration"""
         with self.lock:
             if self.processing:
                 return False
@@ -88,7 +115,16 @@ class LoraFileHandler(FileSystemEventHandler):
 
             with open(lora_path, 'r', encoding='utf-8') as f:
                 new_config = json.load(f)
-                
+
+            # Ensure all weights are floats
+            for lora in new_config['available_loras']:
+                if 'weight' in lora:
+                    try:
+                        lora['weight'] = float(lora['weight'])
+                    except (ValueError, TypeError):
+                        logger.error(f"Invalid weight value for LoRA {lora.get('name', 'unknown')}")
+                        return False
+                    
             self.last_valid_config = new_config
             self.bot.lora_options = new_config.get('available_loras', [])
             logger.info(f"Reloaded LoRA config with {len(self.bot.lora_options)} entries")
@@ -104,6 +140,7 @@ class LoraFileHandler(FileSystemEventHandler):
                 except Exception as restore_error:
                     logger.error(f"Failed to restore configuration: {restore_error}")
             return False
+            
         finally:
             self.processing = False
 

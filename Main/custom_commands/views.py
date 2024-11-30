@@ -465,31 +465,34 @@ class OptionsView(ui.View):
             lora_config = load_json('lora.json')
             base_prompt = re.sub(r'\s*\(Timestamp:.*?\)', '', self.original_prompt)
             
-            # Clean base prompt of existing trigger words
+            # First remove ALL existing trigger words from the base prompt
             for lora in lora_config['available_loras']:
-                if lora.get('prompt'):
-                    base_prompt = base_prompt.replace(lora['prompt'], '').strip()
+                if lora.get('add_prompt'):
+                    trigger_word = lora['add_prompt'].strip()
+                    base_prompt = re.sub(f',?\s*{re.escape(trigger_word)},?\s*', '', base_prompt, flags=re.IGNORECASE)
             
+            # Clean up any duplicate commas and whitespace
             base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
             
-            # Add trigger words from all selected LoRAs
+            # Add trigger words from currently selected LoRAs
             additional_prompts = []
             for lora_file in self.all_selected_loras:
                 lora_info = next(
                     (l for l in lora_config['available_loras'] if l['file'] == lora_file),
                     None
                 )
-                if lora_info and lora_info.get('prompt'):
-                    trigger_word = lora_info['prompt'].strip()
+                if lora_info and lora_info.get('add_prompt'):
+                    trigger_word = lora_info['add_prompt'].strip()
                     if trigger_word:
                         additional_prompts.append(trigger_word)
             
-            # Combine base prompt with trigger words
+            # Combine base prompt with new trigger words
             updated_prompt = base_prompt
             if additional_prompts:
                 if not updated_prompt.endswith(','):
                     updated_prompt += ','
                 updated_prompt += ' ' + ', '.join(additional_prompts)
+            
             updated_prompt = updated_prompt.strip(' ,')
             
             try:
@@ -498,7 +501,15 @@ class OptionsView(ui.View):
             except Exception as e:
                 logger.error(f"Error deleting options message: {e}")
 
-            modal = PromptModal(
+            # Show the user the prompt changes
+            changes_message = (
+                f"Prompt changes:\n\n"
+                f"Original: {self.original_prompt}\n"
+                f"Updated: {updated_prompt}\n\n"
+                f"LoRAs: {', '.join(self.all_selected_loras) if self.all_selected_loras else 'None'}"
+            )
+            
+            await interaction.response.send_modal(PromptModal(
                 self.bot,
                 updated_prompt,
                 self.image_filename,
@@ -507,9 +518,11 @@ class OptionsView(ui.View):
                 self.original_upscale_factor,
                 self.original_interaction,
                 self.selected_seed
-            )
-            await interaction.response.send_modal(modal)
+            ))
             
+            # Send changes as a follow-up message
+            await interaction.followup.send(changes_message, ephemeral=True)
+                
         except Exception as e:
             logger.error(f"Error in confirm callback: {e}", exc_info=True)
             await interaction.response.send_message(

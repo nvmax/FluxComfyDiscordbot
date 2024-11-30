@@ -147,7 +147,7 @@ CHECKPOINTS = {
     },
     'FLUX.1 Dev': {
         'filename': 'flux1-dev.safetensors',
-        'path': '/checkpoints',
+        'path': '/unet',
         'repo_id': 'black-forest-labs/FLUX.1-dev',
         'file': 'flux1-dev.safetensors',
         'workflow': 'FluxDev24GB.json',

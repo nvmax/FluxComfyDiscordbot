@@ -176,10 +176,28 @@ class ComfyUIValidator:
                 return False
             
             # Copy file
-            shutil.copy2(source_path, dest_path)
-            self.logger.info(f"Successfully copied gguf_reader.py to {dest_path}")
-            return True
+            try:
+                print("DEBUG: Attempting to copy file...")
+                print(f"DEBUG: Source path type: {type(source_path)}, Destination path type: {type(dest_path)}")
+                print(f"DEBUG: Source path exists: {source_path.exists()}")
+                print(f"DEBUG: Source path is file: {source_path.is_file()}")
+                print(f"DEBUG: Destination directory exists: {dest_path.parent.exists()}")
+                print(f"DEBUG: Destination directory is writable: {os.access(str(dest_path.parent), os.W_OK)}")
+                shutil.copy2(str(source_path), str(dest_path))
+                print("DEBUG: Copy operation completed")
+            except Exception as e:
+                print(f"DEBUG: Error during copy operation: {e}")
+                print(f"DEBUG: Full error details:", exc_info=True)
+                return False
             
+            # Verify copy was successful
+            if dest_path.is_file():
+                self.logger.info(f"Successfully copied gguf_reader.py to {dest_path}")
+                return True
+            else:
+                self.logger.error("Failed to verify gguf_reader.py copy")
+                return False
+
         except Exception as e:
             self.logger.error(f"Error copying gguf_reader.py: {str(e)}", exc_info=True)
             return False
@@ -267,10 +285,16 @@ class ComfyUIValidator:
             # Copy file
             try:
                 print("DEBUG: Attempting to copy file...")
+                print(f"DEBUG: Source path type: {type(source_path)}, Destination path type: {type(dest_path)}")
+                print(f"DEBUG: Source path exists: {source_path.exists()}")
+                print(f"DEBUG: Source path is file: {source_path.is_file()}")
+                print(f"DEBUG: Destination directory exists: {dest_path.parent.exists()}")
+                print(f"DEBUG: Destination directory is writable: {os.access(str(dest_path.parent), os.W_OK)}")
                 shutil.copy2(str(source_path), str(dest_path))
                 print("DEBUG: Copy operation completed")
             except Exception as e:
                 print(f"DEBUG: Error during copy operation: {e}")
+                print(f"DEBUG: Full error details:", exc_info=True)
                 return False
             
             # Verify copy was successful
@@ -354,10 +378,16 @@ class ComfyUIValidator:
             # Copy file
             try:
                 print("DEBUG: Attempting to copy file...")
+                print(f"DEBUG: Source path type: {type(source_path)}, Destination path type: {type(dest_path)}")
+                print(f"DEBUG: Source path exists: {source_path.exists()}")
+                print(f"DEBUG: Source path is file: {source_path.is_file()}")
+                print(f"DEBUG: Destination directory exists: {dest_path.parent.exists()}")
+                print(f"DEBUG: Destination directory is writable: {os.access(str(dest_path.parent), os.W_OK)}")
                 shutil.copy2(str(source_path), str(dest_path))
                 print("DEBUG: Copy operation completed")
             except Exception as e:
                 print(f"DEBUG: Error during copy operation: {e}")
+                print(f"DEBUG: Full error details:", exc_info=True)
                 return False
             
             # Verify copy was successful

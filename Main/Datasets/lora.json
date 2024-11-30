@@ -2,14 +2,6 @@
   "default": "aidmaHyperRealism-FLUX-V0.2.safetensors",
   "available_loras": [
     {
-      "file": "Ars_MidJourney_Watercolor.safetensors",
-      "name": "Ars_MidJourney_Watercolor",
-      "weight": "1.0",
-      "add_prompt": "ArsMJStyle, Watercolor",
-      "url": "https://civitai.com/models/551903/ars-midjourney-watercolor-sd-15-sdxl-pony-flux",
-      "is_active": true
-    },
-    {
       "file": "aidmaMJ6.1-FLUX-v0.4.safetensors",
       "name": "aidmaMJ6.1-FLUX-v0.4",
       "weight": "0.6",
@@ -215,14 +207,6 @@
       "weight": "1.0",
       "add_prompt": "",
       "url": "https://civitai.com/models/930386/flux1-turbo-detailer",
-      "is_active": true
-    },
-    {
-      "file": "Logo_vector.safetensors",
-      "name": "Logo_vector",
-      "weight": "1.0",
-      "add_prompt": "",
-      "url": "test",
       "is_active": true
     },
     {

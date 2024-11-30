@@ -254,6 +254,13 @@ class SetupUI:
             self.base_dir.set(directory)
             self.setup_manager.base_dir = directory
             
+            # Construct and save the models path to .env
+            models_path = os.path.join(directory, "ComfyUI", "models")
+            self.setup_manager.update_env_file('COMFYUI_MODELS_PATH', f'"{models_path}"')
+            
+            # Update the status label
+            self.status_label.config(text=f"ComfyUI directory set to: {directory}\nModels path set to: {models_path}")
+            
     def validate_token(self, token_type):
         """Validate API tokens with better error handling"""
         token = self.hf_token.get() if token_type == "hf" else self.civitai_token.get()

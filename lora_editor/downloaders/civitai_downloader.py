@@ -4,6 +4,8 @@ import requests
 import logging
 from urllib.parse import urlparse, unquote
 
+# Set logging level to INFO
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class CivitAIDownloader:
@@ -13,44 +15,57 @@ class CivitAIDownloader:
         self.headers = {'Authorization': f'Bearer {civitai_token}'} if civitai_token else {}
 
     def get_download_url(self, url: str) -> tuple:
-        """Get download URL from CivitAI model page URL"""
+        """Get download URL and model info from CivitAI model page URL
+        Returns:
+            tuple: (download_url, trigger_words, recommended_weight)
+        """
         try:
-            # Extract model ID from URL
+            # Extract model ID and version ID from URL
             model_id_match = re.search(r'models/(\d+)', url)
+            version_match = re.search(r'modelVersionId=(\d+)', url)
+            
             if not model_id_match:
                 raise ValueError("Could not extract model ID from URL")
             
             model_id = model_id_match.group(1)
-            version_id = None
+            version_id = version_match.group(1) if version_match else None
             
-            # Check if URL contains version ID
-            version_match = re.search(r'modelVersionId=(\d+)', url)
-            if version_match:
-                version_id = version_match.group(1)
-            
-            # Get model info from API
-            api_url = f'https://civitai.com/api/v1/models/{model_id}'
-            response = requests.get(api_url, headers=self.headers)
-            response.raise_for_status()
-            model_data = response.json()
-            
-            # If no specific version was requested, use the latest one
-            if not version_id:
-                version = model_data['modelVersions'][0]  # Latest version is first
+            # First get the specific version info if we have a version ID
+            if version_id:
+                version_api_url = f'https://civitai.com/api/v1/model-versions/{version_id}'
+                version_response = requests.get(version_api_url, headers=self.headers)
+                version_response.raise_for_status()
+                version_data = version_response.json()
             else:
-                version = next(
-                    (v for v in model_data['modelVersions'] if str(v['id']) == version_id),
-                    model_data['modelVersions'][0]
-                )
+                # Get model info from API
+                api_url = f'https://civitai.com/api/v1/models/{model_id}'
+                response = requests.get(api_url, headers=self.headers)
+                response.raise_for_status()
+                model_data = response.json()
+                version_data = model_data['modelVersions'][0]  # Latest version is first
             
             # Extract trigger words
             trigger_words = ""
-            if 'trainedWords' in version:
-                trigger_words = ", ".join(version['trainedWords'])
+            if 'trainedWords' in version_data:
+                trigger_words = ", ".join(version_data['trainedWords'])
+
+            # Extract recommended weight from image metadata
+            recommended_weight = 1.0  # Default weight
             
+            if 'images' in version_data and version_data['images']:
+                # Look through images for one with metadata containing resources
+                for image in version_data['images']:
+                    if 'meta' in image and 'resources' in image['meta']:
+                        for resource in image['meta']['resources']:
+                            if resource.get('type') == 'lora' and 'weight' in resource:
+                                recommended_weight = float(resource['weight'])
+                                break
+                        if recommended_weight != 1.0:  # If we found a weight, stop looking
+                            break
+
             # Find the first .safetensors file
             download_url = None
-            for file in version['files']:
+            for file in version_data['files']:
                 if file['name'].endswith('.safetensors'):
                     download_url = file['downloadUrl']
                     break
@@ -58,7 +73,7 @@ class CivitAIDownloader:
             if not download_url:
                 raise ValueError("No .safetensors file found in model files")
                 
-            return download_url, trigger_words
+            return download_url, trigger_words, recommended_weight
             
         except Exception as e:
             logger.error(f"Error getting download URL: {e}")
@@ -69,7 +84,7 @@ class CivitAIDownloader:
         try:
             # Get the direct download URL if needed
             if 'civitai.com/models/' in url:
-                url, _ = self.get_download_url(url)
+                url, _, _ = self.get_download_url(url)
             
             # Start the download
             response = requests.get(url, headers=self.headers, stream=True)

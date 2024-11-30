@@ -17,7 +17,7 @@ def load_env(root_dir: Path):
             load_dotenv(env_path)
             
             # Verify that key environment variables were loaded
-            required_vars = ['LORA_JSON_PATH', 'LORA_FOLDER_PATH']
+            required_vars = ['LORA_FOLDER_PATH']  
             missing_vars = [var for var in required_vars if not os.getenv(var)]
             
             if missing_vars:
@@ -30,6 +30,17 @@ def load_env(root_dir: Path):
     except Exception as e:
         logger.error(f"Error loading .env file: {e}")
         return False
+
+def get_lora_json_path() -> Path:
+    """Get the hardcoded path to lora.json"""
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable
+        base_path = Path(sys.executable).parent.parent
+    else:
+        # Running as script
+        base_path = Path(__file__).parent.parent.parent
+    
+    return base_path / 'Main' / 'Datasets' / 'lora.json'
 
 def update_env_file(key: str, value: str):
     """Update a value in the .env file"""

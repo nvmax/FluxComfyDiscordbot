@@ -14,7 +14,7 @@ from downloaders.civitai_downloader import CivitAIDownloader
 from downloaders.huggingface_downloader import HuggingFaceDownloader
 from ui.treeview import LoraTreeview
 from ui.controls import HistoryControls, ActionButtons, NavigationButtons, StatusBar
-from utils.config import load_env, load_json_config, save_json_config, update_env_file
+from utils.config import load_env, load_json_config, save_json_config, update_env_file, get_lora_json_path
 from lora_database import LoraDatabase, LoraHistoryEntry
 
 # Set up logging
@@ -85,16 +85,8 @@ class LoraEditor:
         ttk.Label(title_frame, text="LoRA Configuration Editor", font=('Helvetica', 16, 'bold')).pack(side=tk.LEFT)
         
         # File Locations section
-        locations_frame = ttk.LabelFrame(self.container, text="File Locations", padding=10)
+        locations_frame = ttk.LabelFrame(self.container, text="Comfyui LoRA Folder", padding=10)
         locations_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
-        
-        # JSON file selection
-        json_frame = ttk.Frame(locations_frame)
-        json_frame.pack(fill=tk.X, pady=(0, 5))
-        ttk.Label(json_frame, text="Config JSON:").pack(side=tk.LEFT, padx=(0, 5))
-        json_entry = ttk.Entry(json_frame, textvariable=self.json_var, width=60)
-        json_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        ttk.Button(json_frame, text="Browse", command=self.select_json).pack(side=tk.LEFT)
         
         # LoRA folder selection
         folder_frame = ttk.Frame(locations_frame)
@@ -228,17 +220,15 @@ class LoraEditor:
     def init_variables(self):
         """Initialize main variables and objects"""
         # Variables for file paths
-        self.json_var = tk.StringVar()
         self.folder_var = tk.StringVar()
-        self.json_path = os.getenv('LORA_JSON_PATH', '')
         self.lora_folder = os.getenv('LORA_FOLDER_PATH', '')
         
         # Set initial values
-        self.json_var.set(self.json_path)
         self.folder_var.set(self.lora_folder)
         
-        # Load initial configuration
-        self.config = load_json_config(self.json_path) if os.path.exists(self.json_path) else {"default": "", "available_loras": []}
+        # Load initial configuration from the hardcoded path
+        json_path = get_lora_json_path()
+        self.config = load_json_config(str(json_path)) if json_path.exists() else {"default": "", "available_loras": []}
         
         # Sync database with JSON
         if self.config and "available_loras" in self.config:
@@ -307,39 +297,6 @@ class LoraEditor:
             except Exception as e:
                 logger.error(f"Error adding entry: {e}")
                 messagebox.showerror("Error", f"Failed to add entry: {str(e)}")
-
-    def select_json(self):
-        """Handle JSON file selection"""
-        try:
-            initialdir = os.path.dirname(self.json_var.get()) if self.json_var.get() else os.getcwd()
-            filename = filedialog.askopenfilename(
-                title="Select LoRA Configuration File",
-                initialdir=initialdir,
-                filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
-            )
-            
-            if filename:
-                self.json_path = filename
-                self.json_var.set(filename)
-                update_env_file('LORA_JSON_PATH', filename)
-                
-                # Load the JSON file and update config
-                self.config = load_json_config(filename)
-                
-                # Sync database with the newly loaded JSON
-                if os.path.exists(filename):
-                    self.db.sync_with_json(self.config)
-                
-                self.load_tree()
-                self.status_bar.set_status("JSON configuration loaded")
-                self.refresh_lora_files()
-                
-                # Update default LoRA if it exists
-                if self.config.get("default"):
-                    self.default_var.set(self.config["default"])
-        except Exception as e:
-            logger.error(f"Error selecting JSON file: {e}")
-            messagebox.showerror("Error", f"Failed to load JSON file: {str(e)}")
 
     def select_folder(self):
         """Handle folder selection"""
@@ -609,24 +566,28 @@ class LoraEditor:
     def save_config(self):
         """Save current configuration to JSON file"""
         try:
-            # Get items directly from treeview in current order
+            # Get current entries from treeview
             json_entries = []
-            for item in self.tree.get_children(''):
-                values = self.tree.item(item)["values"]
-                json_entries.append({
-                    'id': values[0],  # ID
-                    'name': values[2],  # display_name
-                    'file': values[3],  # file_name
-                    'weight': float(values[4]),  # weight
-                    'prompt': values[5],  # trigger_words
-                    'url': values[6] if values[6] else ""  # url
-                })
+            for item in self.tree.get_children():
+                values = self.tree.item(item)['values']
+                entry = {
+                    "file": values[3],  # File
+                    "name": values[2],  # Name
+                    "weight": values[4],  # Weight
+                    "add_prompt": values[5],  # Trigger Words
+                    "url": values[6],  # URL
+                    "is_active": values[1] == "Active"  # Status
+                }
+                json_entries.append(entry)
             
             # Update config with entries in current treeview order
             self.config['available_loras'] = json_entries
             
             # Save to file with proper formatting
-            save_json_config(self.json_path, self.config)
+            json_path = get_lora_json_path()
+            # Create parent directories if they don't exist
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            save_json_config(str(json_path), self.config)
             self.status_bar.set_status("Configuration saved successfully")
             
         except Exception as e:
@@ -634,7 +595,7 @@ class LoraEditor:
             self.status_bar.set_status("Failed to save configuration")
             messagebox.showerror("Error", f"Failed to save configuration: {str(e)}")
 
-    def on_download_complete(self, file_name, url, trigger_words):
+    def on_download_complete(self, file_name, url, trigger_words, recommended_weight=1.0):
         """Handle download completion"""
         self.refresh_lora_files()
         self.status_bar.set_status(f"Download complete: {file_name}")
@@ -647,7 +608,7 @@ class LoraEditor:
             initial = {
                 "name": name,
                 "file": file_name,
-                "weight": "1.0",
+                "weight": str(recommended_weight),
                 "add_prompt": trigger_words,
                 "url": url
             }
@@ -679,14 +640,19 @@ class LoraEditor:
             messagebox.showerror("Error", "Please enter a CivitAI URL")
             return
             
+        # Check if lora folder is set and exists
+        if not self.lora_folder or not os.path.exists(self.lora_folder):
+            messagebox.showerror("Error", "Please select a valid LoRA folder first")
+            return
+            
         def download_thread():
             try:
                 # Show progress bar
                 self.root.after(0, lambda: self.progress_frame.pack(fill=tk.X, pady=5))
                 self.root.after(0, lambda: self.progress_var.set(0))  # Reset progress
                 
-                # Get download URL and trigger words
-                download_url, trigger_words = self.civitai_downloader.get_download_url(url)
+                # Get download URL, trigger words, and recommended weight
+                download_url, trigger_words, recommended_weight = self.civitai_downloader.get_download_url(url)
                 
                 # Start download
                 file_name = self.civitai_downloader.download(
@@ -695,8 +661,8 @@ class LoraEditor:
                     progress_callback=lambda p: self.root.after(0, lambda: self.update_progress(p))
                 )
                 
-                # Handle download completion with trigger words
-                self.root.after(0, lambda: self.on_download_complete(file_name, url, trigger_words))
+                # Handle download completion with trigger words and recommended weight
+                self.root.after(0, lambda: self.on_download_complete(file_name, url, trigger_words, recommended_weight))
                 
             except Exception as e:
                 logger.error(f"Error downloading from CivitAI: {e}")
@@ -752,7 +718,7 @@ class LoraEditor:
             selected = self.default_var.get()
             if selected and selected in self.available_lora_files:
                 self.config["default"] = selected
-                save_json_config(self.json_path, self.config)
+                save_json_config(get_lora_json_path(), self.config)
                 self.status_bar.set_status(f"Default LoRA set to: {selected}")
             else:
                 self.status_bar.set_status("Invalid default LoRA selection")

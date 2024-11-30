@@ -8,7 +8,7 @@ from Main.utils import load_json
 from Main.custom_commands.views import ImageControlView
 from typing import Dict, Any
 import asyncio
-from message_constants import STATUS_MESSAGES
+from .message_constants import STATUS_MESSAGES
 
 logger = logging.getLogger(__name__)
 

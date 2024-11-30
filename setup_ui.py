@@ -5,6 +5,9 @@ from setup_support import SetupManager, BASE_MODELS, CHECKPOINTS
 import os
 import logging
 from pathlib import Path
+import asyncio
+import requests
+import shutil
 
 # Create logs directory if it doesn't exist
 os.makedirs('logs', exist_ok=True)
@@ -24,36 +27,317 @@ logger = logging.getLogger(__name__)
 class SetupUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("FLUX ComfyUI Setup")
-        self.root.geometry("800x820")
+        self.root.title("FluxComfy Setup")
+        
+        # Initialize setup manager
         self.setup_manager = SetupManager()
         
-        # Variables
-        self.base_dir = tk.StringVar()
-        self.hf_token = tk.StringVar()
-        self.civitai_token = tk.StringVar()
-        self.discord_token = tk.StringVar()
-        self.selected_checkpoint = tk.StringVar()
-        self.progress_var = tk.DoubleVar()
-        self.status_var = tk.StringVar(value="Welcome to FLUX ComfyUI Setup")
+        # Create variables for form fields
+        self.create_variables()
         
-        # Address variables
-        self.bot_server = tk.StringVar()
-        self.server_address = tk.StringVar()
-        
-        # Discord configuration variables
-        self.allowed_servers = tk.StringVar()
-        self.channel_ids = tk.StringVar()
-        self.bot_manager_role_id = tk.StringVar()
+        # Create main UI
+        self.create_ui()
         
         # Load existing values
         self.load_existing_values()
         
-        self.create_ui()
-        self.center_window()
+    def create_variables(self):
+        # Bot Setup Variables
+        self.base_dir = tk.StringVar()
+        self.hf_token = tk.StringVar()
+        self.civitai_token = tk.StringVar()
+        self.discord_token = tk.StringVar()
+        self.bot_server = tk.StringVar(value="")
+        self.server_address = tk.StringVar(value="")
+        self.allowed_servers = tk.StringVar()
+        self.channel_ids = tk.StringVar()
+        self.bot_manager_role_id = tk.StringVar()
+        self.selected_checkpoint = tk.StringVar(value="Select a checkpoint...")
+        
+        # Progress tracking
+        self.progress_var = tk.DoubleVar()
+        self.status_var = tk.StringVar(value="Ready to install")
+        
+        # AI Setup Variables
+        self.ai_provider = tk.StringVar(value="lmstudio")
+        self.enable_prompt_enhancement = tk.BooleanVar(value=False)
+        self.lmstudio_host = tk.StringVar(value="")
+        self.lmstudio_port = tk.StringVar(value="")
+        self.xai_api_key = tk.StringVar()
+        self.openai_api_key = tk.StringVar()
+        
+    def create_ui(self):
+        # Create notebook for tabs
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill='both', expand=True, padx=10, pady=5)
+        
+        # Create Bot Setup tab
+        self.bot_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.bot_tab, text='Bot Setup')
+        self.create_bot_tab()
+        
+        # Create AI Setup tab
+        self.ai_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.ai_tab, text='AI Setup')
+        self.create_ai_tab()
+        
+    def create_bot_tab(self):
+        # Directory Selection
+        dir_frame = ttk.LabelFrame(self.bot_tab, text="ComfyUI Directory", padding=10)
+        dir_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Label(dir_frame, text="Base Directory:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(dir_frame, textvariable=self.base_dir, width=50).pack(side=tk.LEFT, padx=5)
+        ttk.Button(dir_frame, text="Browse", command=self.select_base_directory).pack(side=tk.LEFT, padx=5)
+        
+        # API Tokens
+        token_frame = ttk.LabelFrame(self.bot_tab, text="API Tokens", padding=10)
+        token_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # HuggingFace Token
+        hf_frame = ttk.Frame(token_frame)
+        hf_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(hf_frame, text="HuggingFace Token:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(hf_frame, textvariable=self.hf_token, width=40, show="*").pack(side=tk.LEFT, padx=5)
+        ttk.Button(hf_frame, text="Validate", command=lambda: self.validate_token("hf")).pack(side=tk.LEFT, padx=5)
+        
+        # CivitAI Token
+        civitai_frame = ttk.Frame(token_frame)
+        civitai_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(civitai_frame, text="CivitAI Token:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(civitai_frame, textvariable=self.civitai_token, width=40, show="*").pack(side=tk.LEFT, padx=5)
+        ttk.Button(civitai_frame, text="Validate", command=lambda: self.validate_token("civitai")).pack(side=tk.LEFT, padx=5)
+        
+        # Discord Token
+        discord_frame = ttk.Frame(token_frame)
+        discord_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(discord_frame, text="Discord Token:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(discord_frame, textvariable=self.discord_token, width=40, show="*").pack(side=tk.LEFT, padx=5)
+        
+        # Server Configuration
+        server_frame = ttk.LabelFrame(self.bot_tab, text="Server Configuration", padding=10)
+        server_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Bot Server
+        bot_server_frame = ttk.Frame(server_frame)
+        bot_server_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(bot_server_frame, text="Bot Server:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(bot_server_frame, textvariable=self.bot_server, width=40).pack(side=tk.LEFT, padx=5)
+        
+        # Server Address
+        server_addr_frame = ttk.Frame(server_frame)
+        server_addr_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(server_addr_frame, text="Server Address:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(server_addr_frame, textvariable=self.server_address, width=40).pack(side=tk.LEFT, padx=5)
+        
+        # Discord Configuration
+        discord_config_frame = ttk.LabelFrame(self.bot_tab, text="Discord Configuration", padding=10)
+        discord_config_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Allowed Servers
+        allowed_servers_frame = ttk.Frame(discord_config_frame)
+        allowed_servers_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(allowed_servers_frame, text="Allowed Server IDs:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(allowed_servers_frame, textvariable=self.allowed_servers, width=40).pack(side=tk.LEFT, padx=5)
+        
+        # Channel IDs
+        channel_ids_frame = ttk.Frame(discord_config_frame)
+        channel_ids_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(channel_ids_frame, text="Channel IDs:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(channel_ids_frame, textvariable=self.channel_ids, width=40).pack(side=tk.LEFT, padx=5)
+        
+        # Bot Manager Role
+        role_frame = ttk.Frame(discord_config_frame)
+        role_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(role_frame, text="Bot Manager Role ID:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(role_frame, textvariable=self.bot_manager_role_id, width=40).pack(side=tk.LEFT, padx=5)
+        
+        # Workflow Selection
+        workflow_frame = ttk.LabelFrame(self.bot_tab, text="Workflow Selection", padding=10)
+        workflow_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Label(workflow_frame, text="Select Workflow:").pack(side=tk.LEFT, padx=5)
+        
+        # Get list of workflow files
+        datasets_path = os.path.join(os.getcwd(), 'Main', 'Datasets')
+        workflow_files = []
+        if os.path.exists(datasets_path):
+            for file in os.listdir(datasets_path):
+                if file.endswith('.json') and file not in ['lora.json', 'ratios.json']:
+                    workflow_files.append(file)
+        
+        workflow_combo = ttk.Combobox(workflow_frame, textvariable=self.selected_checkpoint, 
+                                    values=sorted(workflow_files), state="readonly", width=40)
+        workflow_combo.pack(side=tk.LEFT, padx=5)
+        workflow_combo.bind("<<ComboboxSelected>>", self.on_checkpoint_selected)
+        
+        # Progress Frame
+        progress_frame = ttk.LabelFrame(self.bot_tab, text="Installation Progress", padding=10)
+        progress_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Progress bar
+        self.progress_bar = ttk.Progressbar(
+            progress_frame,
+            variable=self.progress_var,
+            maximum=100,
+            mode='determinate'
+        )
+        self.progress_bar.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Status label
+        self.status_label = ttk.Label(progress_frame, textvariable=self.status_var)
+        self.status_label.pack(fill=tk.X, padx=5)
+        
+        # Install Button
+        install_frame = ttk.Frame(self.bot_tab)
+        install_frame.pack(fill=tk.X, padx=5, pady=10)
+        self.install_button = ttk.Button(install_frame, text="Install", command=self.start_installation)
+        self.install_button.pack(side=tk.LEFT, padx=5)
+        
+    def create_ai_tab(self):
+        # AI Provider Selection
+        provider_frame = ttk.LabelFrame(self.ai_tab, text="AI Configuration", padding=10)
+        provider_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # AI Provider dropdown
+        provider_select_frame = ttk.Frame(provider_frame)
+        provider_select_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(provider_select_frame, text="AI Provider:").pack(side=tk.LEFT, padx=5)
+        ttk.Combobox(provider_select_frame, textvariable=self.ai_provider,
+                    values=["lmstudio", "openai", "xai"], state="readonly", width=20).pack(side=tk.LEFT, padx=5)
+        
+        # Enable Prompt Enhancement checkbox
+        enhance_frame = ttk.Frame(provider_frame)
+        enhance_frame.pack(fill=tk.X, pady=2)
+        ttk.Checkbutton(enhance_frame, text="Enable Prompt Enhancement",
+                       variable=self.enable_prompt_enhancement).pack(side=tk.LEFT, padx=5)
+        
+        # LMStudio Configuration
+        lmstudio_frame = ttk.LabelFrame(self.ai_tab, text="LMStudio Configuration", padding=10)
+        lmstudio_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Host
+        host_frame = ttk.Frame(lmstudio_frame)
+        host_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(host_frame, text="LMStudio Host:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(host_frame, textvariable=self.lmstudio_host, width=30).pack(side=tk.LEFT, padx=5)
+        
+        # Port
+        port_frame = ttk.Frame(lmstudio_frame)
+        port_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(port_frame, text="LMStudio Port:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(port_frame, textvariable=self.lmstudio_port, width=10).pack(side=tk.LEFT, padx=5)
+        
+        # API Keys
+        api_frame = ttk.LabelFrame(self.ai_tab, text="API Keys", padding=10)
+        api_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # XAI API Key
+        xai_frame = ttk.Frame(api_frame)
+        xai_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(xai_frame, text="XAI API Key:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(xai_frame, textvariable=self.xai_api_key, width=40, show="*").pack(side=tk.LEFT, padx=5)
+        
+        # OpenAI API Key
+        openai_frame = ttk.Frame(api_frame)
+        openai_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(openai_frame, text="OpenAI API Key:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(openai_frame, textvariable=self.openai_api_key, width=40, show="*").pack(side=tk.LEFT, padx=5)
+        
+        # Add save button at the bottom
+        ttk.Button(self.ai_tab, text="Save AI Configuration", 
+                  command=self.save_ai_configuration).pack(pady=10)
+        
+    def select_base_directory(self):
+        directory = filedialog.askdirectory(title="Select ComfyUI Base Directory")
+        if directory:
+            self.base_dir.set(directory)
+            self.setup_manager.base_dir = directory
+            
+    def validate_token(self, token_type):
+        """Validate API tokens with better error handling"""
+        token = self.hf_token.get() if token_type == "hf" else self.civitai_token.get()
+        
+        if not token:
+            messagebox.showwarning("Token Required", f"Please enter a {token_type.upper()} token")
+            return False
+            
+        try:
+            if token_type == "hf":
+                # Validate HuggingFace token
+                response = requests.get(
+                    "https://huggingface.co/api/whoami",
+                    headers={"Authorization": f"Bearer {token}"}
+                )
+                if response.status_code == 200:
+                    messagebox.showinfo("Success", "HuggingFace token is valid!")
+                    return True
+                else:
+                    messagebox.showerror("Error", f"Invalid HuggingFace token: {response.text}")
+                    return False
+                    
+            elif token_type == "civitai":
+                # Validate CivitAI token
+                response = requests.get(
+                    "https://civitai.com/api/v1/user/me",
+                    headers={"Authorization": f"Bearer {token}"}
+                )
+                if response.status_code == 200:
+                    messagebox.showinfo("Success", "CivitAI token is valid!")
+                    return True
+                else:
+                    messagebox.showerror("Error", f"Invalid CivitAI token: {response.text}")
+                    return False
+                    
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to validate {token_type.upper()} token: {str(e)}")
+            return False
+
+    def save_configuration(self):
+        """Save configuration with better error handling"""
+        try:
+            # Load existing environment variables
+            env_vars = self.setup_manager.load_env()
+            
+            # Update with new values, only if they are not empty
+            tokens = {
+                'HUGGINGFACE_TOKEN': self.hf_token.get(),
+                'CIVITAI_API_TOKEN': self.civitai_token.get(),
+                'DISCORD_TOKEN': self.discord_token.get(),
+                'XAI_API_KEY': self.xai_api_key.get(),
+                'OPENAI_API_KEY': self.openai_api_key.get()
+            }
+            
+            # Only update tokens that have values
+            for key, value in tokens.items():
+                if value:
+                    env_vars[key] = value
+            
+            # Update other configuration
+            env_vars.update({
+                'AI_PROVIDER': self.ai_provider.get(),
+                'ENABLE_PROMPT_ENHANCEMENT': str(self.enable_prompt_enhancement.get()),
+                'LMSTUDIO_HOST': self.lmstudio_host.get(),
+                'LMSTUDIO_PORT': self.lmstudio_port.get(),
+                'BOT_SERVER': self.bot_server.get(),
+                'ALLOWED_SERVERS': self.allowed_servers.get(),
+                'CHANNEL_IDS': self.channel_ids.get(),
+                'BOT_MANAGER_ROLE_ID': self.bot_manager_role_id.get(),
+                'XAI_MODEL': 'grok-beta',
+                'OPENAI_MODEL': 'gpt-3.5-turbo',
+                'EMBEDDING_MODEL': 'text-embedding-ada-002'
+            })
+            
+            # Save the configuration
+            if self.setup_manager.save_env(env_vars):
+                messagebox.showinfo("Success", "Configuration saved successfully!")
+            else:
+                messagebox.showerror("Error", "Failed to save configuration")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save configuration: {str(e)}")
 
     def load_existing_values(self):
-        """Load existing values from .env file"""
         try:
             env_vars = self.setup_manager.load_env()
             
@@ -64,11 +348,12 @@ class SetupUI:
                 self.civitai_token.set(env_vars['CIVITAI_API_TOKEN'])
             if 'DISCORD_TOKEN' in env_vars:
                 self.discord_token.set(env_vars['DISCORD_TOKEN'])
-            
+                
             # Load paths
             if 'COMFYUI_MODELS_PATH' in env_vars:
                 base_path = Path(env_vars['COMFYUI_MODELS_PATH']).parent.parent
                 self.base_dir.set(str(base_path))
+                self.setup_manager.base_dir = str(base_path)
             
             # Load addresses
             if 'BOT_SERVER' in env_vars:
@@ -84,241 +369,115 @@ class SetupUI:
             if 'BOT_MANAGER_ROLE_ID' in env_vars:
                 self.bot_manager_role_id.set(env_vars['BOT_MANAGER_ROLE_ID'])
                 
+            # Load AI configuration
+            if 'AI_PROVIDER' in env_vars:
+                self.ai_provider.set(env_vars['AI_PROVIDER'])
+            if 'ENABLE_PROMPT_ENHANCEMENT' in env_vars:
+                self.enable_prompt_enhancement.set(env_vars['ENABLE_PROMPT_ENHANCEMENT'] == 'True')
+            if 'LMSTUDIO_HOST' in env_vars:
+                self.lmstudio_host.set(env_vars['LMSTUDIO_HOST'])
+            if 'LMSTUDIO_PORT' in env_vars:
+                self.lmstudio_port.set(env_vars['LMSTUDIO_PORT'])
+            if 'XAI_API_KEY' in env_vars:
+                self.xai_api_key.set(env_vars['XAI_API_KEY'])
+            if 'OPENAI_API_KEY' in env_vars:
+                self.openai_api_key.set(env_vars['OPENAI_API_KEY'])
+                
         except Exception as e:
             logger.error(f"Error loading existing values: {str(e)}")
-
-    def create_ui(self):
-        # Main container with padding
-        main_frame = ttk.Frame(self.root, padding="20")
-        main_frame.grid(row=0, column=0, sticky="nsew")
-        
-        # Configure grid weights
-        self.root.grid_rowconfigure(0, weight=1)
-        self.root.grid_columnconfigure(0, weight=1)
-        main_frame.grid_columnconfigure(1, weight=1)
-
-        current_row = 0
-
-        # Base Directory Section
-        ttk.Label(main_frame, text="ComfyUI Base Directory:", font=('Helvetica', 10, 'bold')).grid(row=current_row, column=0, sticky="w", pady=(0, 5))
-        ttk.Label(main_frame, text="(Should contain 'ComfyUI' and 'python_embedded' folders)", font=('Helvetica', 8)).grid(row=current_row + 1, column=0, columnspan=2, sticky="w")
-        ttk.Entry(main_frame, textvariable=self.base_dir, width=50).grid(row=current_row + 2, column=0, columnspan=2, sticky="ew", padx=(0, 5))
-        ttk.Button(main_frame, text="Browse", command=self.browse_directory).grid(row=current_row + 2, column=2, sticky="w")
-        current_row += 3
-
-        # Token Section
-        token_frame = ttk.LabelFrame(main_frame, text="API Tokens", padding="10")
-        token_frame.grid(row=current_row, column=0, columnspan=3, sticky="ew", pady=20)
-        
-        # Hugging Face Token
-        ttk.Label(token_frame, text="Hugging Face Token:").grid(row=0, column=0, sticky="w", pady=5)
-        ttk.Entry(token_frame, textvariable=self.hf_token, width=40, show="*").grid(row=0, column=1, sticky="ew", padx=5)
-        ttk.Button(token_frame, text="Validate", command=lambda: self.validate_token("hf")).grid(row=0, column=2)
-
-        # CivitAI Token
-        ttk.Label(token_frame, text="CivitAI Token:").grid(row=1, column=0, sticky="w", pady=5)
-        ttk.Entry(token_frame, textvariable=self.civitai_token, width=40, show="*").grid(row=1, column=1, sticky="ew", padx=5)
-        ttk.Button(token_frame, text="Validate", command=lambda: self.validate_token("civitai")).grid(row=1, column=2)
-
-        # Discord Token
-        ttk.Label(token_frame, text="Discord Token:").grid(row=2, column=0, sticky="w", pady=5)
-        ttk.Entry(token_frame, textvariable=self.discord_token, width=40, show="*").grid(row=2, column=1, sticky="ew", padx=5)
-        current_row += 1
-
-        # Address Section
-        address_frame = ttk.LabelFrame(main_frame, text="Server Addresses", padding="10")
-        address_frame.grid(row=current_row + 1, column=0, columnspan=3, sticky="ew", pady=10)
-        
-        ttk.Label(address_frame, text="Bot Server Address:").grid(row=0, column=0, sticky="w", pady=5)
-        ttk.Entry(address_frame, textvariable=self.bot_server, width=40).grid(row=0, column=1, sticky="ew", padx=5)
-        
-        ttk.Label(address_frame, text="ComfyUI Server Address:").grid(row=1, column=0, sticky="w", pady=5)
-        ttk.Entry(address_frame, textvariable=self.server_address, width=40).grid(row=1, column=1, sticky="ew", padx=5)
-        current_row += 2
-
-        # Discord Configuration Section
-        discord_frame = ttk.LabelFrame(main_frame, text="Discord Configuration", padding="10")
-        discord_frame.grid(row=current_row + 1, column=0, columnspan=3, sticky="ew", pady=10)
-        
-        ttk.Label(discord_frame, text="Allowed Server IDs:").grid(row=0, column=0, sticky="nw", pady=5)
-        servers_text = tk.Text(discord_frame, height=3, width=40, wrap=tk.WORD)
-        servers_text.grid(row=0, column=1, sticky="ew", padx=5)
-        
-        def update_servers_var(*args):
-            self.allowed_servers.set(servers_text.get("1.0", "end-1c"))
-        servers_text.bind('<KeyRelease>', update_servers_var)
-        if self.allowed_servers.get():
-            servers_text.insert("1.0", self.allowed_servers.get())
-        
-        servers_scroll = ttk.Scrollbar(discord_frame, orient="vertical", command=servers_text.yview)
-        servers_scroll.grid(row=0, column=2, sticky="ns")
-        servers_text.config(yscrollcommand=servers_scroll.set)
-        
-        ttk.Label(discord_frame, text="Channel IDs:").grid(row=1, column=0, sticky="nw", pady=5)
-        channels_text = tk.Text(discord_frame, height=3, width=40, wrap=tk.WORD)
-        channels_text.grid(row=1, column=1, sticky="ew", padx=5)
-        
-        def update_channels_var(*args):
-            self.channel_ids.set(channels_text.get("1.0", "end-1c"))
-        channels_text.bind('<KeyRelease>', update_channels_var)
-        if self.channel_ids.get():
-            channels_text.insert("1.0", self.channel_ids.get())
-        
-        channels_scroll = ttk.Scrollbar(discord_frame, orient="vertical", command=channels_text.yview)
-        channels_scroll.grid(row=1, column=2, sticky="ns")
-        channels_text.config(yscrollcommand=channels_scroll.set)
-        
-        ttk.Label(discord_frame, text="Bot Manager Role ID:").grid(row=2, column=0, sticky="w", pady=5)
-        ttk.Entry(discord_frame, textvariable=self.bot_manager_role_id, width=40).grid(row=2, column=1, sticky="ew", padx=5)
-        current_row += 3
-
-        # Checkpoint Selection
-        checkpoint_frame = ttk.LabelFrame(main_frame, text="Checkpoint Selection", padding="10")
-        checkpoint_frame.grid(row=current_row + 1, column=0, columnspan=3, sticky="ew", pady=10)
-        
-        ttk.Label(checkpoint_frame, text="Select Checkpoint:").grid(row=0, column=0, sticky="w", pady=5)
-        checkpoint_combo = ttk.Combobox(checkpoint_frame, textvariable=self.selected_checkpoint, width=40)
-        checkpoint_combo['values'] = list(CHECKPOINTS.keys())
-        checkpoint_combo.grid(row=0, column=1, sticky="ew", padx=5)
-        checkpoint_combo.set("Select a checkpoint...")
-        current_row += 4
-
-        # Progress Section
-        progress_frame = ttk.LabelFrame(main_frame, text="Progress", padding="10")
-        progress_frame.grid(row=current_row + 1, column=0, columnspan=3, sticky="ew", pady=10)
-        
-        self.progress_bar = ttk.Progressbar(
-            progress_frame, 
-            variable=self.progress_var,
-            maximum=100,
-            length=300,
-            mode='determinate'
-        )
-        self.progress_bar.grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
-
-        # Status Label
-        self.status_label = ttk.Label(progress_frame, textvariable=self.status_var)
-        self.status_label.grid(row=1, column=0, columnspan=2, sticky="w", padx=5)
-
-        # Control Buttons
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=current_row + 2, column=0, columnspan=3, pady=20)
-        
-        ttk.Button(button_frame, text="Install", command=self.start_installation).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Cancel", command=self.root.quit).pack(side=tk.LEFT, padx=5)
-
-        # Configure column weights for the frames
-        for frame in [token_frame, address_frame, discord_frame, checkpoint_frame, progress_frame]:
-            frame.grid_columnconfigure(1, weight=1)
-
-    def center_window(self):
-        """Center the window on the screen"""
-        self.root.update_idletasks()
-        width = self.root.winfo_width()
-        height = self.root.winfo_height()
-        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.root.winfo_screenheight() // 2) - (height // 2)
-        self.root.geometry(f'{width}x{height}+{x}+{y}')
-
-    def browse_directory(self):
-        """Open directory browser dialog"""
+            
+    def save_ai_configuration(self):
         try:
-            directory = filedialog.askdirectory(title="Select ComfyUI Base Directory")
-            if directory:
-                # List directory contents before validation
-                contents = [f for f in os.listdir(directory)]
-                logger.debug(f"Selected directory contents: {contents}")
-                
-                if self.setup_manager.validator.validate_comfyui_directory(directory):
-                    self.base_dir.set(directory)
-                    paths = self.setup_manager.validator.setup_required_paths(directory)
-                    self.setup_manager.models_path = paths['models_dir']
-                    self.setup_manager.base_dir = directory
-                else:
-                    error_msg = f"Selected directory must contain 'ComfyUI' and 'python_embeded' folders.\nFound: {contents}"
-                    logger.error(error_msg)
-                    messagebox.showerror("Error", error_msg)
+            env_vars = self.setup_manager.load_env()
+            
+            # Save AI configuration
+            env_vars['AI_PROVIDER'] = self.ai_provider.get()
+            env_vars['ENABLE_PROMPT_ENHANCEMENT'] = str(self.enable_prompt_enhancement.get())
+            env_vars['LMSTUDIO_HOST'] = self.lmstudio_host.get()
+            env_vars['LMSTUDIO_PORT'] = self.lmstudio_port.get()
+            env_vars['XAI_API_KEY'] = self.xai_api_key.get()
+            env_vars['OPENAI_API_KEY'] = self.openai_api_key.get()
+            
+            # Save all values
+            self.setup_manager.save_env(env_vars)
+            logger.info("AI configuration saved successfully")
+            
         except Exception as e:
-            logger.error(f"Error validating directory: {str(e)}")
-            messagebox.showerror("Error", f"Error validating directory: {str(e)}")
-
-    def validate_token(self, token_type):
-        """Validate the specified token"""
-        token = self.hf_token.get() if token_type == "hf" else self.civitai_token.get()
-        
-        try:
-            if token_type == "hf":
-                is_valid = self.setup_manager.validate_huggingface_token(token)
-                token_name = "Hugging Face"
-            else:
-                is_valid = self.setup_manager.validate_civitai_token(token)
-                token_name = "CivitAI"
-
-            if is_valid:
-                messagebox.showinfo("Success", f"{token_name} token is valid!")
-            else:
-                messagebox.showerror("Error", f"Invalid {token_name} token")
-        except Exception as e:
-            messagebox.showerror("Error", f"Error validating token: {str(e)}")
-
+            logger.error(f"Error saving AI configuration: {str(e)}")
+            raise
+            
     def update_progress(self, value, status=""):
         """Update progress bar and status label"""
         try:
             self.progress_var.set(value)
             if status:
                 self.status_var.set(status)
-                logger.debug(f"Progress update: {value}%, Status: {status}")
             self.root.update_idletasks()
         except Exception as e:
             logger.error(f"Error updating progress: {str(e)}")
 
-    def update_download_progress(self, progress):
+    def update_download_progress(self, progress, status=None):
         """Callback for download progress updates"""
         try:
-            self.progress_var.set(progress)
+            if isinstance(progress, (int, float)):
+                self.progress_var.set(progress)
+            if status:
+                self.status_var.set(status)
             self.root.update_idletasks()
         except Exception as e:
             logger.error(f"Error updating download progress: {str(e)}")
-
-    def save_configuration(self):
-        """Save all configuration values to .env"""
-        try:
-            env_vars = self.setup_manager.load_env()
             
-            # Update API tokens
-            if self.hf_token.get():
-                env_vars['HUGGINGFACE_TOKEN'] = self.hf_token.get()
-            if self.civitai_token.get():
-                env_vars['CIVITAI_API_TOKEN'] = self.civitai_token.get()
-            if self.discord_token.get():
-                env_vars['DISCORD_TOKEN'] = self.discord_token.get()
-                
-            # Update paths
-            if self.setup_manager.models_path:
-                env_vars['COMFYUI_MODELS_PATH'] = self.setup_manager.models_path
-                
-            # Update addresses
-            if self.bot_server.get():
-                env_vars['BOT_SERVER'] = self.bot_server.get()
-            if self.server_address.get():
-                env_vars['server_address'] = self.server_address.get()
-                
-            # Update Discord configuration
-            if self.allowed_servers.get():
-                env_vars['ALLOWED_SERVERS'] = self.allowed_servers.get()
-            if self.channel_ids.get():
-                env_vars['CHANNEL_IDS'] = self.channel_ids.get()
-            if self.bot_manager_role_id.get():
-                env_vars['BOT_MANAGER_ROLE_ID'] = self.bot_manager_role_id.get()
-                
-            # Save all values
-            self.setup_manager.save_env(env_vars)
-            logger.info("Configuration saved successfully")
+    def disable_ui(self):
+        """Disable UI elements during installation"""
+        for tab in [self.bot_tab, self.ai_tab]:
+            for child in tab.winfo_children():
+                if isinstance(child, ttk.Frame) or isinstance(child, ttk.LabelFrame):
+                    for widget in child.winfo_children():
+                        if isinstance(widget, (ttk.Entry, ttk.Button, ttk.Combobox)):
+                            widget.configure(state='disabled')
+                elif isinstance(child, (ttk.Entry, ttk.Button, ttk.Combobox)):
+                    child.configure(state='disabled')
+                    
+    def enable_ui(self):
+        """Enable UI elements after installation"""
+        for tab in [self.bot_tab, self.ai_tab]:
+            for child in tab.winfo_children():
+                if isinstance(child, ttk.Frame) or isinstance(child, ttk.LabelFrame):
+                    for widget in child.winfo_children():
+                        if isinstance(widget, (ttk.Entry, ttk.Button, ttk.Combobox)):
+                            widget.configure(state='normal')
+                elif isinstance(child, (ttk.Entry, ttk.Button, ttk.Combobox)):
+                    child.configure(state='normal')
+                    
+    def on_checkpoint_selected(self, event=None):
+        """Handle workflow selection"""
+        selected = self.selected_checkpoint.get()
+        if selected:
+            # Map workflow files to model configurations
+            workflow_to_model = {
+                'fluxfusion6GB4step.json': 'FLUXFusion 6GB',
+                'fluxfusion8GB4step.json': 'FLUXFusion 8GB',
+                'fluxfusion10GB4step.json': 'FLUXFusion 10GB',
+                'fluxfusion12GB4step.json': 'FLUXFusion 12GB',
+                'fluxfusion24GB4step.json': 'FLUXFusion 24GB',
+                'FluxDev24GB.json': 'FLUX.1 Dev'
+            }
             
-        except Exception as e:
-            logger.error(f"Error saving configuration: {str(e)}")
-            raise
-
+            # Check if the workflow file exists in the target directory
+            target_path = os.path.join(self.base_dir.get(), 'ComfyUI', 'workflows', 'Main', 'Datasets', selected)
+            if os.path.exists(target_path):
+                self.install_button.config(text="Update Configuration")
+                self.status_var.set("Status: Workflow already installed")
+            else:
+                self.install_button.config(text="Install")
+                self.status_var.set("Status: Ready to install")
+                
+            # Store the model name for this workflow
+            if selected in workflow_to_model:
+                self.selected_model = workflow_to_model[selected]
+            else:
+                self.selected_model = None
+                
     def start_installation(self):
         """Start the installation process"""
         if not self.base_dir.get():
@@ -330,133 +489,133 @@ class SetupUI:
             messagebox.showerror("Error", "Invalid ComfyUI directory structure")
             return
 
-        # Save configuration before starting installation
-        try:
-            self.save_configuration()
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to save configuration: {str(e)}")
-            return
-
         # Disable UI elements during installation
         self.disable_ui()
-        
-        # Start installation in a separate thread
-        thread = threading.Thread(target=self.run_installation)
-        thread.daemon = True
-        thread.start()
 
-    def disable_ui(self):
-        """Disable UI elements during installation"""
-        for child in self.root.winfo_children():
-            if isinstance(child, (ttk.Entry, ttk.Button, ttk.Combobox)):
-                child.configure(state='disabled')
+        async def run_async_installation():
+            try:
+                # Set up manager properties
+                self.setup_manager.models_path = os.path.join(self.base_dir.get(), "ComfyUI", "models")
+                self.setup_manager.hf_token = self.hf_token.get()
+                self.setup_manager.civitai_token = self.civitai_token.get()
+                self.setup_manager.progress_callback = self.update_download_progress
 
-    def enable_ui(self):
-        """Enable UI elements after installation"""
-        for child in self.root.winfo_children():
-            if isinstance(child, (ttk.Entry, ttk.Button, ttk.Combobox)):
-                child.configure(state='normal')
+                # Copy gguf_reader.py
+                self.update_progress(10, "Copying required files...")
+                if not self.setup_manager.validator.copy_gguf_reader(os.getcwd(), self.base_dir.get()):
+                    raise Exception("Failed to copy gguf_reader.py")
 
-    def run_installation(self):
-        """Run the installation process"""
-        try:
-            # Set up manager properties
-            self.setup_manager.models_path = os.path.join(self.base_dir.get(), "ComfyUI", "models")
-            self.setup_manager.hf_token = self.hf_token.get()
-            self.setup_manager.civitai_token = self.civitai_token.get()
-            self.setup_manager.progress_callback = self.update_download_progress
-            
-            # Copy gguf_reader.py
-            self.update_progress(10, "Copying required files...")
-            if not self.setup_manager.validator.copy_gguf_reader(os.getcwd(), self.base_dir.get()):
-                raise Exception("Failed to copy gguf_reader.py")
+                # Copy upscaler model
+                self.update_progress(20, "Copying upscaler model...")
+                if not self.setup_manager.validator.copy_upscaler(os.getcwd(), self.base_dir.get()):
+                    raise Exception("Failed to copy upscaler model")
 
-            # Copy upscaler model
-            self.update_progress(20, "Copying upscaler model...")
-            if not self.setup_manager.validator.copy_upscaler(os.getcwd(), self.base_dir.get()):
-                raise Exception("Failed to copy upscaler model")
+                # Copy ratios.json
+                self.update_progress(30, "Copying ratios.json...")
+                if not self.setup_manager.validator.copy_ratios_json(os.getcwd(), self.base_dir.get()):
+                    raise Exception("Failed to copy ratios.json")
 
-            # Copy ratios.json
-            self.update_progress(30, "Copying ratios.json...")
-            if not self.setup_manager.validator.copy_ratios_json(os.getcwd(), self.base_dir.get()):
-                raise Exception("Failed to copy ratios.json")
-
-            # Save all configuration values
-            self.save_configuration()
-            
-            # Process base models
-            total_models = len(BASE_MODELS)
-            for index, (model_name, model_info) in enumerate(BASE_MODELS.items(), 1):
-                self.update_progress(0, f"Processing {model_name} ({index}/{total_models})...")
-                
-                model_path = os.path.join(
-                    self.setup_manager.models_path,
-                    model_info['path'].strip('/'),
-                    model_info['filename']
-                )
-                
-                if os.path.exists(model_path):
-                    self.update_progress(100, f"{model_name} already exists, skipping...")
-                    continue
+                # Process base models
+                total_models = len(BASE_MODELS)
+                for index, (model_name, model_info) in enumerate(BASE_MODELS.items(), 1):
+                    self.update_progress(0, f"Processing {model_name} ({index}/{total_models})...")
                     
-                self.update_progress(0, f"Downloading {model_name} from {model_info['source']}...")
-                
-                try:
-                    token = self.hf_token.get() if model_info['source'] == 'huggingface' else self.civitai_token.get()
-                    self.setup_manager.download_file(
-                        file_info=model_info,
-                        output_path=model_path,
-                        token=token,
-                        source=model_info['source']
+                    model_path = os.path.join(
+                        self.setup_manager.models_path,
+                        model_info['path'].strip('/'),
+                        model_info['filename']
                     )
-                    self.update_progress(100, f"Successfully downloaded {model_name}")
-                except Exception as e:
-                    logger.error(f"Error downloading {model_name}: {str(e)}")
-                    raise
-
-            # Download selected checkpoint if one is selected
-            if self.selected_checkpoint.get() and self.selected_checkpoint.get() != "Select a checkpoint...":
-                checkpoint_info = CHECKPOINTS[self.selected_checkpoint.get()]
-                self.update_progress(0, f"Processing checkpoint {self.selected_checkpoint.get()}...")
-                
-                checkpoint_path = os.path.join(
-                    self.setup_manager.models_path,
-                    checkpoint_info['path'].strip('/'),
-                    checkpoint_info['filename']
-                )
-                
-                if os.path.exists(checkpoint_path):
-                    self.update_progress(100, f"Checkpoint already exists, skipping...")
-                else:
-                    self.update_progress(0, f"Downloading checkpoint from {checkpoint_info['source']}...")
-                    token = self.hf_token.get() if checkpoint_info['source'] == 'huggingface' else self.civitai_token.get()
+                    
+                    if os.path.exists(model_path):
+                        self.update_progress(100, f"{model_name} already exists, skipping...")
+                        continue
+                        
+                    self.update_progress(0, f"Downloading {model_name} from {model_info['source']}...")
                     
                     try:
-                        self.setup_manager.download_file(
-                            file_info=checkpoint_info,
-                            output_path=checkpoint_path,
+                        token = self.hf_token.get() if model_info['source'] == 'huggingface' else self.civitai_token.get()
+                        await self.setup_manager.download_file(
+                            file_info=model_info,
+                            output_path=model_path,
                             token=token,
-                            source=checkpoint_info['source']
+                            source=model_info['source']
                         )
-                        self.update_progress(100, f"Successfully downloaded checkpoint")
+                        self.update_progress(100, f"Successfully downloaded {model_name}")
                     except Exception as e:
-                        logger.error(f"Error downloading checkpoint: {str(e)}")
+                        logger.error(f"Error downloading {model_name}: {str(e)}")
                         raise
 
-                # Update .env file with workflow
-                self.status_var.set("Updating configuration...")
-                self.setup_manager.update_env_file(checkpoint_info['workflow'])
+                # Handle selected workflow and model
+                if self.selected_checkpoint.get() and self.selected_checkpoint.get() != "Select a workflow...":
+                    workflow_file = self.selected_checkpoint.get()
+                    self.update_progress(0, f"Processing workflow {workflow_file}...")
+                    
+                    # Copy workflow file
+                    source_path = os.path.join(os.getcwd(), 'Main', 'Datasets', workflow_file)
+                    target_path = os.path.join(self.base_dir.get(), 'ComfyUI', 'workflows', 'Main', 'Datasets', workflow_file)
+                    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                    
+                    try:
+                        # Copy the workflow file
+                        shutil.copy2(source_path, target_path)
+                        self.update_progress(100, f"Successfully copied workflow file")
+                        
+                        # Download the corresponding model if needed
+                        if hasattr(self, 'selected_model') and self.selected_model in CHECKPOINTS:
+                            model_info = CHECKPOINTS[self.selected_model]
+                            model_path = os.path.join(
+                                self.setup_manager.models_path,
+                                model_info['path'].strip('/'),
+                                model_info['filename']
+                            )
+                            
+                            if not os.path.exists(model_path):
+                                self.update_progress(0, f"Downloading {self.selected_model} model...")
+                                token = self.hf_token.get() if model_info['source'] == 'huggingface' else self.civitai_token.get()
+                                await self.setup_manager.download_file(
+                                    file_info=model_info,
+                                    output_path=model_path,
+                                    token=token,
+                                    source=model_info['source']
+                                )
+                                self.update_progress(100, f"Successfully downloaded {self.selected_model}")
+                    
+                        # Update .env file with fluxversion
+                        self.update_progress(100, "Updating configuration...")
+                        self.setup_manager.update_env_file('fluxversion', f'"{workflow_file}"')
+                    except Exception as e:
+                        logger.error(f"Error processing workflow and model: {str(e)}")
+                        raise
 
-            # Complete
-            self.update_progress(100, "Installation completed successfully!")
-            messagebox.showinfo("Success", "Installation completed successfully!")
-            
-        except Exception as e:
-            logger.error(f"Installation failed: {str(e)}")
-            messagebox.showerror("Error", f"Installation failed: {str(e)}")
-        finally:
-            self.enable_ui()
+                # Save configuration
+                self.save_configuration()
 
+                # Complete
+                self.update_progress(100, "Installation completed successfully!")
+                messagebox.showinfo("Success", "Installation completed successfully!")
+                
+            except Exception as e:
+                logger.error(f"Installation failed: {str(e)}")
+                messagebox.showerror("Error", f"Installation failed: {str(e)}")
+            finally:
+                self.enable_ui()
+
+        # Run the async installation in the event loop
+        if not hasattr(self, 'loop'):
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+
+        def run_async():
+            try:
+                self.loop.run_until_complete(run_async_installation())
+            except Exception as e:
+                messagebox.showerror("Error", f"Installation failed: {str(e)}")
+            finally:
+                self.enable_ui()
+                
+        # Start the async process
+        threading.Thread(target=run_async, daemon=True).start()
+        
 def main():
     root = tk.Tk()
     app = SetupUI(root)

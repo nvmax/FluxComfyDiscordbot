@@ -1,9 +1,9 @@
 from aiohttp import web
 from Main.custom_commands.web_handlers import handle_generated_image
 import logging
-import discord
+from Main.custom_commands.message_constants import STATUS_MESSAGES
 from config import server_address
-from message_constants import STATUS_MESSAGES
+import discord
 
 logger = logging.getLogger(__name__)
 

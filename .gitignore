@@ -9,3 +9,5 @@ logs/setup.logs
 /lora_editor/dist/
 build/
 dist/
+upx/
+.windsurf

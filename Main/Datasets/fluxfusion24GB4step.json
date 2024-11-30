@@ -27,7 +27,7 @@
   "153": {
     "inputs": {
       "clip_name1": "t5xxl_fp16.safetensors",
-      "clip_name2": "clip_l.safetensors",
+      "clip_name2": "ViT-L-14-TEXT-detail-improved-hiT-GmP-state_dict.pt",
       "type": "flux"
     },
     "class_type": "DualCLIPLoader"

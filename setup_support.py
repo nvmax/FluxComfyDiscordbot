@@ -254,8 +254,8 @@ class AdvancedDownloadManager:
                         repo_id=file_info['repo_id'],
                         filename=file_info['file'],
                         local_dir=os.path.dirname(output_path),
-                        force_download=True,
-                        resume_download=False,
+                        force_download=False,
+                        resume_download=True,
                         token=file_info.get('token'),
                         local_files_only=False
                     )
@@ -520,8 +520,8 @@ class SetupManager:
                         repo_id=file_info['repo_id'],
                         filename=file_info['file'],
                         local_dir=os.path.dirname(output_path),
-                        force_download=True,
-                        resume_download=False,
+                        force_download=False,
+                        resume_download=True,
                         token=token,
                         local_files_only=False,
                         cache_dir=cache_dir

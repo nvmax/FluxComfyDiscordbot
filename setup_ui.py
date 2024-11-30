@@ -344,7 +344,7 @@ class SetupUI:
                 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save configuration: {str(e)}")
-
+            
     def load_existing_values(self):
         try:
             env_vars = self.setup_manager.load_env()
@@ -587,6 +587,8 @@ class SetupUI:
                                     source=model_info['source']
                                 )
                                 self.update_progress(100, f"Successfully downloaded {self.selected_model}")
+                            else:
+                                self.update_progress(100, f"Checkpoint {self.selected_model} already exists, preserving existing file")
                     
                         # Update .env file with fluxversion
                         self.update_progress(100, "Updating configuration...")

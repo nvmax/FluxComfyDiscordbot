@@ -394,15 +394,8 @@ class SetupManager:
                 
                 # Write remaining variables
                 for key, value in env_vars.items():
-                    # Always write server_address, even if empty
-                    if key == 'server_address':
-                        if not value:
-                            value = '""'
-                        elif not value.startswith('"'):
-                            value = f'"{value}"'
-                        f.write(f"{key}={value}\n")
-                    # For other variables, skip if empty
-                    elif value:
+                    # Skip empty values
+                    if value:
                         # Quote if in always_quote list
                         if key in always_quote:
                             if not value.startswith('"'):
@@ -444,97 +437,198 @@ class SetupManager:
     async def download_file(self, file_info: dict, output_path: str, token: str = None, source: str = 'huggingface'):
         """Download a file from HuggingFace or CivitAI"""
         try:
-            # Create output directory if it doesn't exist
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             
+            # Reset speed tracking for new download
+            self.speed_samples = []
+            self.last_downloaded = 0
+            self.last_update_time = time.time()
+            
             if source == 'huggingface':
+                if not token:
+                    raise ValueError("HuggingFace token is required")
+
+                # Patch tqdm with our progress callback
+                def patch_tqdm(progress_callback):
+                    """Monkey patch tqdm to use our progress callback"""
+                    original_update = tqdm.update
+
+                    def patched_update(self, n=1):
+                        try:
+                            if not hasattr(self, 'n') or not hasattr(self, 'total'):
+                                return original_update(self, n)
+                                
+                            if self.n is None or self.total is None:
+                                return original_update(self, n)
+                            
+                            # Format the information
+                            downloaded = float(self.n) / 1024 / 1024 if self.n is not None else 0
+                            total_size = float(self.total) / 1024 / 1024 if self.total is not None else 0
+                            
+                            # Get speed from format_dict, default to 0 if not available
+                            format_dict = getattr(self, 'format_dict', {})
+                            if not isinstance(format_dict, dict):
+                                format_dict = {}
+                            
+                            speed = float(format_dict.get("rate", 0)) / (1024 * 1024) if format_dict.get("rate") is not None else 0
+                            
+                            # Ensure speed is not zero to prevent division by zero
+                            speed = max(speed, 0.001)
+                            
+                            # Calculate remaining time
+                            remaining_bytes = float(self.total - self.n) if self.total is not None and self.n is not None else 0
+                            time_left = remaining_bytes / (speed * 1024 * 1024) if speed > 0 else 0
+                            
+                            # Format time
+                            if time_left < 60:
+                                time_str = f"{time_left:.0f}s"
+                            elif time_left < 3600:
+                                time_str = f"{time_left/60:.1f}m"
+                            else:
+                                time_str = f"{time_left/3600:.1f}h"
+                            
+                            # Calculate progress percentage
+                            progress = (float(self.n) / float(self.total)) * 100 if self.total and self.total > 0 else 0
+                            
+                            # Format status message
+                            status = f"Downloaded: {int(downloaded)}/{int(total_size)} MB Speed: {speed:.2f} MB/s Remaining: {time_str}"
+                            
+                            # Call the progress callback
+                            if progress_callback:
+                                progress_callback(progress, status)
+                            
+                        except Exception as e:
+                            logger.error(f"Error in progress update: {str(e)}")
+                            # Continue with original update even if our progress tracking fails
+                            
+                        return original_update(self, n)
+
+                    tqdm.update = patched_update
+
+                patch_tqdm(self.progress_callback)
+
+                if not setup_hf_transfer():
+                    logger.warning("HF Transfer initialization failed - download may be slower")
+
+                # Create cache directory if it doesn't exist
+                cache_dir = os.path.join(os.path.dirname(output_path), '.cache')
+                os.makedirs(cache_dir, exist_ok=True)
+
                 try:
-                    # Download from HuggingFace
-                    hf_hub_download(
+                    # Use HF Transfer for faster downloads
+                    file_path = hf_hub_download(
                         repo_id=file_info['repo_id'],
                         filename=file_info['file'],
-                        token=token,
                         local_dir=os.path.dirname(output_path),
-                        local_dir_use_symlinks=False
+                        force_download=False,
+                        resume_download=True,
+                        token=token,
+                        local_files_only=False,
+                        cache_dir=cache_dir
                     )
-                    # Mark successful download
-                    self.download_success = True
-                    return True
+                    
+                    # Log actual transfer method and file info
+                    if "hf_transfer" in sys.modules:
+                        logger.info(f"Download completed using HF Transfer (high-speed) to: {file_path}")
+                        size_mb = os.path.getsize(file_path) / (1024 * 1024)
+                        logger.info(f"Downloaded file size: {size_mb:.2f} MB")
+                    else:
+                        logger.warning("Download completed using standard method (slower)")
+                        
                 except Exception as e:
-                    logger.error(f"Error downloading from HuggingFace: {str(e)}")
+                    logger.error(f"Download error: {str(e)}")
                     raise
             elif source == 'civitai':
-                try:
-                    # Get download URL from CivitAI
-                    if 'model_id' in file_info and 'version_id' in file_info:
-                        download_url = self.get_civitai_download_url(
-                            file_info['model_id'],
-                            file_info['version_id'],
-                            token
-                        )
-                    else:
-                        download_url = file_info.get('url')
+                if not token:
+                    raise ValueError("CivitAI token is required")
+
+                # Get the download URL from CivitAI API
+                if 'model_id' not in file_info or 'version_id' not in file_info:
+                    raise ValueError("Missing model_id or version_id for CivitAI download")
                     
-                    if not download_url:
-                        raise ValueError("No download URL available")
-                    
-                    # Download the file
-                    await self.download_manager.download_with_retry(
-                        {'url': download_url},
-                        output_path
-                    )
-                    return True
-                except Exception as e:
-                    logger.error(f"Error downloading from CivitAI: {str(e)}")
-                    raise
+                download_url = await self.get_civitai_download_url(
+                    file_info['model_id'],
+                    file_info['version_id'],
+                    token
+                )
+                
+                if not download_url:
+                    raise ValueError("Failed to get download URL from CivitAI")
+
+                # Download the file using aiohttp
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(download_url) as response:
+                        if response.status != 200:
+                            raise ValueError(f"Failed to download file: HTTP {response.status}")
+                        
+                        total_size = int(response.headers.get('content-length', 0))
+                        downloaded = 0
+                        
+                        with open(output_path, 'wb') as f:
+                            async for chunk in response.content.iter_chunked(1024 * 1024):  # 1MB chunks
+                                if chunk:
+                                    f.write(chunk)
+                                    downloaded += len(chunk)
+                                    
+                                    # Calculate progress and speed
+                                    if total_size > 0:
+                                        progress = (downloaded / total_size) * 100
+                                        downloaded_mb = downloaded / (1024 * 1024)
+                                        total_mb = total_size / (1024 * 1024)
+                                        
+                                        # Calculate speed
+                                        current_time = time.time()
+                                        time_diff = current_time - self.last_update_time
+                                        if time_diff >= self.min_update_interval:
+                                            bytes_since_last = downloaded - self.last_downloaded
+                                            speed = (bytes_since_last / time_diff) / (1024 * 1024)  # MB/s
+                                            
+                                            # Calculate remaining time
+                                            remaining_bytes = total_size - downloaded
+                                            time_left = remaining_bytes / (speed * 1024 * 1024) if speed > 0 else 0
+                                            
+                                            # Format time
+                                            if time_left < 60:
+                                                time_str = f"{time_left:.0f}s"
+                                            elif time_left < 3600:
+                                                time_str = f"{time_left/60:.1f}m"
+                                            else:
+                                                time_str = f"{time_left/3600:.1f}h"
+                                            
+                                            # Update status
+                                            status = f"Downloaded: {int(downloaded_mb)}/{int(total_mb)} MB Speed: {speed:.2f} MB/s Remaining: {time_str}"
+                                            if self.progress_callback:
+                                                self.progress_callback(progress, status)
+                                            
+                                            # Update tracking variables
+                                            self.last_downloaded = downloaded
+                                            self.last_update_time = current_time
+                
+                logger.info(f"Successfully downloaded file from CivitAI to: {output_path}")
+                size_mb = os.path.getsize(output_path) / (1024 * 1024)
+                logger.info(f"Downloaded file size: {size_mb:.2f} MB")
+            
             else:
-                raise ValueError(f"Unsupported source: {source}")
+                raise ValueError(f"Unsupported download source: {source}")
                 
         except Exception as e:
-            logger.error(f"Error in download_file: {str(e)}")
+            logger.error(f"Download error: {str(e)}")
             raise
 
     def validate_huggingface_token(self, token: str) -> bool:
         """Validate Hugging Face token using HF Hub API"""
-        if not token:
-            logger.error("No token provided")
+        if not token or not token.startswith('hf_'):
             return False
             
         try:
-            logger.info("Starting HuggingFace token validation")
+            api = HfApi(token=token)
+            user = api.whoami()
             
-            # Try direct file access first as it's more reliable
-            logger.info("Attempting file access validation...")
             headers = {'Authorization': f'Bearer {token}'}
             test_url = 'https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/ae.safetensors'
-            
             response = requests.head(test_url, headers=headers, allow_redirects=True, verify=False)
-            logger.info(f"File access response status: {response.status_code}")
             
-            if response.status_code == 200:
-                logger.info("File access validation successful")
-                return True
-                
-            # If file access fails, try API
-            logger.info("Attempting API validation...")
-            try:
-                api = HfApi(token=token)
-                user = api.whoami()
-                logger.info(f"API validation result: {user}")
-                if user is not None:
-                    logger.info("API validation successful")
-                    return True
-            except Exception as api_error:
-                logger.warning(f"API validation failed: {str(api_error)}")
-            
-            # If both checks fail but we can see the token was used successfully before
-            if hasattr(self, 'download_success') and self.download_success:
-                logger.info("Token previously succeeded in downloading, accepting as valid")
-                return True
-                
-            logger.error("All validation methods failed")
-            return False
-            
+            return user is not None and response.status_code == 200
         except Exception as e:
             logger.error(f"HF token validation error: {str(e)}")
             return False

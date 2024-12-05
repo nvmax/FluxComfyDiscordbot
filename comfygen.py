@@ -13,6 +13,11 @@ from Main.utils import generate_random_seed, load_json, save_json
 import re
 from dotenv import load_dotenv
 from config import server_address, BOT_SERVER
+from Main.custom_commands.workflow_utils import (
+    update_workflow, 
+    update_reduxprompt_workflow,  # Add this import
+    validate_workflow
+)
 
 # Load environment variables
 load_dotenv()
@@ -23,79 +28,161 @@ logger = logging.getLogger(__name__)
 client_id = str(uuid.uuid4())
 
 def open_workflow(workflow_filename):
-    """Opens and loads workflow file from DataSets directory"""
+    """Opens and loads workflow file from DataSets directory with validation"""
     try:
         workflow_path = f"Main/DataSets/{workflow_filename}"
+        logger.debug(f"Opening workflow file: {workflow_path}")
+        
         with open(workflow_path, "r", encoding="utf-8") as f:
-            workflow = json.load(f)
-        logger.debug(f"Successfully loaded workflow from {workflow_path}")
-        return workflow
+            # Read the file content
+            content = f.read().strip()
+            
+            # Remove any BOM characters that might be present
+            if content.startswith('\ufeff'):
+                content = content[1:]
+                
+            # Parse the JSON carefully
+            try:
+                workflow = json.loads(content)
+                if not isinstance(workflow, dict):
+                    raise ValueError("Workflow must be a dictionary")
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON parsing error in workflow: {e}")
+                raise
+
+            logger.debug(f"Successfully loaded workflow with {len(workflow)} nodes")
+            return workflow
+            
     except FileNotFoundError:
         logger.error(f"Workflow file not found: {workflow_path}")
-        raise FileNotFoundError(f"Workflow file not found: {workflow_path}")
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in workflow file: {e}")
-        raise ValueError(f"Invalid JSON in workflow file: {workflow_filename}")
+        raise
+    except Exception as e:
+        logger.error(f"Error loading workflow: {str(e)}")
+        raise
 
 def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
-    if not isinstance(workflow, dict):
-        raise ValueError("Invalid workflow format")
-
-    if '69' in workflow:
-        workflow['69']['inputs']['prompt'] = prompt
-    else:
-        logger.warning("Node 69 not found in workflow")
-
-    if '258' in workflow:
-        workflow['258']['inputs']['ratio_selected'] = resolution
-    else:
-        logger.warning("Node 258 not found in workflow")
-
-    if '271' in workflow:
-        lora_loader = workflow['271']['inputs']
-        lora_config = load_json('lora.json')
-        lora_info = {lora['file']: lora for lora in lora_config['available_loras']}
-
-        for key in list(lora_loader.keys()):
-            if key.startswith('lora_'):
-                del lora_loader[key]
-
-        for i, lora in enumerate(loras, start=1):
-            lora_key = f'lora_{i}'
-            if lora in lora_info:
-                lora_loader[lora_key] = {
-                    'on': True,
-                    'lora': lora,
-                    'strength': lora_info[lora]['weight']
-                }
-            else:
-                logger.warning(f"LoRA {lora} not found in lora.json")
-
-    if '279' in workflow:
-        workflow['279']['inputs']['rescale_factor'] = upscale_factor
-        logger.debug(f"Updated rescale factor to: {upscale_factor}")
-    else:
-        logger.warning("Node 279 not found in workflow")
-
-    if '198:2' in workflow:
-        workflow['198:2']['inputs']['noise_seed'] = seed
-        logger.debug(f"Updated seed in workflow. New seed: {seed}")
-    else:
-        logger.warning("Node 198:2 not found in workflow")
-
-    return workflow
-
-def queue_prompt(prompt):
-    p = {"prompt": prompt, "client_id": client_id}
-    data = json.dumps(p).encode('utf-8')
-    logger.debug(f"Sending workflow to ComfyUI: {data.decode('utf-8')}")
-    req = urllib.request.Request(f"http://{server_address}:8188/prompt", data=data, method="POST")
-    req.add_header('Content-Type', 'application/json')
+    """Updates the workflow with the provided parameters with validation"""
     try:
-        with urllib.request.urlopen(req, timeout=120) as response:
-            response_data = response.read().decode('utf-8')
-            logger.debug(f"Response from ComfyUI: {response_data}")
-            return json.loads(response_data)
+        # Create a deep copy to avoid modifying original
+        workflow = json.loads(json.dumps(workflow))
+        
+        # Update prompt
+        if '69' in workflow:
+            workflow['69']['inputs']['prompt'] = prompt
+            logger.debug(f"Updated prompt in workflow")
+        
+        # Update resolution
+        if '258' in workflow:
+            workflow['258']['inputs']['ratio_selected'] = resolution
+            logger.debug(f"Updated resolution in workflow")
+
+        # Update LoRAs
+        if '271' in workflow:
+            lora_loader = workflow['271']['inputs']
+            
+            # Load lora config
+            lora_config = load_json('lora.json')
+            lora_info = {lora['file']: lora for lora in lora_config['available_loras']}
+
+            # Clean existing LoRA entries
+            for key in list(lora_loader.keys()):
+                if key.startswith('lora_'):
+                    del lora_loader[key]
+
+            # Add new LoRA entries
+            for i, lora in enumerate(loras, start=1):
+                if lora in lora_info:
+                    lora_key = f'lora_{i}'
+                    lora_loader[lora_key] = {
+                        'on': True,
+                        'lora': lora,
+                        'strength': float(lora_info[lora].get('weight', 1.0))
+                    }
+            logger.debug(f"Updated LoRAs in workflow: {len(loras)} LoRAs configured")
+
+        # Update upscale factor
+        if '279' in workflow:
+            workflow['279']['inputs']['rescale_factor'] = upscale_factor
+            logger.debug(f"Updated upscale factor in workflow")
+
+        # Update seed
+        if '198:2' in workflow:
+            workflow['198:2']['inputs']['noise_seed'] = seed
+            logger.debug(f"Updated seed in workflow: {seed}")
+
+        # Validate the final workflow
+        if not isinstance(workflow, dict):
+            raise ValueError("Workflow must remain a dictionary after updates")
+
+        logger.debug("Successfully updated workflow with all parameters")
+        return workflow
+
+    except Exception as e:
+        logger.error(f"Error updating workflow: {str(e)}")
+        raise ValueError(f"Failed to update workflow: {str(e)}")
+
+def queue_prompt(workflow):
+    """Queue a prompt for processing with enhanced validation and debugging"""
+    try:
+        # Validate workflow is a dictionary
+        if not isinstance(workflow, dict):
+            raise ValueError("Workflow must be a dictionary")
+
+        # Create the request data
+        request_data = {
+            "prompt": workflow,
+            "client_id": client_id
+        }
+        
+        # Convert to JSON with minimal whitespace
+        json_str = json.dumps(request_data, ensure_ascii=False, separators=(',', ':'))
+        
+        # Log the request data for debugging
+        logger.debug(f"Sending request to ComfyUI prompt endpoint")
+        logger.debug(f"Client ID: {client_id}")
+        logger.debug(f"Request size: {len(json_str)} bytes")
+
+        # Encode as UTF-8
+        data = json_str.encode('utf-8')
+        
+        # Create and configure the request
+        url = f"http://{server_address}:8188/prompt"
+        headers = {
+            'Content-Type': 'application/json',
+            'Content-Length': str(len(data))
+        }
+
+        logger.debug(f"Sending request to URL: {url}")
+        logger.debug(f"Headers: {headers}")
+        
+        req = urllib.request.Request(
+            url,
+            data=data,
+            method="POST",
+            headers=headers
+        )
+        
+        # Send the request with error handling
+        try:
+            with urllib.request.urlopen(req, timeout=120) as response:
+                response_data = response.read().decode('utf-8')
+                result = json.loads(response_data)
+                if not isinstance(result, dict):
+                    raise ValueError("Expected dictionary response from ComfyUI")
+                logger.debug("Successfully queued prompt with ComfyUI")
+                return result
+        except urllib.error.HTTPError as e:
+            logger.error(f"HTTP Error: {e.code} - {e.reason}")
+            logger.error(f"Response body: {e.read().decode('utf-8')}")
+            raise
+        except urllib.error.URLError as e:
+            logger.error(f"URL Error: {str(e)}")
+            raise
+            
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON encoding/decoding error: {str(e)}")
+        logger.error(f"Problem data: {str(request_data)[:200]}...")
+        raise ValueError(f"Invalid JSON format: {str(e)}")
     except Exception as e:
         logger.error(f"Error in queue_prompt: {str(e)}")
         raise
@@ -162,19 +249,21 @@ def get_images(ws, workflow, progress_callback):
     try:
         prompt_response = queue_prompt(workflow)
         if 'prompt_id' not in prompt_response:
-            logger.error(f"Unexpected response from queue_prompt: {prompt_response}")
             raise ValueError("No prompt_id in response from queue_prompt")
+            
         prompt_id = prompt_response['prompt_id']
-        
         output_images = {}
-        start_time = time.time()
         last_milestone = 0
-        
+
         while True:
             out = ws.recv()
             if isinstance(out, str):
-                message = json.loads(out)
-                
+                try:
+                    message = json.loads(out)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Error parsing WebSocket message: {e}")
+                    continue
+
                 if message['type'] == 'execution_start':
                     progress_callback({
                         "status": "execution",
@@ -185,32 +274,13 @@ def get_images(ws, workflow, progress_callback):
                     data = message['data']
                     
                     if data['node'] is None and data['prompt_id'] == prompt_id:
-                        # Final progress update before getting images
                         progress_callback({
                             "status": "complete",
                             "message": "Generation complete!"
                         })
                         break
                     
-                    if "UNETLoader" in str(data):
-                        progress_callback({
-                            "status": "loading_models",
-                            "message": "Loading models and preparing generation..."
-                        })
-                    
-                    elif "CLIPLoader" in str(data):
-                        progress_callback({
-                            "status": "loading_models",
-                            "message": "Loading models and preparing generation..."
-                        })
-                    
-                    elif "VAELoader" in str(data):
-                        progress_callback({
-                            "status": "loading_models",
-                            "message": "Loading models and preparing generation..."
-                        })
-                    
-                    elif "Power Lora Loader" in str(data):
+                    if "UNETLoader" in str(data) or "CLIPLoader" in str(data) or "VAELoader" in str(data):
                         progress_callback({
                             "status": "loading_models",
                             "message": "Loading models and preparing generation..."
@@ -229,14 +299,13 @@ def get_images(ws, workflow, progress_callback):
                             "progress": progress
                         })
                         last_milestone = current_milestone
-                
+
                 elif message['type'] == 'execution_cached':
                     progress_callback({
                         "status": "cached",
                         "message": "Using cached result..."
                     })
-        
-        # Get the final images
+
         history = get_history(prompt_id)[prompt_id]
         for node_id, node_output in history['outputs'].items():
             if 'images' in node_output:
@@ -245,9 +314,9 @@ def get_images(ws, workflow, progress_callback):
                     image_data, filename = get_image(image['filename'], image['subfolder'], image['type'])
                     images_output.append((image_data, filename))
                 output_images[node_id] = images_output
-        
+
         return output_images
-        
+
     except Exception as e:
         logger.error(f"Error in get_images: {str(e)}")
         progress_callback({
@@ -275,9 +344,32 @@ def calculate_upscaled_resolution(resolution, upscale_factor):
         logger.error(f"Error calculating upscaled resolution: {str(e)}")
         raise ValueError(f"Unable to calculate upscaled resolution: {str(e)}")
 
+def cleanup_workflow_file(workflow_filename):
+    """Delete a temporary workflow file after it's been used"""
+    try:
+        file_path = os.path.join('Main', 'DataSets', workflow_filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            logger.debug(f"Successfully deleted workflow file: {workflow_filename}")
+            
+            # Also cleanup any temporary images if this is a redux workflow
+            if workflow_filename.startswith('redux_'):
+                temp_dir = os.path.join('Main', 'DataSets', 'temp')
+                if os.path.exists(temp_dir):
+                    for file in os.listdir(temp_dir):
+                        try:
+                            file_path = os.path.join(temp_dir, file)
+                            if os.path.isfile(file_path):
+                                os.remove(file_path)
+                                logger.debug(f"Deleted temporary file: {file}")
+                        except Exception as e:
+                            logger.error(f"Error deleting temporary file {file}: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error deleting workflow file {workflow_filename}: {str(e)}")
+
 def send_final_image(request_id, user_id, channel_id, interaction_id, original_message_id, 
                     prompt, resolution, upscaled_resolution, loras, upscale_factor, 
-                    seed, image_data, filename):
+                    seed, image_data, filename, workflow_filename=None):
     try:
         bot_server = os.getenv('BOT_SERVER', BOT_SERVER)
         retries = 3
@@ -302,12 +394,15 @@ def send_final_image(request_id, user_id, channel_id, interaction_id, original_m
             try:
                 response = requests.post(
                     f"http://{bot_server}:8080/send_image",
-                    data=data,
                     files=files,
+                    data=data,
                     timeout=120
                 )
                 if response.status_code == 200:
-                    logger.debug("Successfully sent final image")
+                    logger.info("Successfully sent final image")
+                    # Clean up workflow file after successful send
+                    if workflow_filename:
+                        cleanup_workflow_file(workflow_filename)
                     return response
                 else:
                     logger.warning(f"Failed to send image, status code: {response.status_code}")
@@ -324,100 +419,177 @@ def send_final_image(request_id, user_id, channel_id, interaction_id, original_m
         raise
 
 if __name__ == "__main__":
+    ws = None  # Define ws at the module level
+    workflow_filename = None
+    temp_workflow = None  # Track temporary workflow file
+    
+    # Define retry-related constants at the module level
+    max_retries = 3
+    retry_delay = 2  # seconds
+    
     try:
-        if len(sys.argv) < 11:
-            raise ValueError(f"Expected at least 10 arguments, but got {len(sys.argv) - 1}")
+        if len(sys.argv) < 7:
+            raise ValueError(f"Expected at least 7 arguments, but got {len(sys.argv) - 1}")
 
         request_id = sys.argv[1]
         user_id = sys.argv[2]
         channel_id = sys.argv[3]
         interaction_id = sys.argv[4]
         original_message_id = sys.argv[5]
-        full_prompt = sys.argv[6]
-        resolution = sys.argv[7]
-        loras = json.loads(sys.argv[8])
-        upscale_factor = int(sys.argv[9])
-        workflow_filename = sys.argv[10]
-        seed = sys.argv[11] if len(sys.argv) > 11 else None
+        request_type = sys.argv[6]
 
-        logger.debug(f"Received arguments: request_id={request_id}, user_id={user_id}, "
-                    f"channel_id={channel_id}, interaction_id={interaction_id}, "
-                    f"original_message_id={original_message_id}, full_prompt='{full_prompt}', "
-                    f"resolution='{resolution}', loras={loras}, upscale_factor={upscale_factor}, "
-                    f"workflow_filename='{workflow_filename}', seed={seed}")
+        # Create temp directory if needed
+        temp_dir = os.path.join('Main', 'DataSets', 'temp')
+        os.makedirs(temp_dir, exist_ok=True)
 
-        # Send initial status
-        send_progress_update(request_id, {
-            'status': 'starting',
-            'message': 'Starting Generation process...'
-        })
-
-        # Load workflow
-        try:
+        # Process based on request type
+        if request_type == 'standard':  # Standard /comfy command
+            full_prompt = sys.argv[7]
+            resolution = sys.argv[8]
+            loras = json.loads(sys.argv[9])
+            upscale_factor = int(sys.argv[10])
+            workflow_filename = sys.argv[11]
+            seed = sys.argv[12] if len(sys.argv) > 12 else None
+            
+            # Send initial status
             send_progress_update(request_id, {
-                'status': 'loading_workflow',
-                'message': 'Loading workflow...'
+                'status': 'starting',
+                'message': 'Starting Generation process...'
             })
+
             workflow = open_workflow(workflow_filename)
-            if not isinstance(workflow, dict):
-                raise ValueError(f"Invalid workflow format in {workflow_filename}")
-        except Exception as e:
-            logger.error(f"Error loading workflow: {str(e)}")
-            raise
+            
+            # Process seed
+            try:
+                seed = int(seed) if seed != "None" else generate_random_seed()
+                logger.debug(f"Using seed: {seed}")
+            except ValueError:
+                seed = generate_random_seed()
 
-        # Process seed
-        try:
+            # Update workflow with parameters
+            workflow = update_workflow(
+                workflow,
+                full_prompt,
+                resolution,
+                loras,
+                upscale_factor,
+                seed
+            )
+
+            # Save updated workflow back to the same file
+            save_json(workflow_filename, workflow)
+            logger.debug(f"Updated workflow file: {workflow_filename}")
+
+            upscaled_resolution = resolution
+
+        elif request_type == 'redux':  # Redux command
+            if len(sys.argv) < 13:
+                raise ValueError("Not enough arguments for redux request")
+                
+            resolution = sys.argv[7]
+            strength1 = float(sys.argv[8])
+            strength2 = float(sys.argv[9])
+            workflow_filename = sys.argv[10]
+            image1_path = sys.argv[11]
+            image2_path = sys.argv[12]
+
+            workflow = open_workflow(workflow_filename)
+            comfy_image1_path = os.path.abspath(image1_path)
+            comfy_image2_path = os.path.abspath(image2_path)
+
+            comfy_image1_path = comfy_image1_path.replace('\\', '/')
+            comfy_image2_path = comfy_image2_path.replace('\\', '/')
+
+            if '40' in workflow:
+                workflow['40']['inputs']['image'] = comfy_image1_path
+            if '46' in workflow:
+                workflow['46']['inputs']['image'] = comfy_image2_path
+            if '53' in workflow:
+                workflow['53']['inputs']['conditioning_to_strength'] = strength1
+            if '44' in workflow:
+                workflow['44']['inputs']['conditioning_to_strength'] = strength2
+            if '49' in workflow:
+                workflow['49']['inputs']['ratio_selected'] = resolution
+
+            upscale_factor = 1
+            full_prompt = "Redux image generation"
+            loras = []
+            seed = None
+            upscaled_resolution = resolution
+
+        elif request_type == 'reduxprompt':  # ReduxPrompt command
+            if len(sys.argv) < 12:
+                raise ValueError("Not enough arguments for reduxprompt request")
+                
+            prompt = sys.argv[7]
+            resolution = sys.argv[8]
+            strength = sys.argv[9]
+            workflow_filename = sys.argv[10]
+            temp_image_path = sys.argv[11]
+
+            # Send initial status
             send_progress_update(request_id, {
-                'status': 'initializing',
-                'message': 'Initializing parameters...'
+                'status': 'starting',
+                'message': 'Loading workflow and preparing generation...'
             })
-            seed = int(seed) if seed != "None" else generate_random_seed()
-            logger.debug(f"Using seed: {seed}")
-        except ValueError as e:
-            logger.error(f"Invalid seed value: {str(e)}")
-            raise
 
-        # Update workflow
-        try:
-            workflow = update_workflow(workflow, full_prompt, resolution, loras, upscale_factor, seed)
-            logger.debug(f"Updated workflow content: {json.dumps(workflow, indent=2)}")
-        except Exception as e:
-            logger.error(f"Error updating workflow: {str(e)}")
-            raise
+            workflow = open_workflow(workflow_filename)
 
-        # Calculate upscaled resolution
-        try:
-            upscaled_resolution = calculate_upscaled_resolution(resolution, upscale_factor)
-        except ValueError as e:
-            logger.error(f"Error calculating upscaled resolution: {str(e)}")
-            upscaled_resolution = "Unknown"
+            # Update the workflow with our parameters
+            try:
+                workflow = update_reduxprompt_workflow(
+                    workflow,
+                    temp_image_path,  # Pass the full path
+                    prompt,
+                    strength
+                )
+                # Save the modified workflow
+                save_json(workflow_filename, workflow)
+                logger.debug(f"Saved modified workflow to: {workflow_filename}")
+            except Exception as e:
+                logger.error(f"Error updating workflow: {str(e)}")
+                send_progress_update(request_id, {
+                    'status': 'error',
+                    'message': f"Error updating workflow: {str(e)}"
+                })
+                sys.exit(1)
+
+            upscale_factor = 1
+            full_prompt = prompt
+            loras = []
+            seed = None
+            upscaled_resolution = resolution
+
+        else:
+            raise ValueError(f"Invalid request type: {request_type}")
+
+        # Get server address and client ID
+        server_address = os.getenv('server_address', server_address)
+        client_id = str(uuid.uuid4())
 
         # Connect to WebSocket with retries
-        max_retries = 3
-        retry_delay = 2
-        ws = None
-        
         for attempt in range(max_retries):
             try:
                 send_progress_update(request_id, {
                     'status': 'connecting',
                     'message': f'Connecting to ComfyUI (attempt {attempt + 1})...'
                 })
-                logger.debug(f"Connecting to WebSocket at ws://{server_address}:8188/ws?clientId={client_id}")
-                ws = websocket.create_connection(f"ws://{server_address}:8188/ws?clientId={client_id}", timeout=120)
+                ws = websocket.create_connection(
+                    f"ws://{server_address}:8188/ws?clientId={client_id}",
+                    timeout=120
+                )
                 break
             except Exception as e:
                 if attempt < max_retries - 1:
                     logger.warning(f"WebSocket connection attempt {attempt + 1} failed: {str(e)}")
                     time.sleep(retry_delay)
-                    retry_delay *= 2
+                    retry_delay *= 2  # Exponential backoff
                 else:
                     logger.error(f"All WebSocket connection attempts failed: {str(e)}")
                     raise
 
         try:
             # Clear cache and prepare for generation
-            logger.debug("WebSocket connected. Clearing cache...")
             clear_cache(ws)
             
             send_progress_update(request_id, {
@@ -426,17 +598,14 @@ if __name__ == "__main__":
             })
 
             # Generate images
-            images = get_images(ws, workflow, lambda p: send_progress_update(request_id, p))
-            logger.debug(f"Received images: {len(images)} nodes with output")
+            images = get_images(ws, workflow, lambda data: send_progress_update(request_id, data))
 
             # Process output images
             final_image = None
             for node_id, image_data_list in reversed(images.items()):
-                logger.debug(f"Checking node {node_id} for final image")
                 for image_data, filename in reversed(image_data_list):
                     if not filename.startswith('ComfyUI_temp'):
                         final_image = (image_data, filename)
-                        logger.debug(f"Found final image: {filename}")
                         break
                 if final_image:
                     break
@@ -456,13 +625,10 @@ if __name__ == "__main__":
                     upscale_factor=upscale_factor,
                     seed=seed,
                     image_data=image_data,
-                    filename=filename
+                    filename=filename,
+                    workflow_filename=workflow_filename
                 )
                 
-                logger.debug(f"Response from web server: {response.text if response else 'No response'}")
-                print(response.text if response else "No response received")
-
-                # Add to history
                 add_to_history(user_id, full_prompt, workflow, filename, resolution, loras, upscale_factor)
             else:
                 logger.error("No final image found to send.")
@@ -470,31 +636,14 @@ if __name__ == "__main__":
                     'status': 'error',
                     'message': 'No final image generated'
                 })
-                print("Error: No final image found to send.")
 
         except Exception as e:
-            logger.error(f"Error during image generation/processing: {str(e)}", exc_info=True)
-            if ws:
-                ws.close()
+            logger.error(f"Error during image generation: {str(e)}", exc_info=True)
             send_progress_update(request_id, {
                 'status': 'error',
                 'message': f'Error during generation: {str(e)}'
             })
             raise
-        finally:
-            
-            try:
-                if ws:
-                    ws.close()
-                    logger.debug("WebSocket connection closed")
-            except Exception as e:
-                logger.error(f"Error closing WebSocket: {str(e)}")
-
-            try:
-                os.remove(f"Main/DataSets/{workflow_filename}")
-                logger.debug(f"Deleted workflow file: {workflow_filename}")
-            except Exception as e:
-                logger.error(f"Error removing workflow file: {str(e)}")
 
     except ValueError as ve:
         logger.error(f"Argument error: {str(ve)}")
@@ -502,14 +651,40 @@ if __name__ == "__main__":
             'status': 'error',
             'message': f'Configuration error: {str(ve)}'
         })
-        print(f"Error: {str(ve)}")
     except Exception as e:
-        logger.error(f"An unexpected error occurred in comfygen.py: {str(e)}", exc_info=True)
+        logger.error(f"An unexpected error occurred: {str(e)}", exc_info=True)
         send_progress_update(request_id, {
             'status': 'error',
             'message': f'Unexpected error: {str(e)}'
         })
-        print(f"Error: {str(e)}")
     finally:
-        if 'ws' in locals():
-            ws.close()
+        # Clean up WebSocket connection
+        if ws:
+            try:
+                ws.close()
+                logger.debug("WebSocket connection closed")
+            except Exception as e:
+                logger.error(f"Error closing WebSocket: {str(e)}")
+
+        # Clean up temporary files
+        try:
+            # Clean up redux images if present
+            if request_type == 'reduxprompt':
+                if 'temp_image_path' in locals() and os.path.exists(temp_image_path):
+                    try:
+                        os.remove(temp_image_path)
+                        logger.debug(f"Deleted temp file: {temp_image_path}")
+                    except Exception as e:
+                        logger.error(f"Error removing temp file {temp_image_path}: {str(e)}")
+
+            # Clean up workflow file
+            if 'workflow_filename' in locals() and workflow_filename:
+                workflow_path = os.path.join("Main", "DataSets", workflow_filename)
+                if os.path.exists(workflow_path):
+                    try:
+                        os.remove(workflow_path)
+                        logger.debug(f"Deleted temporary workflow file: {workflow_filename}")
+                    except Exception as e:
+                        logger.error(f"Error removing temporary workflow file: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error during cleanup: {str(e)}")

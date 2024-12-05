@@ -1,13 +1,48 @@
 import logging
+import json
 from Main.utils import load_json
+import os
 
 logger = logging.getLogger(__name__)
 
+def validate_workflow(workflow):
+    """Validates the workflow structure with enhanced checks"""
+    if not isinstance(workflow, dict):
+        raise ValueError("Workflow must be a dictionary")
+    
+    # Check for required nodes
+    required_nodes = ['69', '258', '271']
+    missing_nodes = [node for node in required_nodes if node not in workflow]
+    if missing_nodes:
+        raise ValueError(f"Missing required nodes in workflow: {missing_nodes}")
+    
+    # Validate node structure
+    for node_id, node in workflow.items():
+        if not isinstance(node, dict):
+            raise ValueError(f"Node {node_id} must be a dictionary")
+        
+        if 'inputs' not in node:
+            raise ValueError(f"Node {node_id} is missing 'inputs' field")
+            
+        if not isinstance(node.get('inputs'), dict):
+            raise ValueError(f"Node {node_id} 'inputs' must be a dictionary")
+            
+        if 'class_type' not in node:
+            raise ValueError(f"Node {node_id} is missing 'class_type' field")
+    
+    logger.debug(f"Workflow validation passed: {len(workflow)} nodes checked")
+    return True
+
 def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
-    """
-    Updates the workflow with the provided parameters.
-    """
+    """Updates the workflow with the provided parameters with enhanced validation"""
     try:
+        # Validate workflow first
+        validate_workflow(workflow)
+        logger.debug("Initial workflow validation passed")
+
+        # Create a copy to avoid modifying the original
+        workflow = workflow.copy()
+
         # Update prompt
         if '69' in workflow:
             workflow['69']['inputs']['prompt'] = prompt
@@ -53,11 +88,9 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
                         'lora': lora,
                         'strength': lora_strength
                     }
-                    logger.debug(f"Added LoRA {lora} with strength {lora_strength} (base strength: {base_strength})")
+                    logger.debug(f"Added LoRA {lora} with strength {lora_strength}")
                 else:
-                    logger.warning(f"LoRA {lora} not found in lora.json")
-        else:
-            logger.warning("Node 271 (LoRA loader) not found in workflow")
+                    logger.warning(f"LoRA {lora} not found in configuration")
 
         # Update upscale factor
         if '279' in workflow:
@@ -72,7 +105,11 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
             logger.debug(f"Updated seed: {seed}")
         else:
             logger.warning("Node 198:2 (seed node) not found in workflow")
-            
+
+        # Validate the updated workflow
+        validate_workflow(workflow)
+        logger.debug("Final workflow validation passed")
+        
         # Update guidance value if present
         if '198:4' in workflow and 'inputs' in workflow['198:4']:
             workflow['198:4']['inputs']['guidance'] = 3.5
@@ -88,3 +125,50 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
     except Exception as e:
         logger.error(f"Error updating workflow: {str(e)}", exc_info=True)
         raise ValueError(f"Failed to update workflow: {str(e)}")
+
+def update_reduxprompt_workflow(workflow, image_path, prompt, strength):
+    """
+    Updates the ReduxPrompt workflow with the provided parameters.
+    The strength parameter must be one of: 'highest', 'high', 'medium', 'low', 'lowest'
+    
+    Args:
+        workflow: The workflow dictionary to update
+        image_path: Full absolute path to the image file
+        prompt: The prompt text
+        strength: Strength value ('highest', 'high', 'medium', 'low', 'lowest')
+    """
+    try:
+        # Create a copy to avoid modifying the original
+        workflow = workflow.copy()
+
+        # Validate strength is one of the allowed values
+        valid_strengths = ['highest', 'high', 'medium', 'low', 'lowest']
+        if strength not in valid_strengths:
+            raise ValueError(f"Invalid strength value: {strength}. Must be one of: {', '.join(valid_strengths)}")
+
+        # Convert Windows path to forward slashes and ensure absolute path
+        image_path = os.path.abspath(image_path).replace('\\', '/')
+        logger.debug(f"Using image path: {image_path}")
+
+        # Update image path in node 40
+        if '40' in workflow:
+            workflow['40']['inputs']['image'] = image_path
+            logger.debug(f"Updated image path in node 40: {image_path}")
+        else:
+            raise ValueError("Node 40 (LoadImage node) not found in workflow")
+
+        # Update prompt in node 6 if it exists
+        if '6' in workflow:
+            workflow['6']['inputs']['text'] = prompt
+            logger.debug(f"Updated prompt in node 6: {prompt}")
+
+        # Update strength in node 54 if it exists (using string value directly)
+        if '54' in workflow:
+            workflow['54']['inputs']['image_strength'] = strength
+            logger.debug(f"Updated strength in node 54: {strength}")
+
+        return workflow
+
+    except Exception as e:
+        logger.error(f"Error updating ReduxPrompt workflow: {str(e)}")
+        raise

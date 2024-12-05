@@ -6,9 +6,11 @@ import io
 from Main.database import add_to_history
 from Main.utils import load_json
 from Main.custom_commands.views import ImageControlView
+from .models import RequestItem, ReduxRequestItem, ReduxPromptRequestItem
 from typing import Dict, Any
 import asyncio
 from .message_constants import STATUS_MESSAGES
+from .views import ImageControlView, ReduxImageView
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,7 @@ async def handle_generated_image(request):
             'image_data': None
         }
 
+        # Read multipart data
         async for part in reader:
             if part.name == 'image_data':
                 request_data['image_data'] = await part.read(decode=False)
@@ -55,17 +58,16 @@ async def handle_generated_image(request):
             logger.warning(f"Missing required fields: {', '.join(missing_fields)}")
             return web.Response(text="Missing required data", status=400)
 
-        # Handle upscale factor
-        if not isinstance(request_data['upscale_factor'], int):
-            request_data['upscale_factor'] = 1
-
         # Check if request is still pending
         if request_data['request_id'] not in request.app['bot'].pending_requests:
             logger.warning(f"Received response for unknown request_id: {request_data['request_id']}")
             return web.Response(text="Unknown request", status=404)
 
-        # Generate embed and handle image
+        # Get request item to check type
+        request_item = request.app['bot'].pending_requests[request_data['request_id']]
+
         try:
+            # Fetch necessary Discord objects
             user = await request.app['bot'].fetch_user(int(request_data['user_id']))
             channel = await request.app['bot'].fetch_channel(int(request_data['channel_id']))
             guild = channel.guild
@@ -81,7 +83,7 @@ async def handle_generated_image(request):
                 color=user_color
             )
 
-            # Add resolution field with upscaler info
+            # Add resolution field
             if request_data['upscale_factor'] > 1:
                 if request_data['upscaled_resolution'] and request_data['upscaled_resolution'] != "Unknown":
                     embed.add_field(
@@ -98,23 +100,24 @@ async def handle_generated_image(request):
             else:
                 embed.add_field(name="Resolution", value=request_data['resolution'], inline=True)
 
-            # Add LoRA information
-            lora_config = load_json('lora.json')
-            lora_names = []
-            if request_data['loras']:
-                for lora_file in request_data['loras']:
-                    lora_info = next((lora for lora in lora_config['available_loras'] 
-                                    if lora['file'] == lora_file), None)
-                    if lora_info:
-                        lora_names.append(lora_info['name'])
-                    else:
-                        lora_names.append(lora_file)
+            # Handle LoRA information for standard requests only
+            if not isinstance(request_item, (ReduxRequestItem, ReduxPromptRequestItem)):
+                lora_config = load_json('lora.json')
+                lora_names = []
+                if request_data['loras']:
+                    for lora_file in request_data['loras']:
+                        lora_info = next((lora for lora in lora_config['available_loras'] 
+                                        if lora['file'] == lora_file), None)
+                        if lora_info:
+                            lora_names.append(lora_info['name'])
+                        else:
+                            lora_names.append(lora_file)
 
-            embed.add_field(
-                name="LoRAs",
-                value=", ".join(lora_names) if lora_names else "None",
-                inline=True
-            )
+                embed.add_field(
+                    name="LoRAs",
+                    value=", ".join(lora_names) if lora_names else "None",
+                    inline=True
+                )
 
             if request_data['seed'] is not None:
                 embed.add_field(name="Seed", value=str(request_data['seed']), inline=True)
@@ -123,55 +126,53 @@ async def handle_generated_image(request):
             image_filename = f"generated_image_{request_data['request_id']}.png"
             image_file = discord.File(io.BytesIO(request_data['image_data']), image_filename)
 
-            # Create view with buttons
-            view = ImageControlView(
-                request.app['bot'],
-                request_data['prompt'],
-                image_filename,
-                request_data['resolution'],
-                request_data['loras'],
-                request_data['upscale_factor'],
-                request_data['seed']
-            )
-
-            # Update the original message
-            try:
-                channel = await request.app['bot'].fetch_channel(int(request_data['channel_id']))
-                original_message = await channel.fetch_message(int(request_data['original_message_id']))
-                await original_message.edit(content=None, embed=embed, attachments=[image_file], view=view)
-                request.app['bot'].add_view(view, message_id=original_message.id)
-
-                # Add to history
-                add_to_history(
-                    request_data['user_id'],
+            # Select appropriate view based on request type
+            if isinstance(request_item, (ReduxRequestItem, ReduxPromptRequestItem)):
+                view = ReduxImageView()
+            else:
+                view = ImageControlView(
+                    request.app['bot'],
                     request_data['prompt'],
-                    None,  # workflow
                     image_filename,
                     request_data['resolution'],
                     request_data['loras'],
-                    request_data['upscale_factor']
+                    request_data['upscale_factor'],
+                    request_data['seed']
                 )
 
-                # Remove from pending requests
-                if request_data['request_id'] in request.app['bot'].pending_requests:
-                    del request.app['bot'].pending_requests[request_data['request_id']]
+            # Update the original message
+            channel = await request.app['bot'].fetch_channel(int(request_data['channel_id']))
+            original_message = await channel.fetch_message(int(request_data['original_message_id']))
+            await original_message.edit(content=None, embed=embed, attachments=[image_file], view=view)
+            request.app['bot'].add_view(view, message_id=original_message.id)
 
-                logger.info(f"Successfully processed image for user {request_data['user_id']}")
-                return web.Response(text="Success")
+            # Add to history
+            add_to_history(
+                request_data['user_id'],
+                request_data['prompt'],
+                None,  # workflow
+                image_filename,
+                request_data['resolution'],
+                request_data['loras'],
+                request_data['upscale_factor']
+            )
 
-            except discord.NotFound:
-                logger.error("Channel or message not found")
-                return web.Response(text="Channel or message not found", status=404)
-            except discord.Forbidden:
-                logger.error("Bot lacks required permissions")
-                return web.Response(text="Permission denied", status=403)
-            except Exception as e:
-                logger.error(f"Error updating message: {str(e)}")
-                return web.Response(text=f"Error updating message: {str(e)}", status=500)
+            # Remove from pending requests
+            if request_data['request_id'] in request.app['bot'].pending_requests:
+                del request.app['bot'].pending_requests[request_data['request_id']]
 
+            logger.info(f"Successfully processed image for user {request_data['user_id']}")
+            return web.Response(text="Success")
+
+        except discord.NotFound:
+            logger.error("Channel or message not found")
+            return web.Response(text="Channel or message not found", status=404)
+        except discord.Forbidden:
+            logger.error("Bot lacks required permissions")
+            return web.Response(text="Permission denied", status=403)
         except Exception as e:
-            logger.error(f"Error processing image request: {str(e)}", exc_info=True)
-            return web.Response(text=f"Error processing request: {str(e)}", status=500)
+            logger.error(f"Error updating message: {str(e)}")
+            return web.Response(text=f"Error updating message: {str(e)}", status=500)
 
     except Exception as e:
         logger.error(f"Error in handle_generated_image: {str(e)}", exc_info=True)

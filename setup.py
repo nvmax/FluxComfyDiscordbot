@@ -6,6 +6,7 @@ from pathlib import Path
 
 # Create logs directory if it doesn't exist
 os.makedirs('logs', exist_ok=True)
+os.makedirs('Main/DataSets/temp', exist_ok=True)
 
 # Configure logging
 logging.basicConfig(

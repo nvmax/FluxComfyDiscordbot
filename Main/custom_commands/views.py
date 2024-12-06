@@ -7,10 +7,12 @@ import time
 import json
 import asyncio
 import re
+import os
 from typing import List, Optional
 from Main.utils import load_json, save_json, generate_random_seed
-from .workflow_utils import update_workflow
+from .workflow_utils import update_workflow, update_reduxprompt_workflow
 from config import fluxversion
+from .models import RequestItem, ReduxRequestItem, ReduxPromptRequestItem
 
 logger = logging.getLogger(__name__)
 
@@ -469,7 +471,7 @@ class OptionsView(ui.View):
             for lora in lora_config['available_loras']:
                 if lora.get('add_prompt'):
                     trigger_word = lora['add_prompt'].strip()
-                    base_prompt = re.sub(f',?\s*{re.escape(trigger_word)},?\s*', '', base_prompt, flags=re.IGNORECASE)
+                    base_prompt = re.sub(fr',?\s*{re.escape(trigger_word)},?\s*', '', base_prompt, flags=re.IGNORECASE)
             
             # Clean up any duplicate commas and whitespace
             base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
@@ -626,6 +628,396 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
         except Exception as e:
             logger.error(f"Error in modal submit: {e}", exc_info=True)
             await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
+
+class ReduxModal(discord.ui.Modal, title='Redux Image Generator'):
+    def __init__(self, bot, resolution: str):
+        super().__init__()
+        self.bot = bot
+        self.resolution = resolution
+        
+        self.strength1 = discord.ui.TextInput(
+            label="Strength for Image 1 (0.1-1.0)",
+            placeholder="Enter a number between 0.1 and 1.0",
+            default="1.0",
+            required=True,
+            max_length=4
+        )
+        
+        self.strength2 = discord.ui.TextInput(
+            label="Strength for Image 2 (0.1-1.0)",
+            placeholder="Enter a number between 0.1 and 1.0",
+            default="0.5",
+            required=True,
+            max_length=4
+        )
+        
+        self.add_item(self.strength1)
+        self.add_item(self.strength2)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            # Validate strength inputs
+            try:
+                strength1 = float(self.strength1.value)
+                strength2 = float(self.strength2.value)
+                
+                if not (0.1 <= strength1 <= 1.0 and 0.1 <= strength2 <= 1.0):
+                    raise ValueError("Strength values must be between 0.1 and 1.0")
+                    
+            except ValueError as e:
+                await interaction.response.send_message(
+                    f"Invalid strength values: {str(e)}", 
+                    ephemeral=True
+                )
+                return
+
+            def check_message(m):
+                return (m.author == interaction.user and
+                    m.channel == interaction.channel and
+                    len(m.attachments) > 0)
+
+            # Defer the response first
+            await interaction.response.defer(ephemeral=True)
+
+            try:
+                # Get first image
+                first_prompt = await interaction.followup.send(
+                    "Please send your first image", 
+                    ephemeral=True,
+                    wait=True
+                )
+                msg1 = await self.bot.wait_for('message', timeout=60.0, check=check_message)
+                image1_data = await msg1.attachments[0].read()
+                image1_filename = msg1.attachments[0].filename
+                await msg1.delete()
+                # Delete first prompt after image is received
+                await first_prompt.delete()
+                
+                # Get second image
+                second_prompt = await interaction.followup.send(
+                    "Now send your second image", 
+                    ephemeral=True,
+                    wait=True
+                )
+                msg2 = await self.bot.wait_for('message', timeout=60.0, check=check_message)
+                image2_data = await msg2.attachments[0].read()
+                image2_filename = msg2.attachments[0].filename
+                await msg2.delete()
+                # Delete second prompt after image is received
+                await second_prompt.delete()
+
+                # Create processing message
+                processing_msg = await interaction.followup.send(
+                    "🔄 Processing Redux generation...",
+                    ephemeral=False,
+                    wait=True
+                )
+
+                # Create request item
+                workflow_filename = f'redux_{str(uuid.uuid4())}.json'
+                workflow = load_json('Redux.json')
+                save_json(workflow_filename, workflow)
+
+                request_item = ReduxRequestItem(
+                    id=str(interaction.id),
+                    user_id=str(interaction.user.id),
+                    channel_id=str(interaction.channel.id),
+                    interaction_id=str(interaction.id),
+                    original_message_id=str(processing_msg.id),
+                    resolution=self.resolution,
+                    strength1=strength1,
+                    strength2=strength2,
+                    workflow_filename=workflow_filename,
+                    image1=image1_data,
+                    image2=image2_data,
+                    image1_filename=image1_filename,
+                    image2_filename=image2_filename
+                )
+
+                await self.bot.subprocess_queue.put(request_item)
+
+            except asyncio.TimeoutError:
+                await interaction.followup.send(
+                    "Timed out waiting for image upload", 
+                    ephemeral=True,
+                    wait=True
+                )
+                
+        except Exception as e:
+            logger.error(f"Error in redux modal: {e}", exc_info=True)
+            try:
+                await interaction.followup.send(
+                    f"An error occurred: {str(e)}",
+                    ephemeral=True,
+                    wait=True
+                )
+            except:
+                # If followup fails, try response
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        f"An error occurred: {str(e)}",
+                        ephemeral=True
+                    )
+
+class ReduxPromptModal(discord.ui.Modal, title='Redux Prompt Generator'):
+    def __init__(self, bot, resolution: str, strength: str):
+        super().__init__()
+        self.bot = bot
+        self.resolution = resolution
+        self.strength = strength  # The strength value comes from the command parameter
+        
+        self.prompt = discord.ui.TextInput(
+            label='Enter your prompt',
+            style=discord.TextStyle.paragraph,
+            placeholder='Type your prompt here...',
+            required=True
+        )
+        
+        self.add_item(self.prompt)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            # Send prompt message for file upload
+            prompt_msg = await interaction.followup.send(
+                "Please upload your reference image",
+                ephemeral=True,
+                wait=True
+            )
+
+            def check_message(m):
+                return (m.author == interaction.user and
+                       m.channel == interaction.channel and
+                       len(m.attachments) > 0)
+
+            try:
+                msg = await self.bot.wait_for('message', timeout=60.0, check=check_message)
+                
+                if not msg.attachments:
+                    logger.error("No attachments found in message")
+                    raise ValueError("No attachments found in message")
+                    
+                attachment = msg.attachments[0]
+                logger.debug(f"Attachment info: {attachment.filename}, {attachment.size} bytes")
+                
+                # Get image as bytes
+                image_data = await attachment.read()
+                if not isinstance(image_data, bytes):
+                    logger.error(f"Image data is not bytes, got {type(image_data)}")
+                    raise ValueError("Failed to read image as bytes")
+                
+                image_filename = attachment.filename
+                logger.debug(f"Processing image: {image_filename}")
+                
+                # Clean up
+                await msg.delete()
+                await prompt_msg.delete()
+
+                processing_msg = await interaction.followup.send(
+                    "🔄 Processing Redux Prompt generation...",
+                    ephemeral=False,
+                    wait=True
+                )
+
+                workflow_filename = f'reduxprompt_{str(uuid.uuid4())}.json'
+                base_workflow = load_json('Reduxprompt.json')
+                
+                temp_dir = os.path.join('Main', 'DataSets', 'temp')
+                os.makedirs(temp_dir, exist_ok=True)
+                
+                temp_image_path = os.path.join(temp_dir, image_filename)
+                with open(temp_image_path, 'wb') as f:
+                    f.write(image_data)
+                logger.debug(f"Saved image to: {temp_image_path}")
+
+                # Update the workflow with our parameters
+                try:
+                    workflow = update_reduxprompt_workflow(
+                        base_workflow,
+                        image_filename,
+                        self.prompt.value,
+                        self.strength
+                    )
+                    # Save the modified workflow
+                    save_json(workflow_filename, workflow)
+                    logger.debug(f"Saved modified workflow to: {workflow_filename}")
+                except Exception as e:
+                    logger.error(f"Error updating workflow: {str(e)}")
+                    await interaction.followup.send(
+                        f"❌ Error updating workflow: {str(e)}",
+                        ephemeral=True
+                    )
+                    return
+
+                # Create request item
+                try:
+                    request_item = ReduxPromptRequestItem(
+                        id=str(interaction.id),
+                        user_id=str(interaction.user.id),
+                        channel_id=str(interaction.channel.id),
+                        interaction_id=str(interaction.id),
+                        original_message_id=str(processing_msg.id),
+                        resolution=self.resolution,
+                        strength=self.strength,
+                        prompt=self.prompt.value,
+                        image_path=temp_image_path,
+                        image_filename=image_filename,
+                        workflow_filename=workflow_filename
+                    )
+                except Exception as e:
+                    logger.error(f"Error processing image upload: {str(e)}")
+                    await interaction.followup.send(
+                        f"❌ Error processing image: {str(e)}",
+                        ephemeral=True
+                    )
+                    return
+                
+                logger.debug("Created ReduxPromptRequestItem successfully")
+                await self.bot.subprocess_queue.put(request_item)
+                logger.debug("Added request to queue")
+
+            except asyncio.TimeoutError:
+                logger.warning("Image upload timed out")
+                await interaction.followup.send(
+                    "Timed out waiting for image upload",
+                    ephemeral=True
+                )
+            except Exception as e:
+                logger.error(f"Error processing image upload: {str(e)}", exc_info=True)
+                await interaction.followup.send(
+                    f"Error processing image: {str(e)}",
+                    ephemeral=True
+                )
+
+        except Exception as e:
+            logger.error(f"Error in redux prompt modal: {str(e)}", exc_info=True)
+            try:
+                await interaction.followup.send(
+                    f"An error occurred: {str(e)}",
+                    ephemeral=True
+                )
+            except:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        f"An error occurred: {str(e)}",
+                        ephemeral=True
+                    )
+
+class ReduxProcessingView(discord.ui.View):
+    def __init__(self, bot, resolution: str, strength1: float, strength2: float):
+        super().__init__()
+        self.bot = bot
+        self.resolution = resolution
+        self.strength1 = strength1
+        self.strength2 = strength2
+        self.image1 = None
+        self.image2 = None
+
+    @discord.ui.button(label="Upload Image 1", style=discord.ButtonStyle.primary)
+    async def upload_image1(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            "Please upload the first image (send it as a message attachment)",
+            ephemeral=True
+        )
+        
+        def check(m):
+            return (m.author == interaction.user and
+                   m.channel == interaction.channel and
+                   len(m.attachments) > 0)
+        
+        try:
+            msg = await self.bot.wait_for('message', timeout=60.0, check=check)
+            self.image1 = await msg.attachments[0].read()
+            button.disabled = True
+            button.label = "✓ Image 1 Uploaded"
+            await interaction.edit_original_response(view=self)
+            await msg.delete()
+            
+            if self.image1 and self.image2:
+                await self.process_images(interaction)
+                
+        except TimeoutError:
+            await interaction.followup.send("Timed out waiting for image upload", ephemeral=True)
+
+    @discord.ui.button(label="Upload Image 2", style=discord.ButtonStyle.primary)
+    async def upload_image2(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            "Please upload the second image (send it as a message attachment)",
+            ephemeral=True
+        )
+        
+        def check(m):
+            return (m.author == interaction.user and
+                   m.channel == interaction.channel and
+                   len(m.attachments) > 0)
+        
+        try:
+            msg = await self.bot.wait_for('message', timeout=60.0, check=check)
+            self.image2 = await msg.attachments[0].read()
+            button.disabled = True
+            button.label = "✓ Image 2 Uploaded"
+            await interaction.edit_original_response(view=self)
+            await msg.delete()
+            
+            if self.image1 and self.image2:
+                await self.process_images(interaction)
+                
+        except TimeoutError:
+            await interaction.followup.send("Timed out waiting for image upload", ephemeral=True)
+
+    async def process_images(self, interaction: discord.Interaction):
+        try:
+            # Load and modify the Redux workflow
+            workflow = load_json('Redux.json')
+            
+            # Update resolution
+            if '49' in workflow:
+                workflow['49']['inputs']['ratio_selected'] = self.resolution
+            
+            # Update strength values
+            if '53' in workflow:
+                workflow['53']['inputs']['conditioning_to_strength'] = self.strength1
+            if '44' in workflow:
+                workflow['44']['inputs']['conditioning_to_strength'] = self.strength2
+            
+            # Generate a unique workflow file
+            request_uuid = str(uuid.uuid4())
+            workflow_filename = f'redux_{request_uuid}.json'
+            save_json(workflow_filename, workflow)
+            
+            # Create processing message
+            processing_msg = await interaction.channel.send("🔄 Processing Redux generation...")
+            
+            # Create request item
+            request_item = ReduxRequestItem(
+                id=str(interaction.id),
+                user_id=str(interaction.user.id),
+                channel_id=str(interaction.channel.id),
+                interaction_id=str(interaction.id),
+                original_message_id=str(processing_msg.id),
+                resolution=self.resolution,
+                strength1=self.strength1,
+                strength2=self.strength2,
+                workflow_filename=workflow_filename,
+                image1=self.image1,
+                image2=self.image2
+            )
+            
+            # Add to processing queue
+            await interaction.client.subprocess_queue.put(request_item)
+            
+            # Disable all buttons after processing starts
+            for child in self.children:
+                child.disabled = True
+            await interaction.edit_original_response(view=self)
+            
+        except Exception as e:
+            logger.error(f"Error processing redux images: {str(e)}")
+            await interaction.followup.send(
+                f"An error occurred while processing: {str(e)}",
+                ephemeral=True
+            )
 
 class ImageControlView(ui.View):
     def __init__(self, bot, original_prompt=None, image_filename=None, original_resolution=None, original_loras=None, original_upscale_factor=None, original_seed=None):
@@ -868,6 +1260,27 @@ class LoraInfoView(ui.View):
         self.update_buttons()
         await self.update_message(interaction)
 
+class ReduxImageView(ui.View):
+    """A simple view for Redux images that only contains a delete button."""
+    def __init__(self):
+        # Set timeout to None for persistent view
+        super().__init__(timeout=None)
+
+    @ui.button(label="Delete", style=discord.ButtonStyle.danger, custom_id="delete_button", emoji="🗑️")
+    async def delete_message(self, interaction: discord.Interaction, button: ui.Button):
+        """Handle the delete button press."""
+        try:
+            await interaction.response.defer(ephemeral=True)
+            await interaction.message.delete()
+        except discord.errors.NotFound:
+            logger.warning("Message already deleted")
+        except discord.errors.Forbidden:
+            logger.warning("Missing permissions to delete message")
+            await interaction.followup.send("I don't have permission to delete this message.", ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error deleting message: {str(e)}")
+            await interaction.followup.send("An error occurred while trying to delete the message.", ephemeral=True)
+
 # Optional interface class for better type hints and documentation
 class ViewInterface:
     """Interface class defining the expected view structure"""
@@ -887,5 +1300,6 @@ __all__ = [
     'PaginatedLoRASelect',
     'ResolutionSelect',
     'LoraInfoView',
+    'ReduxImageView',
     'ViewInterface'
 ]

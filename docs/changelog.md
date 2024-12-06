@@ -2,9 +2,20 @@
 
 ## 🌟 Latest Updates
 
-
-### November 29, 2024
+### December 6, 2024
 #### ✨ New Features
+- **Flux Redux**
+  - /redux command to generate an image using two reference images
+  - /reduxprompt command to generate an image using a reference image and prompt
+  - redux first image will be the main image, 2nd image is style reference 
+  - reduxprompt image allows user to use a prompt to generate an image from a reference image with a style prompt 
+
+  - **Various fixes and improvements**
+  - resolved setup tool not saving server_address
+  - expanded fields in setup tool to allow better view of servers and channels
+  - fixed issues banned and why banned giving errors 
+  
+
 - **LMStudio / Ai Prompt Enhancements**
   - Now you can select LMStudio, xAI or OpenAI with in the setup tool
   - When generating prompts a modal will appear to select Creativity level

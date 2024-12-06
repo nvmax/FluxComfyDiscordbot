@@ -1,0 +1,323 @@
+{
+  "6": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "13",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "VAEDecode"
+  },
+  "10": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader"
+  },
+  "11": {
+    "inputs": {
+      "clip_name1": "t5xxl_fp16.safetensors",
+      "clip_name2": "clip_l.safetensors",
+      "type": "flux"
+    },
+    "class_type": "DualCLIPLoader"
+  },
+  "13": {
+    "inputs": {
+      "noise": [
+        "25",
+        0
+      ],
+      "guider": [
+        "22",
+        0
+      ],
+      "sampler": [
+        "16",
+        0
+      ],
+      "sigmas": [
+        "17",
+        0
+      ],
+      "latent_image": [
+        "49",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced"
+  },
+  "16": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect"
+  },
+  "17": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 8,
+      "denoise": 1,
+      "model": [
+        "61",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler"
+  },
+  "22": {
+    "inputs": {
+      "model": [
+        "61",
+        0
+      ],
+      "conditioning": [
+        "54",
+        0
+      ]
+    },
+    "class_type": "BasicGuider"
+  },
+  "25": {
+    "inputs": {
+      "noise_seed": 8572415163179
+    },
+    "class_type": "RandomNoise"
+  },
+  "26": {
+    "inputs": {
+      "guidance": 3.5,
+      "conditioning": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "FluxGuidance"
+  },
+  "38": {
+    "inputs": {
+      "clip_name": "sigclip_vision_patch14_384.safetensors"
+    },
+    "class_type": "CLIPVisionLoader"
+  },
+  "39": {
+    "inputs": {
+      "crop": "center",
+      "clip_vision": [
+        "38",
+        0
+      ],
+      "image": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "CLIPVisionEncode"
+  },
+  "40": {
+    "inputs": {
+      "image": "Flux_gen_90499.webp",
+      "upload": "image"
+    },
+    "class_type": "LoadImage"
+  },
+  "41": {
+    "inputs": {
+      "strength": 1,
+      "strength_type": "multiply",
+      "conditioning": [
+        "26",
+        0
+      ],
+      "style_model": [
+        "42",
+        0
+      ],
+      "clip_vision_output": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "StyleModelApply"
+  },
+  "42": {
+    "inputs": {
+      "style_model_name": "flux1-redux-dev.safetensors"
+    },
+    "class_type": "StyleModelLoader"
+  },
+  "44": {
+    "inputs": {
+      "conditioning_to_strength": 0.5,
+      "conditioning_to": [
+        "48",
+        0
+      ],
+      "conditioning_from": [
+        "41",
+        0
+      ]
+    },
+    "class_type": "ConditioningAverage"
+  },
+  "45": {
+    "inputs": {
+      "crop": "center",
+      "clip_vision": [
+        "38",
+        0
+      ],
+      "image": [
+        "46",
+        0
+      ]
+    },
+    "class_type": "CLIPVisionEncode"
+  },
+  "46": {
+    "inputs": {
+      "image": "Flux_gen_90506.webp",
+      "upload": "image"
+    },
+    "class_type": "LoadImage"
+  },
+  "48": {
+    "inputs": {
+      "strength": 1,
+      "strength_type": "multiply",
+      "conditioning": [
+        "26",
+        0
+      ],
+      "style_model": [
+        "42",
+        0
+      ],
+      "clip_vision_output": [
+        "45",
+        0
+      ]
+    },
+    "class_type": "StyleModelApply"
+  },
+  "49": {
+    "inputs": {
+      "ratio_selected": "5:8 [768x1216 portrait]",
+      "batch_size": 1
+    },
+    "class_type": "Empty Latent Ratio Select SDXL"
+  },
+  "51": {
+    "inputs": {
+      "conditioning_to": [
+        "48",
+        0
+      ],
+      "conditioning_from": [
+        "41",
+        0
+      ]
+    },
+    "class_type": "ConditioningConcat"
+  },
+  "52": {
+    "inputs": {
+      "Input": 2,
+      "input1": [
+        "44",
+        0
+      ],
+      "input2": [
+        "51",
+        0
+      ]
+    },
+    "class_type": "Conditioning Switch // RvTools"
+  },
+  "53": {
+    "inputs": {
+      "conditioning_to_strength": 1,
+      "conditioning_to": [
+        "52",
+        0
+      ],
+      "conditioning_from": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "ConditioningAverage"
+  },
+  "54": {
+    "inputs": {
+      "Input": 1,
+      "input1": [
+        "53",
+        0
+      ],
+      "input2": [
+        "55",
+        0
+      ]
+    },
+    "class_type": "Conditioning Switch // RvTools"
+  },
+  "55": {
+    "inputs": {
+      "conditioning_to": [
+        "52",
+        0
+      ],
+      "conditioning_from": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "ConditioningConcat"
+  },
+  "61": {
+    "inputs": {
+      "unet_name": "fluxFusionV24StepsGGUFNF4_V2Fp16.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader"
+  },
+  "65": {
+    "inputs": {
+      "output_path": "FLUX_Output\\Basic\\Flux_gen",
+      "filename_prefix": "redux",
+      "filename_delimiter": "_",
+      "filename_number_padding": 4,
+      "filename_number_start": false,
+      "extension": "png",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": true,
+      "lossless_webp": false,
+      "embed_workflow": true,
+      "save_generation_data": true,
+      "remove_prompts": false,
+      "save_workflow_as_json": false,
+      "show_previews": true,
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "Save Images // RvTools"
+  }
+}

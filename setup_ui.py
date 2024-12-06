@@ -82,6 +82,15 @@ class SetupUI:
         self.create_ai_tab()
         
     def create_bot_tab(self):
+        # Initialize StringVars if not already done
+        if not hasattr(self, 'allowed_servers'):
+            self.allowed_servers = tk.StringVar()
+        if not hasattr(self, 'channel_ids'):
+            self.channel_ids = tk.StringVar()
+            
+        # Load existing values before creating UI
+        self.load_existing_values()
+        
         # Directory Selection
         dir_frame = ttk.LabelFrame(self.bot_tab, text="ComfyUI Directory", padding=10)
         dir_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -138,13 +147,37 @@ class SetupUI:
         allowed_servers_frame = ttk.Frame(discord_config_frame)
         allowed_servers_frame.pack(fill=tk.X, pady=2)
         ttk.Label(allowed_servers_frame, text="Allowed Server IDs:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(allowed_servers_frame, textvariable=self.allowed_servers, width=40).pack(side=tk.LEFT, padx=5)
+        server_ids_entry = tk.Text(allowed_servers_frame, height=3, width=80)
+        server_ids_entry.pack(side=tk.LEFT, padx=5)
+        
+        # Set initial value from StringVar
+        if self.allowed_servers.get():
+            server_ids_entry.insert("1.0", self.allowed_servers.get())
+            
+        # Bind the Text widget to the StringVar
+        def update_allowed_servers(*args):
+            current_text = server_ids_entry.get("1.0", "end-1c")
+            if self.allowed_servers.get() != current_text:
+                self.allowed_servers.set(current_text)
+        server_ids_entry.bind('<KeyRelease>', update_allowed_servers)
         
         # Channel IDs
         channel_ids_frame = ttk.Frame(discord_config_frame)
         channel_ids_frame.pack(fill=tk.X, pady=2)
         ttk.Label(channel_ids_frame, text="Channel IDs:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(channel_ids_frame, textvariable=self.channel_ids, width=40).pack(side=tk.LEFT, padx=5)
+        channel_ids_entry = tk.Text(channel_ids_frame, height=3, width=80)
+        channel_ids_entry.pack(side=tk.LEFT, padx=5)
+        
+        # Set initial value from StringVar
+        if self.channel_ids.get():
+            channel_ids_entry.insert("1.0", self.channel_ids.get())
+            
+        # Bind the Text widget to the StringVar
+        def update_channel_ids(*args):
+            current_text = channel_ids_entry.get("1.0", "end-1c")
+            if self.channel_ids.get() != current_text:
+                self.channel_ids.set(current_text)
+        channel_ids_entry.bind('<KeyRelease>', update_channel_ids)
         
         # Bot Manager Role
         role_frame = ttk.Frame(discord_config_frame)
@@ -163,7 +196,7 @@ class SetupUI:
         workflow_files = []
         if os.path.exists(datasets_path):
             for file in os.listdir(datasets_path):
-                if file.endswith('.json') and file not in ['lora.json', 'ratios.json']:
+                if file.endswith('.json') and file not in ['lora.json', 'ratios.json', 'Redux.json', 'Reduxprompt.json']:
                     workflow_files.append(file)
         
         workflow_combo = ttk.Combobox(workflow_frame, textvariable=self.selected_checkpoint, 
@@ -268,32 +301,46 @@ class SetupUI:
         if not token:
             messagebox.showwarning("Token Required", f"Please enter a {token_type.upper()} token")
             return False
-            
+        
         try:
             if token_type == "hf":
-                # Validate HuggingFace token
-                response = requests.get(
-                    "https://huggingface.co/api/whoami",
-                    headers={"Authorization": f"Bearer {token}"}
-                )
-                if response.status_code == 200:
-                    messagebox.showinfo("Success", "HuggingFace token is valid!")
+                # First check if we've already successfully downloaded files
+                if hasattr(self.setup_manager, 'download_success') and self.setup_manager.download_success:
+                    messagebox.showinfo("Success", "Token has been verified through successful downloads!")
                     return True
-                else:
-                    messagebox.showerror("Error", f"Invalid HuggingFace token: {response.text}")
-                    return False
+                    
+                # Try file access without API validation
+                headers = {'Authorization': f'Bearer {token}'}
+                test_url = 'https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/ae.safetensors'
+                
+                try:
+                    response = requests.head(test_url, headers=headers, allow_redirects=True, verify=False)
+                    if response.status_code == 200:
+                        messagebox.showinfo("Success", "HuggingFace token is valid!")
+                        return True
+                except:
+                    pass
+                
+                # Only try API validation as a last resort
+                try:
+                    api = HfApi(token=token)
+                    user = api.whoami()
+                    if user is not None:
+                        messagebox.showinfo("Success", "HuggingFace token is valid!")
+                        return True
+                except:
+                    pass
+                
+                messagebox.showerror("Error", "Could not validate token. However, if you're able to download files, you can proceed with the installation.")
+                return False
                     
             elif token_type == "civitai":
-                # Validate CivitAI token
-                response = requests.get(
-                    "https://civitai.com/api/v1/user/me",
-                    headers={"Authorization": f"Bearer {token}"}
-                )
-                if response.status_code == 200:
+                # Use SetupManager's CivitAI validation
+                if self.setup_manager.validate_civitai_token(token):
                     messagebox.showinfo("Success", "CivitAI token is valid!")
                     return True
                 else:
-                    messagebox.showerror("Error", f"Invalid CivitAI token: {response.text}")
+                    messagebox.showerror("Error", "Invalid CivitAI token. Check the logs for details.")
                     return False
                     
         except Exception as e:
@@ -407,11 +454,16 @@ class SetupUI:
             env_vars['OPENAI_API_KEY'] = self.openai_api_key.get()
             
             # Save all values
-            self.setup_manager.save_env(env_vars)
-            logger.info("AI configuration saved successfully")
+            if self.setup_manager.save_env(env_vars):
+                logger.info("AI configuration saved successfully")
+                messagebox.showinfo("Success", "AI configuration saved successfully!")
+            else:
+                logger.error("Failed to save AI configuration")
+                messagebox.showerror("Error", "Failed to save AI configuration")
             
         except Exception as e:
             logger.error(f"Error saving AI configuration: {str(e)}")
+            messagebox.showerror("Error", f"Error saving AI configuration: {str(e)}")
             raise
             
     def update_progress(self, value, status=""):

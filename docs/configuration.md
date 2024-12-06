@@ -58,8 +58,8 @@
    ```
 
 <div align="center">
-  <img src="../setuptool.jpg" width="500" alt="Setup Tool Interface">
-  <img src="../setuptool2.jpg" width="500" alt="Setup Tool Interface">
+  <img src="../docs/setuptool.jpg" width="500" alt="Setup Tool Interface">
+  <img src="../docs/setuptool2.jpg" width="500" alt="Setup Tool Interface">
 </div>
 
 #### 📝 Configuration Details
@@ -83,10 +83,13 @@
    - ComfyUI Server: Same as bot (use remote IP if on different machine)
 
 4. **Discord Settings**
-   - Server IDs: Right-click server → Copy ID
-   - Channel IDs: Right-click channel → Copy ID
+   - Server IDs: Right-click server → Copy ID (e.g., `123456789,987654321,654321987`)
+   - Channel IDs: Right-click channel → Copy ID (e.g., `123456789,987654321,654321987`)
    - Multiple IDs: Use comma separation (e.g., `123456789,987654321`)
-   - Bot Manager Role ID (optional): For bot administration
+   - BOT_MANAGER_ROLE_ID (optional): For bot administration
+     - This role is not required for the bot to work. It's an optional configuration that provides an additional
+      way to grant certain users bot management permissions without giving them full Discord admin rights.    
+      If you don't set it, the bot will still function normally - only Discord administrators will be able to use the administrative commands.
 
 5. **Model Selection**
    - Choose checkpoint based on GPU VRAM:
@@ -106,6 +109,7 @@ pyinstaller setup.spec --clean --noconfirm
 
 # Build LoRA Editor
 pyinstaller LoraEditor.spec --clean --noconfirm
+# requires UPX for compression or executeable will be extremely large
 ```
 
 #### ⚠️ Important Notes

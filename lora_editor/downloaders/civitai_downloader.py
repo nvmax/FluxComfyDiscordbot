@@ -12,7 +12,12 @@ class CivitAIDownloader:
     def __init__(self, progress_callback=None):
         self.progress_callback = progress_callback
         civitai_token = os.getenv('CIVITAI_API_TOKEN')
-        self.headers = {'Authorization': f'Bearer {civitai_token}'} if civitai_token else {}
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Referer': 'https://civitai.com/'
+        }
+        if civitai_token:
+            self.headers['Authorization'] = f'Bearer {civitai_token}'
 
     def get_download_url(self, url: str) -> tuple:
         """Get download URL and model info from CivitAI model page URL
@@ -21,62 +26,104 @@ class CivitAIDownloader:
         """
         try:
             # Extract model ID and version ID from URL
-            model_id_match = re.search(r'models/(\d+)', url)
-            version_match = re.search(r'modelVersionId=(\d+)', url)
+            logger.info(f"Processing URL: {url}")
             
-            if not model_id_match:
-                raise ValueError("Could not extract model ID from URL")
-            
-            model_id = model_id_match.group(1)
-            version_id = version_match.group(1) if version_match else None
-            
-            # First get the specific version info if we have a version ID
-            if version_id:
+            # Handle both web URLs and direct API URLs
+            if 'api/v1/model-versions/' in url:
+                version_id = url.split('model-versions/')[-1].split('?')[0]
+                logger.info(f"Direct API URL detected, version_id: {version_id}")
                 version_api_url = f'https://civitai.com/api/v1/model-versions/{version_id}'
                 version_response = requests.get(version_api_url, headers=self.headers)
                 version_response.raise_for_status()
                 version_data = version_response.json()
+                logger.info(f"Response status code: {version_response.status_code}")
+                logger.info(f"Version data keys: {version_data.keys() if version_data else 'None'}")
+                if 'files' in version_data:
+                    logger.info(f"Files in version data: {[f.get('name', 'unnamed') for f in version_data['files']]}")
+                model_id = str(version_data.get('modelId'))
+                logger.info(f"Retrieved model_id from API: {model_id}")
             else:
-                # Get model info from API
-                api_url = f'https://civitai.com/api/v1/models/{model_id}'
-                response = requests.get(api_url, headers=self.headers)
-                response.raise_for_status()
-                model_data = response.json()
-                version_data = model_data['modelVersions'][0]  # Latest version is first
+                model_id_match = re.search(r'models/(\d+)', url)
+                version_match = re.search(r'modelVersionId=(\d+)', url)
+                
+                if not model_id_match:
+                    logger.error("Could not extract model ID from URL")
+                    raise ValueError("Could not extract model ID from URL")
+                
+                model_id = model_id_match.group(1)
+                version_id = version_match.group(1) if version_match else None
+                logger.info(f"Extracted from web URL - model_id: {model_id}, version_id: {version_id}")
+                
+                if version_id:
+                    version_api_url = f'https://civitai.com/api/v1/model-versions/{version_id}'
+                    logger.info(f"Fetching version data from: {version_api_url}")
+                    version_response = requests.get(version_api_url, headers=self.headers)
+                    version_response.raise_for_status()
+                    version_data = version_response.json()
+                    logger.info(f"Response status code: {version_response.status_code}")
+                    logger.info(f"Version data keys: {version_data.keys() if version_data else 'None'}")
+                    if 'files' in version_data:
+                        logger.info(f"Files in version data: {[f.get('name', 'unnamed') for f in version_data['files']]}")
+                else:
+                    api_url = f'https://civitai.com/api/v1/models/{model_id}'
+                    logger.info(f"Fetching model data from: {api_url}")
+                    response = requests.get(api_url, headers=self.headers)
+                    response.raise_for_status()
+                    model_data = response.json()
+                    version_data = model_data.get('modelVersions', [{}])[0]
             
             # Extract trigger words
             trigger_words = ""
-            if 'trainedWords' in version_data:
+            if version_data and 'trainedWords' in version_data:
                 trigger_words = ", ".join(version_data['trainedWords'])
+                logger.info(f"Found trigger words: {trigger_words}")
 
-            # Extract recommended weight from image metadata
+            # Extract recommended weight
             recommended_weight = 1.0  # Default weight
             
-            if 'images' in version_data and version_data['images']:
-                # Look through images for one with metadata containing resources
+            if version_data and 'images' in version_data and version_data['images']:
+                logger.info("Found images in version data")
                 for image in version_data['images']:
-                    if 'meta' in image and 'resources' in image['meta']:
-                        for resource in image['meta']['resources']:
+                    meta = image.get('meta')
+                    if meta and 'resources' in meta:
+                        for resource in meta['resources']:
                             if resource.get('type') == 'lora' and 'weight' in resource:
                                 recommended_weight = float(resource['weight'])
+                                logger.info(f"Found recommended weight: {recommended_weight}")
                                 break
-                        if recommended_weight != 1.0:  # If we found a weight, stop looking
+                        if recommended_weight != 1.0:
                             break
 
-            # Find the first .safetensors file
+            # Find download URL
             download_url = None
-            for file in version_data['files']:
-                if file['name'].endswith('.safetensors'):
-                    download_url = file['downloadUrl']
-                    break
+            if version_data:
+                if 'downloadUrl' in version_data:
+                    logger.info("Found direct download URL in version data")
+                    download_url = version_data['downloadUrl']
+                elif 'files' in version_data:
+                    logger.info(f"Found {len(version_data['files'])} files in version data")
+                    for file in version_data['files']:
+                        logger.info(f"Checking file: {file.get('name', 'unnamed')}")
+                        if file.get('name', '').endswith('.safetensors'):
+                            download_url = file.get('downloadUrl')
+                            if download_url:
+                                logger.info(f"Found download URL in file: {file['name']}")
+                                break
+                else:
+                    logger.error("No files found in version data")
+            else:
+                logger.error("Version data is None")
             
             if not download_url:
+                logger.error("No download URL found in version data")
                 raise ValueError("No .safetensors file found in model files")
-                
+            
+            logger.info(f"Final download URL: {download_url}")
             return download_url, trigger_words, recommended_weight
             
         except Exception as e:
-            logger.error(f"Error getting download URL: {e}")
+            logger.error(f"Error getting download URL: {str(e)}")
+            logger.exception("Full traceback:")
             raise
 
     def download_file(self, url: str, dest_folder: str) -> str:

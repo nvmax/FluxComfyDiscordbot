@@ -665,8 +665,9 @@ class LoraEditor:
                 self.root.after(0, lambda: self.on_download_complete(file_name, url, trigger_words, recommended_weight))
                 
             except Exception as e:
-                logger.error(f"Error downloading from CivitAI: {e}")
-                self.root.after(0, lambda: messagebox.showerror("Download Error", str(e)))
+                error_msg = str(e)
+                logger.error(f"Error downloading from CivitAI: {error_msg}")
+                self.root.after(0, lambda: messagebox.showerror("Download Error", error_msg))
             finally:
                 self.root.after(0, lambda: self.progress_frame.pack_forget())
                 self.root.after(0, lambda: self.civitai_url_var.set(""))

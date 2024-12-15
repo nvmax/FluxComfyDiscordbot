@@ -2,10 +2,30 @@ import sqlite3
 import json
 import logging
 import time
+import os
+import re
 
 logger = logging.getLogger(__name__)
 
 DB_NAME = 'image_history.db'
+BANNED_WORDS_FILE = os.path.join(os.path.dirname(__file__), 'banned.json')
+
+def load_banned_words_from_json():
+    try:
+        with open(BANNED_WORDS_FILE, 'r') as f:
+            words = json.load(f)
+            # Normalize all words from the JSON file
+            return [normalize_text(word) for word in words]
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.error(f"Error loading banned words from JSON: {e}")
+        return []
+
+def save_banned_words_to_json(words):
+    try:
+        with open(BANNED_WORDS_FILE, 'w') as f:
+            json.dump(sorted(list(set(words))), f, indent=4)
+    except Exception as e:
+        logger.error(f"Error saving banned words to JSON: {e}")
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -39,6 +59,12 @@ def init_db():
                   word TEXT,
                   warned_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     
+    conn.commit()
+    
+    # Load banned words from JSON and sync with database
+    banned_words = load_banned_words_from_json()
+    for word in banned_words:
+        c.execute("INSERT OR IGNORE INTO banned_words (word) VALUES (?)", (word,))
     conn.commit()
     conn.close()
 
@@ -163,18 +189,36 @@ def get_banned_words():
     return words
 
 def add_banned_word(word: str):
+    """Add a new banned word to both database and JSON file"""
+    # Normalize the word before storing
+    normalized_word = normalize_text(word)
+    
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("INSERT OR IGNORE INTO banned_words (word) VALUES (?)", (word.lower(),))
+    c.execute("INSERT OR IGNORE INTO banned_words (word) VALUES (?)", (normalized_word,))
     conn.commit()
     conn.close()
+    
+    # Update JSON file
+    current_words = get_banned_words()
+    save_banned_words_to_json(current_words)
+    logger.debug(f"Added banned word and updated JSON: {word}")
 
 def remove_banned_word(word: str):
+    """Remove a banned word from both database and JSON file"""
+    # Normalize the word before removing
+    normalized_word = normalize_text(word)
+    
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("DELETE FROM banned_words WHERE word = ?", (word.lower(),))
+    c.execute("DELETE FROM banned_words WHERE word = ?", (normalized_word,))
     conn.commit()
     conn.close()
+    
+    # Update JSON file
+    current_words = get_banned_words()
+    save_banned_words_to_json(current_words)
+    logger.debug(f"Removed banned word and updated JSON: {word}")
 
 def add_user_warning(user_id: str, prompt: str, word: str):
     conn = sqlite3.connect(DB_NAME)
@@ -316,3 +360,39 @@ def load_lora_info():
 
 # You can call this function to get the LoRA information when needed
 lora_info = load_lora_info()
+
+def normalize_text(text: str) -> str:
+    """
+    Normalize text by removing special characters and converting to lowercase.
+    This helps detect obfuscated words like 'Ch!ld' or 'C.h.i.l.d'
+    """
+    # Convert to lowercase
+    text = text.lower()
+    # Remove all non-alphanumeric characters
+    text = re.sub(r'[^a-z0-9\s]', '', text)
+    # Remove extra spaces
+    text = ' '.join(text.split())
+    return text
+
+def contains_banned_word(text: str) -> tuple[bool, list[str]]:
+    """
+    Check if text contains any banned words, accounting for obfuscation attempts.
+    Returns a tuple of (bool, list of matched words)
+    """
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT word FROM banned_words")
+    banned_words = [row[0] for row in c.fetchall()]
+    conn.close()
+
+    # Normalize the input text
+    normalized_text = normalize_text(text)
+    found_words = []
+
+    # Check each word in the normalized text against normalized banned words
+    for banned_word in banned_words:
+        normalized_banned = normalize_text(banned_word)
+        if normalized_banned in normalized_text:
+            found_words.append(banned_word)
+
+    return bool(found_words), found_words

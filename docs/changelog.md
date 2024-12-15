@@ -2,6 +2,13 @@
 
 ## Latest Updates
 
+### December 15, 2024
+  **Banned words list**
+  - Updated the banned words list to include a list of common profanities and sensitive terms to avoid discord flagging and banning.
+  - User can add new words to the list or use the `/add_banned_word` command in discord to add words manually.
+  - Remember USERS ARE 100% RESPONSIBLE FOR WHAT THEY POST IN DISCORD, Generated images that contain sensitive content may result in a permanent ban from discord.
+  - Please make sure your users are well aware of the banned words list and discords policies.
+
 ### December 6, 2024
 #### New Features
 - **Flux Redux**

@@ -1,9 +1,9 @@
-# 🔄 Changelog
+# Changelog
 
-## 🌟 Latest Updates
+## Latest Updates
 
 ### December 6, 2024
-#### ✨ New Features
+#### New Features
 - **Flux Redux**
   - /redux command to generate an image using two reference images
   - /reduxprompt command to generate an image using a reference image and prompt
@@ -27,8 +27,27 @@
   - updated workflows in Datasets to support new clip models
   - updated Lora Editor and made it more user friendly and robust
 
+#### Example of /redux command
+
+<div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; margin: 20px 0;">
+  <div style="text-align: center; border: 2px solid #ddd; border-radius: 10px; padding: 15px; background-color: #f8f9fa;">
+    <h4 style="margin: 0 0 10px 0; color: #333;">Original Image</h4>
+    <img src="redux1.png" alt="Original Image" width="600" style="border-radius: 5px;">
+  </div>
+  
+  <div style="text-align: center; border: 2px solid #ddd; border-radius: 10px; padding: 15px; background-color: #f8f9fa;">
+    <h4 style="margin: 0 0 10px 0; color: #333;">Style Reference</h4>
+    <img src="redux2.png" alt="Style Reference" height="600" style="border-radius: 5px;">
+  </div>
+  
+  <div style="text-align: center; border: 2px solid #ddd; border-radius: 10px; padding: 15px; background-color: #f8f9fa;">
+    <h4 style="margin: 0 0 10px 0; color: #333;">Final Result</h4>
+    <img src="redux3.png" alt="Final Result" width="600" style="border-radius: 5px;">
+  </div>
+</div>
+
 ### November 16, 2024
-#### ✨ New Features
+#### New Features
 - **Enhanced LoRA Weight Management**
   - Automatic weight scaling for multiple LoRAs
   - Full weight utilization for single LoRA selections
@@ -45,7 +64,7 @@
   - Enhanced user experience
 
 ### November 11, 2024
-#### 🔧 Technical Updates
+#### Technical Updates
 - **Numpy 2 Compatibility**
   - Fixed workflow loading errors
   - Modified file system for compatibility
@@ -61,7 +80,7 @@
   - Better update status verification
   - Enhanced reliability
 
-## 📋 Previous Versions
+## Previous Versions
 
 ### October 2024
 [To be added]
@@ -71,7 +90,7 @@
 
 ---
 
-## 📝 Update Notes
+## Update Notes
 - All updates are tested thoroughly before release
 - Backup your configurations before major updates
 - Check compatibility with your current setup

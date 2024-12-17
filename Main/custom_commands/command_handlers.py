@@ -144,19 +144,46 @@ class CreativityModal(discord.ui.Modal, title='Select Creativity Level'):
 
             await interaction.response.defer(ephemeral=True)
             
-            # Clean the base prompt before processing
-            base_prompt = re.sub(r'\s*\(Timestamp:.*?\)', '', self.original_prompt)
+            # Use PromptEnhancer directly
+            from LMstudio_bot.lora_manager.prompt_enhancer import PromptEnhancer
+            enhancer = PromptEnhancer()
             
-            # Clean prompt of any existing LoRA trigger words
+            # Clean prompt of any existing LoRA trigger words and timestamps
+            base_prompt = re.sub(r'\s*\(Timestamp:.*?\)', '', self.original_prompt)
             lora_config = load_json('lora.json')
+            
+            # Remove existing LoRA trigger words from base prompt
             for lora in lora_config['available_loras']:
-                if lora.get('add_prompt'):
-                    base_prompt = base_prompt.replace(lora['add_prompt'], '').strip()
+                if lora.get('prompt'):
+                    base_prompt = base_prompt.replace(lora['prompt'], '').strip()
             
             # Clean up multiple commas and whitespace
             base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
             
-            logger.debug(f"Cleaned prompt (before LoRA selection): {base_prompt}")
+            if ENABLE_PROMPT_ENHANCEMENT:
+                # Enhance the cleaned prompt
+                enhanced_prompt = enhancer.enhance_prompt(
+                    base_prompt,
+                    {"name": "default", "description": "Default prompt enhancement", "keywords": []},
+                    creativity=creativity_level
+                )
+                
+                if not enhanced_prompt:
+                    enhanced_prompt = base_prompt
+                    logger.warning("No enhanced prompt generated, using original")
+
+                # Show the original and enhanced prompts (without LoRA trigger words)
+                await interaction.followup.send(
+                    f"Original prompt: {self.original_prompt}\n"
+                    f"Enhanced prompt (before LoRA): {enhanced_prompt}\n"
+                    "Proceeding to LoRA selection...",
+                    ephemeral=True
+                )
+            else:
+                enhanced_prompt = base_prompt
+                logger.info("Prompt enhancement disabled, using original prompt")
+            
+            logger.debug(f"Final prompt before LoRA selection: {enhanced_prompt}")
             
             # Show LoRA selection view
             lora_view = LoRAView(interaction.client)
@@ -188,22 +215,18 @@ class CreativityModal(discord.ui.Modal, title='Select Creativity Level'):
                     (l for l in lora_config['available_loras'] if l['file'] == lora_file),
                     None
                 )
-                logger.debug(f"Processing LoRA: {lora_file}, Info: {lora_info}")
                 if lora_info and lora_info.get('add_prompt') and lora_info['add_prompt'].strip():
                     additional_prompts.append(lora_info['add_prompt'].strip())
-                    logger.debug(f"Added trigger word: {lora_info['add_prompt'].strip()}")
-            
-            logger.debug(f"New trigger words to add: {additional_prompts}")
             
             # Construct final prompt with new trigger words
-            full_prompt = base_prompt
+            full_prompt = enhanced_prompt
             if additional_prompts:
                 if not full_prompt.endswith(','):
                     full_prompt += ','
                 full_prompt += ' ' + ', '.join(additional_prompts)
             
             full_prompt = full_prompt.strip(' ,')
-            logger.debug(f"Final prompt with new LoRA triggers: {full_prompt}")
+            logger.debug(f"Final prompt with LoRA triggers: {full_prompt}")
             
             # Use the seed from instance variable, or generate new one if None
             current_seed = self.seed if self.seed is not None else generate_random_seed()

@@ -104,7 +104,7 @@ class LoraFileHandler(FileSystemEventHandler):
             self.processing = True
             
         try:
-            lora_path = Path('Main/DataSets/lora.json')
+            lora_path = Path('lora.json')
             if not self.is_valid_json(str(lora_path)):
                 logger.error("Invalid lora.json file")
                 if self.last_valid_config:
@@ -154,9 +154,9 @@ def setup_lora_monitor(bot) -> None:
         event_handler = LoraFileHandler(bot)
         observer = Observer()
         
-        datasets_path = Path('Main/DataSets')
+        datasets_path = Path('Datasets')
         if not datasets_path.exists():
-            logger.error(f"DataSets directory not found: {datasets_path}")
+            logger.error(f"Datasets directory not found: {datasets_path}")
             return
             
         observer.schedule(event_handler, str(datasets_path), recursive=False)

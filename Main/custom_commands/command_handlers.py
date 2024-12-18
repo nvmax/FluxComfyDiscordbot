@@ -11,7 +11,7 @@ import re
 import os
 from typing import Optional
 from config import BOT_MANAGER_ROLE_ID, CHANNEL_IDS, ENABLE_PROMPT_ENHANCEMENT
-from .views import ReduxPromptModal, ReduxImageView, LoRAView
+from .views import ReduxPromptModal, ReduxImageView, LoRAView, LoraInfoView
 from .models import RequestItem, ReduxRequestItem, ReduxPromptRequestItem
 
 from Main.database import (
@@ -34,14 +34,14 @@ def has_admin_or_bot_manager_role():
         has_role = any(role.id == BOT_MANAGER_ROLE_ID for role in interaction.user.roles)
         if is_admin or has_role:
             return True
-        await interaction.response.send("You don't have permission to use this command.", ephemeral=True)
+        await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
         return False
     return app_commands.check(predicate)
 
 def in_allowed_channel():
     async def predicate(interaction: discord.Interaction):
         if interaction.channel_id not in CHANNEL_IDS:
-            await interaction.followup.send("This command can only be used in specific channels.", ephemeral=True)
+            await interaction.followup.send_message("This command can only be used in specific channels.", ephemeral=True)
             return False
         return True
     return app_commands.check(predicate)
@@ -80,7 +80,7 @@ async def setup_commands(bot: discord_commands.Bot):
         try:
             # Check if channel is allowed
             if interaction.channel_id not in bot.allowed_channels:
-                await interaction.response.send(
+                await interaction.response.send_message(
                     "This command can only be used in specific channels.",
                     ephemeral=True
                 )
@@ -92,7 +92,7 @@ async def setup_commands(bot: discord_commands.Bot):
 
         except Exception as e:
             logger.error(f"Error in reduxprompt command: {str(e)}")
-            await interaction.response.send(
+            await interaction.response.send_message(
                 f"An error occurred: {str(e)}",
                 ephemeral=True
             )
@@ -136,7 +136,7 @@ class CreativityModal(discord.ui.Modal, title='Select Creativity Level'):
         try:
             creativity_level = int(self.creativity.value)
             if not 1 <= creativity_level <= 10:
-                await interaction.followup.send(
+                await interaction.followup.send_message(
                     "Creativity level must be between 1 and 10, Default is 1.", 
                     ephemeral=True
                 )
@@ -173,7 +173,7 @@ class CreativityModal(discord.ui.Modal, title='Select Creativity Level'):
                     logger.warning("No enhanced prompt generated, using original")
 
                 # Show the original and enhanced prompts (without LoRA trigger words)
-                await interaction.followup.send(
+                await interaction.followup.send_message(
                     f"Original prompt: {self.original_prompt}\n"
                     f"Enhanced prompt (before LoRA): {enhanced_prompt}\n"
                     "Proceeding to LoRA selection...",
@@ -187,7 +187,7 @@ class CreativityModal(discord.ui.Modal, title='Select Creativity Level'):
             
             # Show LoRA selection view
             lora_view = LoRAView(interaction.client)
-            lora_message = await interaction.followup.send(
+            lora_message = await interaction.followup.send_message(
                 "Please select the LoRAs you want to use:",
                 view=lora_view,
                 ephemeral=True
@@ -246,7 +246,7 @@ class CreativityModal(discord.ui.Modal, title='Select Creativity Level'):
             workflow_filename = f'flux3_{request_uuid}.json'
             save_json(workflow_filename, workflow)
 
-            original_message = await interaction.followup.send(
+            original_message = await interaction.followup.send_message(
                 "🔄 Starting generation process...",
                 ephemeral=False
             )
@@ -267,13 +267,13 @@ class CreativityModal(discord.ui.Modal, title='Select Creativity Level'):
             await interaction.client.subprocess_queue.put(request_item)
             
         except ValueError:
-            await interaction.followup.send(
+            await interaction.followup.send_message(
                 "Please enter a valid number between 1 and 10 for creativity level.",
                 ephemeral=True
             )
         except Exception as e:
             logger.error(f"Error in creativity modal: {str(e)}", exc_info=True)
-            await interaction.followup.send(
+            await interaction.followup.send_message(
                 f"An error occurred: {str(e)}",
                 ephemeral=True
             )
@@ -286,14 +286,14 @@ async def setup_commands(bot: discord_commands.Bot):
             loras_data = load_json('lora.json')
             available_loras = loras_data.get('available_loras', [])
             view = LoraInfoView(available_loras)
-            await interaction.response.send(
+            await interaction.response.send_message(
                 content=view.get_page_content(),
                 view=view,
                 ephemeral=True
             )
         except Exception as e:
             logger.error(f"Error in lorainfo command: {str(e)}")
-            await interaction.response.send("An error occurred while fetching Lora information.", ephemeral=True)
+            await interaction.response.send_message("An error occurred while fetching Lora information.", ephemeral=True)
 
     @bot.tree.command(name="comfy", description="Generate an image based on a prompt.")
     @in_allowed_channel()
@@ -318,7 +318,7 @@ async def setup_commands(bot: discord_commands.Bot):
             # Check for banned status first
             is_banned, ban_message = check_banned(str(interaction.user.id), prompt)
             if is_banned:
-                await interaction.followup.send(ban_message, ephemeral=True)
+                await interaction.followup.send_message(ban_message, ephemeral=True)
                 return
 
             if ENABLE_PROMPT_ENHANCEMENT:
@@ -327,7 +327,7 @@ async def setup_commands(bot: discord_commands.Bot):
                         interaction.client.ai_provider = AIProviderFactory.get_provider(AI_PROVIDER)
                     except Exception as e:
                         logger.error(f"Failed to initialize AI provider: {e}")
-                        await interaction.followup.send(
+                        await interaction.followup.send_message(
                             "Prompt enhancement is enabled but the AI provider could not be initialized. "
                             "Please contact an administrator.",
                             ephemeral=True
@@ -343,67 +343,67 @@ async def setup_commands(bot: discord_commands.Bot):
         except Exception as e:
             logger.error(f"Error in comfy command: {str(e)}")
             if not interaction.response.is_done():
-                await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
+                await interaction.followup.send_message(f"An error occurred: {str(e)}", ephemeral=True)
             else:
-                await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
+                await interaction.followup.send_message(f"An error occurred: {str(e)}", ephemeral=True)
 
     @bot.tree.command(name="reboot", description="Reboot the bot (Restricted to specific admin)")
     async def reboot(interaction: discord.Interaction):
         if interaction.user.id == BOT_MANAGER_ROLE_ID:
-            await interaction.followup.send("Rebooting bot...", ephemeral=True)
+            await interaction.followup.send_message("Rebooting bot...", ephemeral=True)
             await bot.close()
             os.execv(sys.executable, ['python'] + sys.argv)
         else:
-            await interaction.followup.send("You don't have permission.", ephemeral=True)
+            await interaction.followup.send_message("You don't have permission.", ephemeral=True)
 
     @bot.tree.command(name="add_banned_word", description="Add a word to the banned list")
     @app_commands.checks.has_permissions(administrator=True)
     async def add_banned_word_command(interaction: discord.Interaction, word: str):
         word = word.lower()
         add_banned_word(word)
-        await interaction.followup.send(f"Added '{word}' to the banned words list.", ephemeral=True)
+        await interaction.followup.send_message(f"Added '{word}' to the banned words list.", ephemeral=True)
 
     @bot.tree.command(name="remove_banned_word", description="Remove a word from the banned list")
     @app_commands.checks.has_permissions(administrator=True)
     async def remove_banned_word_command(interaction: discord.Interaction, word: str):
         word = word.lower()
         remove_banned_word(word)
-        await interaction.response.send(f"Removed '{word}' from the banned words list.", ephemeral=True)
+        await interaction.response.send_message(f"Removed '{word}' from the banned words list.", ephemeral=True)
 
     @bot.tree.command(name="list_banned_words", description="List all banned words")
     @app_commands.checks.has_permissions(administrator=True)
     async def list_banned_words(interaction: discord.Interaction):
         banned_words = get_banned_words()
         if banned_words:
-            await interaction.response.send(f"Banned words: {', '.join(banned_words)}", ephemeral=True)
+            await interaction.response.send_message(f"Banned words: {', '.join(banned_words)}", ephemeral=True)
         else:
-            await interaction.response.send("There are no banned words.", ephemeral=True)
+            await interaction.response.send_message("There are no banned words.", ephemeral=True)
 
     @bot.tree.command(name="ban_user", description="Ban a user from using the comfy command")
     @app_commands.checks.has_permissions(administrator=True)
     async def ban_user_command(interaction: discord.Interaction, user: discord.User, reason: str):
         ban_user(str(user.id), reason)
-        await interaction.response.send(f"Banned {user.name} from using the comfy command. Reason: {reason}", ephemeral=True)
+        await interaction.response.send_message(f"Banned {user.name} from using the comfy command. Reason: {reason}", ephemeral=True)
 
     @bot.tree.command(name="unban_user", description="Unban a user from using the comfy command")
     @app_commands.checks.has_permissions(administrator=True)
     async def unban_user_command(interaction: discord.Interaction, user: discord.User):
         if unban_user(str(user.id)):
-            await interaction.response.send(f"Unbanned {user.name} from using the comfy command.", ephemeral=True)
+            await interaction.response.send_message(f"Unbanned {user.name} from using the comfy command.", ephemeral=True)
         else:
-            await interaction.response.send(f"{user.name} is not banned from using the comfy command.", ephemeral=True)
+            await interaction.response.send_message(f"{user.name} is not banned from using the comfy command.", ephemeral=True)
 
     @bot.tree.command(name="whybanned", description="Check why a user was banned")
     @app_commands.checks.has_permissions(administrator=True)
     async def whybanned(interaction: discord.Interaction, user: discord.User):
         ban_info = get_ban_info(str(user.id))
         if ban_info:
-            await interaction.response.send(
+            await interaction.response.send_message(
                 f"{user.name} was banned on {ban_info['banned_at']} for the following reason: {ban_info['reason']}", 
                 ephemeral=True
             )
         else:
-            await interaction.response.send(f"{user.name} is not banned.", ephemeral=True)
+            await interaction.response.send_message(f"{user.name} is not banned.", ephemeral=True)
 
     @bot.tree.command(name="list_banned_users", description="List all banned users")
     @app_commands.checks.has_permissions(administrator=True)
@@ -419,9 +419,9 @@ async def setup_commands(bot: discord_commands.Bot):
                 f"User ID: {user[0]}, Reason: {user[1]}, Banned at: {user[2]}" 
                 for user in banned_users
             ])
-            await interaction.response.send(f"Banned users:\n{banned_list}", ephemeral=True)
+            await interaction.response.send_message(f"Banned users:\n{banned_list}", ephemeral=True)
         else:
-            await interaction.response.send("There are no banned users.", ephemeral=True)
+            await interaction.response.send_message("There are no banned users.", ephemeral=True)
 
     @bot.tree.command(name="remove_warning", description="Remove all warnings from a user")
     @app_commands.checks.has_permissions(administrator=True)
@@ -429,18 +429,18 @@ async def setup_commands(bot: discord_commands.Bot):
         try:
             success, message = remove_user_warnings(str(user.id))
             if success:
-                await interaction.followup.send(
+                await interaction.followup.send_message(
                     f"Successfully removed all warnings from {user.name} ({user.id}).\n{message}", 
                     ephemeral=True
                 )
             else:
-                await interaction.followup.send(
+                await interaction.followup.send_message(
                     f"Could not remove warnings from {user.name} ({user.id}).\n{message}", 
                     ephemeral=True
                 )
         except Exception as e:
             logger.error(f"Error in remove_warning command: {str(e)}")
-            await interaction.followup.send(
+            await interaction.followup.send_message(
                 f"An error occurred while removing warnings: {str(e)}", 
                 ephemeral=True
             )
@@ -456,7 +456,7 @@ async def setup_commands(bot: discord_commands.Bot):
             success, result = get_all_warnings()
             
             if not success:
-                await interaction.followup.send(result, ephemeral=True)
+                await interaction.followup.send_message(result, ephemeral=True)
                 return
             
             embeds = []
@@ -497,12 +497,12 @@ async def setup_commands(bot: discord_commands.Bot):
                 embeds.append(embed)
             
             if len(embeds) == 0:
-                await interaction.followup.send("No warnings found in the database.", ephemeral=True)
+                await interaction.followup.send_message("No warnings found in the database.", ephemeral=True)
                 return
                 
             # If only one embed, send it without navigation
             if len(embeds) == 1:
-                await interaction.followup.send(embed=embeds[0], ephemeral=True)
+                await interaction.followup.send_message(embed=embeds[0], ephemeral=True)
             else:
                 # Create navigation view for multiple embeds
                 class NavigationView(discord.ui.View):
@@ -513,7 +513,7 @@ async def setup_commands(bot: discord_commands.Bot):
                     @discord.ui.button(label="◀️ Previous", style=discord.ButtonStyle.gray)
                     async def previous_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
                         if button_interaction.user.id != interaction.user.id:
-                            await button_interaction.response.send(
+                            await button_interaction.response.send_message(
                                 "You cannot use these buttons.", 
                                 ephemeral=True
                             )
@@ -527,7 +527,7 @@ async def setup_commands(bot: discord_commands.Bot):
                     @discord.ui.button(label="Next ▶️", style=discord.ButtonStyle.gray)
                     async def next_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
                         if button_interaction.user.id != interaction.user.id:
-                            await button_interaction.response.send(
+                            await button_interaction.response.send_message(
                                 "You cannot use these buttons.", 
                                 ephemeral=True
                             )
@@ -551,17 +551,17 @@ async def setup_commands(bot: discord_commands.Bot):
                 view = NavigationView()
                 first_embed = embeds[0]
                 first_embed.set_footer(text=f"Page 1/{len(embeds)}")
-                await interaction.followup.send(embed=first_embed, view=view, ephemeral=True)
+                await interaction.followup.send_message(embed=first_embed, view=view, ephemeral=True)
                     
         except Exception as e:
             logger.error(f"Error in check_warnings command: {str(e)}", exc_info=True)
             if interaction.response.is_done():
-                await interaction.followup.send(
+                await interaction.followup.send_message(
                     f"An error occurred while checking warnings: {str(e)}", 
                     ephemeral=True
                 )
             else:
-                await interaction.response.send(
+                await interaction.response.send_message(
                     f"An error occurred while checking warnings: {str(e)}", 
                     ephemeral=True
                 )
@@ -572,15 +572,15 @@ async def setup_commands(bot: discord_commands.Bot):
         try:
             await interaction.response.defer(ephemeral=True)
             synced = await bot.tree.sync()
-            await interaction.followup.send(f"Synced {len(synced)} commands.")
+            await interaction.followup.send_message(f"Synced {len(synced)} commands.")
             logger.info(f"Synced {len(synced)} commands")
         except discord.app_commands.errors.CheckFailure as e:
             logger.error(f"Check failure in sync_commands: {str(e)}", exc_info=True)
-            await interaction.followup.send("You don't have permission to use this command.", 
+            await interaction.followup.send_message("You don't have permission to use this command.", 
                                           ephemeral=True)
         except Exception as e:
             logger.error(f"Error in sync_commands: {str(e)}", exc_info=True)
-            await interaction.followup.send(f"An error occurred: {str(e)}")
+            await interaction.followup.send_message(f"An error occurred: {str(e)}")
 
     @bot.tree.command(
     name="reduxprompt",
@@ -611,7 +611,7 @@ async def setup_commands(bot: discord_commands.Bot):
         try:
             # Check if channel is allowed
             if interaction.channel_id not in bot.allowed_channels:
-                await interaction.response.send(
+                await interaction.response.send_message(
                     "This command can only be used in specific channels.",
                     ephemeral=True
                 )
@@ -625,7 +625,7 @@ async def setup_commands(bot: discord_commands.Bot):
 
         except Exception as e:
             logger.error(f"Error in reduxprompt command: {str(e)}")
-            await interaction.response.send(
+            await interaction.response.send_message(
                 f"An error occurred: {str(e)}",
                 ephemeral=True
             )
@@ -648,15 +648,15 @@ async def setup_commands(bot: discord_commands.Bot):
             # Check if interaction has been responded to
             if interaction.response.is_done():
                 try:
-                    await interaction.followup.send(response_message, ephemeral=True)
+                    await interaction.followup.send_message(response_message, ephemeral=True)
                 except discord.HTTPException:
                     # If the followup fails, try to send a simplified error message
-                    await interaction.followup.send("An error occurred. Please try again.", ephemeral=True)
+                    await interaction.followup.send_message("An error occurred. Please try again.", ephemeral=True)
             else:
                 try:
-                    await interaction.followup.send(response_message, ephemeral=True)
+                    await interaction.followup.send_message(response_message, ephemeral=True)
                 except discord.HTTPException:
-                    await interaction.followup.send("An error occurred. Please try again.", ephemeral=True)
+                    await interaction.followup.send_message("An error occurred. Please try again.", ephemeral=True)
 
         except Exception as e:
             logger.error(f"Error in error handler: {str(e)}", exc_info=True)

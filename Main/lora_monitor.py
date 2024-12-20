@@ -1,3 +1,8 @@
+import os
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+import logging
+import json
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import logging
@@ -104,7 +109,7 @@ class LoraFileHandler(FileSystemEventHandler):
             self.processing = True
             
         try:
-            lora_path = Path('lora.json')
+            lora_path = Path('Main/Datasets/lora.json')
             if not self.is_valid_json(str(lora_path)):
                 logger.error("Invalid lora.json file")
                 if self.last_valid_config:
@@ -154,7 +159,13 @@ def setup_lora_monitor(bot) -> None:
         event_handler = LoraFileHandler(bot)
         observer = Observer()
         
-        datasets_path = Path('Datasets')
+        # Log current working directory and absolute paths
+        logger.info(f"Current working directory: {os.getcwd()}")
+        datasets_path = Path('Main/Datasets')
+        abs_datasets_path = datasets_path.absolute()
+        logger.info(f"Looking for Datasets at relative path: {datasets_path}")
+        logger.info(f"Absolute path: {abs_datasets_path}")
+        
         if not datasets_path.exists():
             logger.error(f"Datasets directory not found: {datasets_path}")
             return

@@ -62,8 +62,7 @@ class PromptEnhancer:
         elif len(missing_keywords) == 2:
             return f"{enhanced_prompt}, with {missing_keywords[0]} and {missing_keywords[1]}"
         else:
-            keywords_str = ", ".join(missing_keywords[:-1]) + f", and {missing_keywords[-1]}"
-            return f"{enhanced_prompt}, with {keywords_str}"
+            return f"{enhanced_prompt}"
 
     def enhance_prompt(self, user_prompt: str, lora_info: Dict[str, Any], 
                       creativity: int = DEFAULT_CREATIVITY) -> str:
@@ -92,7 +91,7 @@ class PromptEnhancer:
             # Adjust temperature based on creativity level
             temperature = 0.3 + ((creativity - 1) * 0.075)
             
-            system_prompt = """A specialist at enhancing user prompts to turn them into Amazing Imaging Prompts. 
+            system_prompt = """You are an expert in crafting detailed, imaginative, and visually descriptive prompts for AI image generation, Your goal is to enhance the user's input to create vivid and precise prompts that guide the AI to produce stunning and accurate visuals." 
             
             IMPORTANT RULES:
             1. Only output the enhanced prompt, nothing else
@@ -117,7 +116,7 @@ class PromptEnhancer:
                         {"role": "user", "content": user_message}
                     ],
                     "temperature": temperature,
-                    "max_tokens": 200
+                    "max_tokens": 500
                 }
             )
             response.raise_for_status()

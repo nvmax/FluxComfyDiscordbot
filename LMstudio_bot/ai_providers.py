@@ -18,6 +18,7 @@ class LMStudioProvider(AIProvider):
         self.host = os.getenv("LMSTUDIO_HOST", "localhost")
         self.port = os.getenv("LMSTUDIO_PORT", "1234")
         self.base_url = f"http://{self.host}:{self.port}/v1"
+        self.model = os.getenv("LMSTUDIO_MODEL", "default-model")  # Optional model environment variable
 
     async def test_connection(self) -> bool:
         try:
@@ -30,25 +31,47 @@ class LMStudioProvider(AIProvider):
 
     async def generate_response(self, prompt: str, temperature: float = 0.7) -> str:
         try:
+            headers = {
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are an expert in crafting detailed, imaginative, and visually descriptive prompts for AI image generation. "
+                            "Your goal is to enhance the user's input to create vivid and precise prompts that guide the AI to produce stunning and accurate visuals."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "temperature": temperature,
+                "max_tokens": 2000
+            }
+            print(f"Payload: {payload}")
+
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     f"{self.base_url}/chat/completions",
-                    json={
-                        "messages": [{"role": "user", "content": prompt}],
-                        "temperature": temperature,
-                        "max_tokens": 2000
-                    },
+                    headers=headers,
+                    json=payload,
                     timeout=30
                 ) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         raise Exception(f"HTTP {response.status}: {error_text}")
-                    
+
                     data = await response.json()
                     return data["choices"][0]["message"]["content"]
         except Exception as e:
             print(f"LMStudio API error: {str(e)}")
             raise Exception(f"LMStudio API error: {str(e)}")
+
 
 class OpenAIProvider(AIProvider):
     def __init__(self):
@@ -108,7 +131,10 @@ class XAIProvider(AIProvider):
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are a professional prompt enhancer, inspired by the greatest fiction writers of all time."
+                        "content": (
+                            "You are an expert in crafting detailed, imaginative, and visually descriptive prompts for AI image generation. "
+                            "Your goal is to enhance the user's input to create vivid and precise prompts that guide the AI to produce stunning and accurate visuals."
+                        )
                     },
                     {
                         "role": "user",
@@ -150,7 +176,10 @@ class XAIProvider(AIProvider):
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are a professional prompt enhancer, inspired by the greatest fiction writers of all time"
+                        "content": (
+                            "You are an expert in crafting detailed, imaginative, and visually descriptive prompts for AI image generation. "
+                            "Your goal is to enhance the user's input to create vivid and precise prompts that guide the AI to produce stunning and accurate visuals."
+                        )
                     },
                     {
                         "role": "user",

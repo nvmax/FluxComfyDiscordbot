@@ -1,13 +1,13 @@
 """Prompt enhancement using LM Studio."""
 from typing import Dict, Any
 import requests
+import re
 from .config import (
     CHAT_ENDPOINT,
     DEFAULT_CREATIVITY,
     MAX_CREATIVITY,
     MIN_CREATIVITY
 )
-import re
 
 class PromptEnhancer:
     def __init__(self):
@@ -31,38 +31,64 @@ class PromptEnhancer:
         pattern = r'"[^"]*"'
         return re.sub(pattern, replace_quote, prompt)
 
-    def _extract_important_keywords(self, prompt: str) -> set:
-        """
-        Extract important keywords from the user's prompt.
-        Excludes common words and focuses on descriptive terms.
-        """
-        # Convert to lowercase and split into words
-        words = prompt.lower().split()
+    # """def _extract_important_keywords(self, prompt: str) -> set:
+    #     """
+    #     Extract important keywords from the user's prompt.
+    #     Excludes common words and focuses on descriptive terms.
+    #     """
+    #     # Convert to lowercase and split into words
+    #     words = prompt.lower().split()
         
-        # Common words to exclude
-        common_words = {'a', 'an', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'}
+    #     # Common words to exclude
+    #     common_words = {'a', 'an', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'}
         
-        # Keep words that are not in common_words and are at least 3 characters long
-        return {word for word in words if word not in common_words and len(word) >= 3}
+    #     # Keep words that are not in common_words and are at least 3 characters long
+    #     return {word for word in words if word not in common_words and len(word) >= 3}"""
 
-    def _ensure_keywords_present(self, enhanced_prompt: str, original_keywords: set) -> str:
-        """
-        Ensure all important keywords from the original prompt are present in the enhanced prompt.
-        Add any missing keywords in a natural way.
-        """
-        enhanced_words = enhanced_prompt.lower().split()
-        missing_keywords = [word for word in original_keywords if word not in enhanced_words]
-        
-        if not missing_keywords:
-            return enhanced_prompt
-            
-        # Add missing keywords in a natural way
-        if len(missing_keywords) == 1:
-            return f"{enhanced_prompt}, with {missing_keywords[0]}"
-        elif len(missing_keywords) == 2:
-            return f"{enhanced_prompt}, with {missing_keywords[0]} and {missing_keywords[1]}"
-        else:
-            return f"{enhanced_prompt}"
+    # """def _ensure_keywords_present(self, enhanced_prompt: str, original_keywords: set) -> str:
+    #     """
+    #     Ensure all important keywords from the original prompt are present in the enhanced prompt.
+    #     Add any missing keywords in a natural way, preserving their original context.
+    #     """
+    #     # Tokenize original keywords into a list to maintain order
+    #     original_keywords = list(original_keywords)
+    #     enhanced_words = enhanced_prompt.split()
+    #     enhanced_lower = [word.lower() for word in enhanced_words]
+
+    #     # Identify missing keywords
+    #     missing_keywords = [word for word in original_keywords if word.lower() not in enhanced_lower]
+
+    #     if not missing_keywords:
+    #         return enhanced_prompt  # If no keywords are missing, return the prompt as-is
+
+    #     # Process each missing keyword
+    #     for missing in missing_keywords:
+    #         for i, word in enumerate(original_keywords):
+    #             if word.lower() == missing.lower():
+    #                 # Find the next or previous word in the original prompt for context
+    #                 context_before = original_keywords[i - 1] if i > 0 else None
+    #                 context_after = original_keywords[i + 1] if i < len(original_keywords) - 1 else None
+
+    #                 # Check if context matches in the enhanced prompt
+    #                 inserted = False
+    #                 if context_before:
+    #                     for j, enhanced_word in enumerate(enhanced_words):
+    #                         if context_before.lower() in enhanced_word.lower():
+    #                             enhanced_words.insert(j + 1, missing)
+    #                             inserted = True
+    #                             break
+    #                 if not inserted and context_after:
+    #                     for j, enhanced_word in enumerate(enhanced_words):
+    #                         if context_after.lower() in enhanced_word.lower():
+    #                             enhanced_words.insert(j, missing)
+    #                             inserted = True
+    #                             break
+    #                 if not inserted:
+    #                     # Append at the end as a last resort (unlikely to be needed)
+    #                     enhanced_words.append(missing)
+
+    #     # Reconstruct the enhanced prompt
+    #     return " ".join(enhanced_words)"""
 
     def enhance_prompt(self, user_prompt: str, lora_info: Dict[str, Any], 
                       creativity: int = DEFAULT_CREATIVITY) -> str:
@@ -75,8 +101,8 @@ class PromptEnhancer:
             creativity: Level of modification (1-10)
         """
         try:
-            # Extract important keywords from the original prompt
-            original_keywords = self._extract_important_keywords(user_prompt)
+            # Comment out the keyword extraction and preservation since those functions are disabled
+            # original_keywords = self._extract_important_keywords(user_prompt)
             
             # Process any quoted text in the prompt first
             processed_prompt = self._process_text_in_quotes(user_prompt)
@@ -98,15 +124,10 @@ class PromptEnhancer:
             2. Do not explain your changes or add any commentary
             3. Do not mention the LoRA name in the prompt
             4. Keep the prompt concise and focused
-            5. Preserve the key elements and descriptive terms from the original prompt"""
+            5. IMPORTANT: Preserve the key words and elements and descriptive terms from the original prompt"""
 
             user_message = f"""Original prompt: "{processed_prompt}"
-            Important keywords to preserve: {', '.join(original_keywords)}
-            LoRA capabilities: {lora_info['description']}
-            Keywords that work well: {', '.join(lora_info.get('keywords', []))}
-            Categories: {', '.join(lora_info.get('categories', []))}
-            
-            Enhance this prompt to creativity level {creativity}, making sure to preserve the important keywords. Output ONLY the enhanced prompt."""
+            Enhance this prompt to creativity level {creativity}. Output ONLY the enhanced prompt."""
 
             response = requests.post(
                 self.endpoint,
@@ -134,8 +155,8 @@ class PromptEnhancer:
                 enhanced_prompt = ' '.join(word for word in enhanced_prompt.split() 
                                          if word.lower() not in lora_name_parts)
             
-            # Ensure all original keywords are present
-            enhanced_prompt = self._ensure_keywords_present(enhanced_prompt, original_keywords)
+            # Comment out the keyword preservation since the function is disabled
+            # enhanced_prompt = self._ensure_keywords_present(enhanced_prompt, original_keywords)
             
             return enhanced_prompt
         except requests.exceptions.RequestException as e:

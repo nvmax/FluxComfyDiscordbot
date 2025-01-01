@@ -13,6 +13,7 @@ from Main.utils import load_json, save_json, generate_random_seed
 from .workflow_utils import update_workflow, update_reduxprompt_workflow
 from config import fluxversion
 from .models import RequestItem, ReduxRequestItem, ReduxPromptRequestItem
+from Main.custom_commands.banned_utils import check_banned
 
 logger = logging.getLogger(__name__)
 

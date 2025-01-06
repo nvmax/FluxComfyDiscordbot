@@ -2,6 +2,13 @@
 
 ## Latest Updates
 
+### January 6, 2025
+#### New Features
+- **Security Implementation**
+  - Implemented a security middleware to prevent abuse and protect against malicious requests.
+  - Added a permanent block list to block IP addresses that have been repeatedly tried to access restricted endpoints.
+  - you can check the security folder for the permanent block list and see what they were requesting.
+
 ### December 15, 2024
   **Banned words list**
   - Updated the banned words list to include a list of common profanities and sensitive terms to avoid discord flagging and banning.

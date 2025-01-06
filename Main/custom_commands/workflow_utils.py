@@ -127,7 +127,7 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
         logger.error(f"Error updating workflow: {str(e)}", exc_info=True)
         raise ValueError(f"Failed to update workflow: {str(e)}")
 
-def update_reduxprompt_workflow(workflow, image_path, prompt, strength, seed=None):
+def update_reduxprompt_workflow(workflow, image_path, prompt, strength, seed=None, resolution=None):
     """
     Updates the ReduxPrompt workflow with the provided parameters.
     The strength parameter must be one of: 'highest', 'high', 'medium', 'low', 'lowest'
@@ -138,6 +138,7 @@ def update_reduxprompt_workflow(workflow, image_path, prompt, strength, seed=Non
         prompt: The prompt text
         strength: Strength value ('highest', 'high', 'medium', 'low', 'lowest')
         seed: Optional seed value for generation. If None, a random seed will be used
+        resolution: Optional resolution value for the image generation
     """
     try:
         # Create a copy to avoid modifying the original
@@ -178,6 +179,15 @@ def update_reduxprompt_workflow(workflow, image_path, prompt, strength, seed=Non
         if '25' in workflow:
             workflow['25']['inputs']['noise_seed'] = seed
             logger.debug(f"Updated seed in RandomNoise node: {seed}")
+
+        # Update resolution in node 62 if resolution is provided
+        if resolution and '62' in workflow:
+            workflow['62']['inputs']['ratio_selected'] = resolution
+            logger.debug(f"Updated resolution in node 62: {resolution}")
+        elif '62' in workflow:
+            logger.warning("Resolution not provided, using default in node 62")
+        else:
+            logger.warning("Node 62 (resolution node) not found in workflow")
 
         return workflow
 

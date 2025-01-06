@@ -858,7 +858,8 @@ class ReduxPromptModal(discord.ui.Modal, title='Redux Prompt'):
                         image_path=image_path,
                         prompt=self.prompt.value,
                         strength=self.strength,
-                        seed=seed
+                        seed=seed,
+                        resolution=self.resolution
                     )
 
                     # Save the modified workflow

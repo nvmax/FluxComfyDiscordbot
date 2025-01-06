@@ -251,6 +251,58 @@ async def setup_commands(bot: discord_commands.Bot):
                 ephemeral=True
             )
 
+    async def reduxprompt(
+        interaction: discord.Interaction, 
+        resolution: str,
+        strength: str
+    ):
+        try:
+            # Check if channel is allowed
+            if interaction.channel_id not in bot.allowed_channels:
+                await interaction.response.send_message(
+                    "This command can only be used in specific channels.",
+                    ephemeral=True
+                )
+                return
+
+            logger.debug(f"Received reduxprompt command with resolution: {resolution}, strength: {strength}")
+
+            # Show the modal for prompt input first
+            modal = ReduxPromptModal(bot, resolution, strength)
+            await interaction.response.send_modal(modal)
+
+        except Exception as e:
+            logger.error(f"Error in reduxprompt command: {str(e)}")
+            await interaction.response.send_message(
+                f"An error occurred: {str(e)}",
+                ephemeral=True
+            )
+
+    # Register the reduxprompt command with proper decorators
+    reduxprompt = bot.tree.command(
+        name="reduxprompt",
+        description="Generate an image using a reference image and prompt"
+    )(
+        app_commands.describe(
+            resolution="Choose the resolution",
+            strength="Choose the strength level"
+        )(
+            app_commands.choices(
+                resolution=[
+                    app_commands.Choice(name=name, value=name)
+                    for name in load_json('ratios.json')['ratios'].keys()
+                ],
+                strength=[
+                    app_commands.Choice(name="Highest", value="highest"),
+                    app_commands.Choice(name="High", value="high"),
+                    app_commands.Choice(name="Medium", value="medium"),
+                    app_commands.Choice(name="Low", value="low"),
+                    app_commands.Choice(name="Lowest", value="lowest")
+                ]
+            )(reduxprompt)
+        )
+    )
+
     @bot.tree.command(name="reboot", description="Reboot the bot (Restricted to specific admin)")
     async def reboot(interaction: discord.Interaction):
         if interaction.user.id == BOT_MANAGER_ROLE_ID:
@@ -557,10 +609,11 @@ async def setup_commands(bot: discord_commands.Bot):
                 
                 # Check for banned words first
                 is_banned, message = check_banned(str(interaction.user.id), self.original_prompt)
-                if message:  # If there's a message, either a warning or ban
+                if message:  # If there's a warning or ban message
                     await interaction.followup.send(message, ephemeral=True)
-                    return
-                
+                    if is_banned:  # If the user is banned, stop processing
+                        return
+
                 # Use PromptEnhancer directly
                 from LMstudio_bot.lora_manager.prompt_enhancer import PromptEnhancer
                 enhancer = PromptEnhancer()
@@ -591,9 +644,10 @@ async def setup_commands(bot: discord_commands.Bot):
 
                     # Check enhanced prompt for banned words
                     is_banned, message = check_banned(str(interaction.user.id), enhanced_prompt)
-                    if message:  # If there's a message, either a warning or ban
+                    if message:  # If there's a warning or ban message
                         await interaction.followup.send(message, ephemeral=True)
-                        return
+                        if is_banned:  # If the user is banned, stop processing
+                            return
 
                     # Show the original and enhanced prompts (without LoRA trigger words)
                     await interaction.followup.send(

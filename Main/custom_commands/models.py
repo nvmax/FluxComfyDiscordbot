@@ -51,6 +51,7 @@ class ReduxPromptRequestItem(BaseRequestItem):
     strength: str  # String value: highest, high, medium, low, lowest
     image_path: str  # Path to the saved image file
     image_filename: str
+    seed: Optional[int] = None  # Optional seed value for generation
 
     def __post_init__(self):
         super().__post_init__()
@@ -71,6 +72,13 @@ class ReduxPromptRequestItem(BaseRequestItem):
             
         if not isinstance(self.workflow_filename, str):
             raise ValueError("Workflow filename must be a string")
+
+        # Validate seed if provided
+        if self.seed is not None and not isinstance(self.seed, int):
+            try:
+                self.seed = int(self.seed)
+            except (TypeError, ValueError):
+                raise ValueError("Seed must be an integer")
 
 @dataclass
 class ReduxRequestItem(BaseRequestItem):

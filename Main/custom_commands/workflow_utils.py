@@ -2,6 +2,7 @@ import logging
 import json
 from Main.utils import load_json
 import os
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
         logger.error(f"Error updating workflow: {str(e)}", exc_info=True)
         raise ValueError(f"Failed to update workflow: {str(e)}")
 
-def update_reduxprompt_workflow(workflow, image_path, prompt, strength):
+def update_reduxprompt_workflow(workflow, image_path, prompt, strength, seed=None):
     """
     Updates the ReduxPrompt workflow with the provided parameters.
     The strength parameter must be one of: 'highest', 'high', 'medium', 'low', 'lowest'
@@ -136,10 +137,16 @@ def update_reduxprompt_workflow(workflow, image_path, prompt, strength):
         image_path: Full absolute path to the image file
         prompt: The prompt text
         strength: Strength value ('highest', 'high', 'medium', 'low', 'lowest')
+        seed: Optional seed value for generation. If None, a random seed will be used
     """
     try:
         # Create a copy to avoid modifying the original
         workflow = workflow.copy()
+
+        # Generate random seed if none provided
+        if seed is None:
+            seed = random.randint(0, 2**32 - 1)
+            logger.debug(f"Generated random seed: {seed}")
 
         # Validate strength is one of the allowed values
         valid_strengths = ['highest', 'high', 'medium', 'low', 'lowest']
@@ -166,6 +173,11 @@ def update_reduxprompt_workflow(workflow, image_path, prompt, strength):
         if '54' in workflow:
             workflow['54']['inputs']['image_strength'] = strength
             logger.debug(f"Updated strength in node 54: {strength}")
+
+        # Update seed in RandomNoise node
+        if '25' in workflow:
+            workflow['25']['inputs']['noise_seed'] = seed
+            logger.debug(f"Updated seed in RandomNoise node: {seed}")
 
         return workflow
 

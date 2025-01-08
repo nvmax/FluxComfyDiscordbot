@@ -4,6 +4,13 @@ import openai
 import json
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
+import sys
+import os
+
+# Add the parent directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from config import XAI_API_KEY, XAI_MODEL
 
 class AIProvider(ABC):
     @abstractmethod
@@ -109,13 +116,20 @@ class OpenAIProvider(AIProvider):
 
 class XAIProvider(AIProvider):
     def __init__(self):
-        self.api_key = os.getenv("XAI_API_KEY")
+        # Debug: Print all relevant environment variables
+        print("\nDebug: Environment variables:")
+        print(f"XAI_API_KEY exists: {XAI_API_KEY is not None}")
+        print(f"XAI_MODEL: {XAI_MODEL}")
+        
+        self.api_key = XAI_API_KEY
         if not self.api_key:
-            raise ValueError("XAI_API_KEY environment variable is not set")
+            raise ValueError("XAI_API_KEY is not set in config")
+        
         print(f"Initializing X.AI provider with API key: {self.api_key[:8]}...")
         self.base_url = "https://api.x.ai"
-        self.model = os.getenv("XAI_MODEL", "grok-2-latest")
+        self.model = XAI_MODEL or "grok-2-latest"
         print(f"Using model: {self.model}")
+        print(f"Base URL: {self.base_url}")
 
     async def test_connection(self) -> bool:
         try:
@@ -123,8 +137,11 @@ class XAIProvider(AIProvider):
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
             }
-            print("\nTesting X.AI connection...")
-            print(f"URL: {self.base_url}/v1/chat/completions")
+            
+            url = f"{self.base_url}/v1/chat/completions"
+            print("\nDebug: Making test connection")
+            print(f"URL: {url}")
+            print(f"Headers: {headers}")
             
             payload = {
                 "model": self.model,
@@ -143,7 +160,7 @@ class XAIProvider(AIProvider):
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"{self.base_url}/v1/chat/completions",
+                    url,
                     headers=headers,
                     json=payload,
                     timeout=10
@@ -166,6 +183,11 @@ class XAIProvider(AIProvider):
                 "Content-Type": "application/json"
             }
             
+            url = f"{self.base_url}/v1/chat/completions"
+            print("\nDebug: Generating response")
+            print(f"URL: {url}")
+            print(f"Headers: {headers}")
+            
             payload = {
                 "model": self.model,
                 "messages": [
@@ -183,16 +205,18 @@ class XAIProvider(AIProvider):
                 ],
                 "temperature": temperature
             }
+            print(f"Payload: {payload}")
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"{self.base_url}/v1/chat/completions",
+                    url,
                     headers=headers,
                     json=payload,
                     timeout=30
                 ) as response:
                     response_text = await response.text()
                     print(f"X.AI API response status: {response.status}")
+                    print(f"X.AI API response text: {response_text}")
                     
                     if response.status != 200:
                         print(f"X.AI API error response: {response_text}")

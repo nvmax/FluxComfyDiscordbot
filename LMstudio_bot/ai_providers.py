@@ -1,8 +1,9 @@
 import os
 import aiohttp
 import openai
+import json
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Dict, Any
 
 class AIProvider(ABC):
     @abstractmethod
@@ -214,16 +215,71 @@ class XAIProvider(AIProvider):
             print(f"X.AI API error: {str(e)}")
             raise Exception(f"X.AI API error: {str(e)}")
 
+class GeminiProvider(AIProvider):
+    def __init__(self):
+        self.api_key = os.getenv("GEMINI_API_KEY")
+        if not self.api_key:
+            raise ValueError("GEMINI_API_KEY environment variable is not set")
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta"
+        self.model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+
+    async def test_connection(self) -> bool:
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.base_url}/models/{self.model}:generateContent?key={self.api_key}"
+                payload = {
+                    "contents": [{
+                        "parts": [{"text": "test"}]
+                    }]
+                }
+                async with session.post(url, json=payload, timeout=5) as response:
+                    return response.status == 200
+        except Exception as e:
+            print(f"Gemini connection test failed: {str(e)}")
+            return False
+
+    async def generate_response(self, prompt: str, temperature: float = 0.7) -> str:
+        try:
+            url = f"{self.base_url}/models/{self.model}:generateContent?key={self.api_key}"
+            headers = {
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "contents": [{
+                    "parts": [{"text": prompt}]
+                }],
+                "generationConfig": {
+                    "temperature": temperature
+                }
+            }
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload, timeout=30) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise Exception(f"HTTP {response.status}: {error_text}")
+
+                    data = await response.json()
+                    if "candidates" in data and len(data["candidates"]) > 0:
+                        return data["candidates"][0]["content"]["parts"][0]["text"]
+                    raise Exception("No valid response received from Gemini API")
+        except Exception as e:
+            print(f"Gemini API error: {str(e)}")
+            raise Exception(f"Gemini API error: {str(e)}")
+
 class AIProviderFactory:
     @staticmethod
     def get_provider(provider_name: str) -> AIProvider:
         providers = {
             "lmstudio": LMStudioProvider,
             "openai": OpenAIProvider,
-            "xai": XAIProvider
+            "xai": XAIProvider,
+            "gemini": GeminiProvider
         }
         
+        provider_name = provider_name.lower() if provider_name else ""
         if provider_name not in providers:
-            raise ValueError(f"Unknown provider: {provider_name}. Available providers: {', '.join(providers.keys())}")
+            raise ValueError(f"Unknown provider: {provider_name}")
         
         return providers[provider_name]()

@@ -63,6 +63,7 @@ class SetupUI:
         self.enable_prompt_enhancement = tk.BooleanVar(value=False)
         self.lmstudio_host = tk.StringVar(value="")
         self.lmstudio_port = tk.StringVar(value="")
+        self.gemini_api_key = tk.StringVar()
         self.xai_api_key = tk.StringVar()
         self.openai_api_key = tk.StringVar()
         
@@ -237,7 +238,7 @@ class SetupUI:
         provider_select_frame.pack(fill=tk.X, pady=2)
         ttk.Label(provider_select_frame, text="AI Provider:").pack(side=tk.LEFT, padx=5)
         ttk.Combobox(provider_select_frame, textvariable=self.ai_provider,
-                    values=["lmstudio", "openai", "xai"], state="readonly", width=20).pack(side=tk.LEFT, padx=5)
+                    values=["lmstudio", "openai", "xai", "gemini"], state="readonly", width=20).pack(side=tk.LEFT, padx=5)
         
         # Enable Prompt Enhancement checkbox
         enhance_frame = ttk.Frame(provider_frame)
@@ -270,6 +271,12 @@ class SetupUI:
         xai_frame.pack(fill=tk.X, pady=2)
         ttk.Label(xai_frame, text="XAI API Key:").pack(side=tk.LEFT, padx=5)
         ttk.Entry(xai_frame, textvariable=self.xai_api_key, width=40, show="*").pack(side=tk.LEFT, padx=5)
+
+        # Gemini API Key
+        gemini_frame = ttk.Frame(api_frame)
+        gemini_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(gemini_frame, text="Gemini API Key:").pack(side=tk.LEFT, padx=5)
+        ttk.Entry(gemini_frame, textvariable=self.gemini_api_key, width=40, show="*").pack(side=tk.LEFT, padx=5)
         
         # OpenAI API Key
         openai_frame = ttk.Frame(api_frame)
@@ -359,7 +366,8 @@ class SetupUI:
                 'CIVITAI_API_TOKEN': self.civitai_token.get(),
                 'DISCORD_TOKEN': self.discord_token.get(),
                 'XAI_API_KEY': self.xai_api_key.get(),
-                'OPENAI_API_KEY': self.openai_api_key.get()
+                'OPENAI_API_KEY': self.openai_api_key.get(),
+                'GEMINI_API_KEY': self.gemini_api_key.get()
             }
             
             # Only update tokens that have values
@@ -403,6 +411,12 @@ class SetupUI:
                 self.civitai_token.set(env_vars['CIVITAI_API_TOKEN'])
             if 'DISCORD_TOKEN' in env_vars:
                 self.discord_token.set(env_vars['DISCORD_TOKEN'])
+            if 'GEMINI_API_KEY' in env_vars:
+                self.gemini_api_key.set(env_vars['GEMINI_API_KEY'])
+            if 'XAI_API_KEY' in env_vars:
+                self.xai_api_key.set(env_vars['XAI_API_KEY'])
+            if 'OPENAI_API_KEY' in env_vars:
+                self.openai_api_key.set(env_vars['OPENAI_API_KEY'])
                 
             # Load paths
             if 'COMFYUI_MODELS_PATH' in env_vars:
@@ -452,6 +466,7 @@ class SetupUI:
             env_vars['LMSTUDIO_PORT'] = self.lmstudio_port.get()
             env_vars['XAI_API_KEY'] = self.xai_api_key.get()
             env_vars['OPENAI_API_KEY'] = self.openai_api_key.get()
+            env_vars['GEMINI_API_KEY'] = self.gemini_api_key.get()
             
             # Save all values
             if self.setup_manager.save_env(env_vars):

@@ -4,7 +4,10 @@ import logging
 from Main.custom_commands.message_constants import STATUS_MESSAGES
 from config import server_address
 import discord
+from security_middleware import SecurityMiddleware
+from app_config import SecurityConfig
 
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 async def update_progress(request):
@@ -63,9 +66,23 @@ async def update_progress(request):
 
 async def start_web_server(bot):
     app = web.Application()
-    app['bot'] = bot
+    
+    # Configure security
+    security_config = SecurityConfig()
+    security_config.allowed_paths = {'/update_progress', '/send_image', '/image_generated'}  # Add other allowed paths as needed
+    security_config.allowed_methods = {'POST'}
+    security_config.max_requests_per_minute = 10
+    
+    # Add security middleware
+    security = SecurityMiddleware(security_config)
+    app.middlewares.append(security.middleware)
+    
+    # Setup routes
     app.router.add_post('/send_image', handle_generated_image)
     app.router.add_post('/update_progress', update_progress)
+    app.router.add_post('/image_generated', handle_generated_image)
+    
+    app['bot'] = bot
     
     runner = web.AppRunner(app)
     await runner.setup()

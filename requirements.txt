@@ -18,3 +18,4 @@ gunicorn>=20.1.0
 pymilvus>=2.3.0
 scikit-learn>=1.0.2
 numpy>=1.21.0
+openai>=159.5

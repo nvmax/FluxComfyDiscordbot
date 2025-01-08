@@ -113,7 +113,7 @@ class XAIProvider(AIProvider):
         if not self.api_key:
             raise ValueError("XAI_API_KEY environment variable is not set")
         print(f"Initializing X.AI provider with API key: {self.api_key[:8]}...")
-        self.base_url = "https://api.x.ai/v1"
+        self.base_url = "https://api.x.ai/v1/chat"
         self.model = os.getenv("XAI_MODEL", "grok-beta")
         print(f"Using model: {self.model}")
 
@@ -121,22 +121,16 @@ class XAIProvider(AIProvider):
         try:
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "Accept": "application/json"
             }
             print("\nTesting X.AI connection...")
-            print(f"URL: {self.base_url}/chat/completions")
+            print(f"URL: {self.base_url}/completions")
             print(f"Headers: {headers}")
             
             payload = {
                 "model": self.model,
                 "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an expert in crafting detailed, imaginative, and visually descriptive prompts for AI image generation. "
-                            "Your goal is to enhance the user's input to create vivid and precise prompts that guide the AI to produce stunning and accurate visuals."
-                        )
-                    },
                     {
                         "role": "user",
                         "content": "test"
@@ -149,7 +143,7 @@ class XAIProvider(AIProvider):
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"{self.base_url}/chat/completions",
+                    f"{self.base_url}/completions",
                     headers=headers,
                     json=payload,
                     timeout=10
@@ -169,7 +163,8 @@ class XAIProvider(AIProvider):
         try:
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "Accept": "application/json"
             }
             
             payload = {
@@ -193,7 +188,7 @@ class XAIProvider(AIProvider):
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"{self.base_url}/chat/completions",
+                    f"{self.base_url}/completions",
                     headers=headers,
                     json=payload,
                     timeout=30

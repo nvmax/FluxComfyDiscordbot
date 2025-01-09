@@ -17,6 +17,7 @@ from Main.database import (
     get_user_warnings, remove_user_warnings, get_all_warnings, add_banned_word, 
     remove_banned_word, unban_user, get_ban_info, get_all_banned_users
 )
+from .banned_utils import check_banned
 from .views import CreativityModal, LoRAView, LoraInfoView, ReduxPromptModal
 from .image_processing import process_image_request
 from config import ENABLE_PROMPT_ENHANCEMENT, AI_PROVIDER, fluxversion

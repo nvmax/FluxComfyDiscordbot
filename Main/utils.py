@@ -2,15 +2,25 @@ import json
 import logging
 import random
 import os
+from typing import Any, Dict, Union, Optional
 
 logger = logging.getLogger(__name__)
 
 def load_json(filename):
     """Load JSON file with error handling and encoding fallback"""
-    filepath = f'Main/DataSets/{filename}'
+    # Try both case variations of the directory name
+    possible_paths = [
+        os.path.join('Main', 'Datasets', filename)
+    ]
     
-    if not os.path.exists(filepath):
-        logger.error(f"File not found: {filepath}")
+    filepath = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            filepath = path
+            break
+            
+    if not filepath:
+        logger.error(f"File not found: {filename} (tried paths: {', '.join(possible_paths)})")
         raise FileNotFoundError(f"JSON file not found: {filename}")
         
     try:
@@ -33,7 +43,22 @@ def load_json(filename):
 
 def save_json(filename, data):
     """Save data to JSON file with error handling"""
-    filepath = f'Main/DataSets/{filename}'
+    # Try both case variations of the directory name
+    possible_paths = [
+        os.path.join('Main', 'Datasets', filename),
+        os.path.join('Main', 'DataSets', filename)
+    ]
+    
+    filepath = None
+    for path in possible_paths:
+        if os.path.exists(os.path.dirname(path)):
+            filepath = path
+            break
+            
+    if not filepath:
+        logger.error(f"Directory not found: {filename} (tried paths: {', '.join(possible_paths)})")
+        raise FileNotFoundError(f"Directory not found: {filename}")
+        
     try:
         with open(filepath, 'w', encoding='utf-8') as file:
             json.dump(data, file, indent=2, ensure_ascii=False)

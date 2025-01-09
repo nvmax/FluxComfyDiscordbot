@@ -101,18 +101,15 @@ class PromptEnhancer:
             creativity: Level of modification (1-10)
         """
         try:
-            # Comment out the keyword extraction and preservation since those functions are disabled
-            # original_keywords = self._extract_important_keywords(user_prompt)
+            # For creativity level 1, return the original prompt without any processing
+            if creativity == 1:
+                return user_prompt
             
             # Process any quoted text in the prompt first
             processed_prompt = self._process_text_in_quotes(user_prompt)
             
             # Validate and clamp creativity value
             creativity = max(MIN_CREATIVITY, min(MAX_CREATIVITY, creativity))
-            
-            # For creativity level 1, return the processed prompt without enhancement
-            if creativity == 1:
-                return processed_prompt
             
             # Adjust temperature based on creativity level
             temperature = 0.3 + ((creativity - 1) * 0.075)

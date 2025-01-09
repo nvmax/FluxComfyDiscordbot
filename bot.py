@@ -4,6 +4,15 @@ import asyncio
 import subprocess
 import os
 import platform
+import uuid
+from typing import Dict, Optional, Any
+
+# Third-party imports
+from discord import Interaction, Intents, app_commands
+from discord.ext import commands as discord_commands
+import discord
+
+# Local application imports
 from config import (
     DISCORD_TOKEN,
     intents,
@@ -13,7 +22,7 @@ from config import (
     BOT_MANAGER_ROLE_ID,
     ENABLE_PROMPT_ENHANCEMENT,  
     AI_PROVIDER,               
-    LMSTUDIO_HOST,           
+    LMSTUDIO_HOST,
     LMSTUDIO_PORT             
 )
 from Main.custom_commands import (
@@ -26,7 +35,7 @@ from Main.utils import load_json
 from web_server import start_web_server
 from Main.lora_monitor import setup_lora_monitor, cleanup_lora_monitor
 try:
-    from LMstudio_bot.ai_providers import AIProviderFactory
+    from Main.LMstudio_bot.ai_providers import AIProviderFactory
 except ImportError:
     print("Warning: AIProviderFactory not found. Prompt enhancement will be disabled.")
     AIProviderFactory = None
@@ -49,21 +58,13 @@ class MyBot(discord_commands.Bot):
         super().__init__(command_prefix=COMMAND_PREFIX, intents=intents)
         self.subprocess_queue = asyncio.Queue()
         self.pending_requests = {}
-        self.allowed_channels = CHANNEL_IDS
+        self.ai_provider = None
+        self.allowed_channels = set(CHANNEL_IDS)
         self.resolution_options = []
         self.lora_options = []
         self.tree.on_error = self.on_tree_error
         setup_lora_monitor(self)
         
-        # Initialize AI provider if prompt enhancement is enabled
-        self.ai_provider = None
-        if ENABLE_PROMPT_ENHANCEMENT:
-            try:
-                self.ai_provider = AIProviderFactory.get_provider(AI_PROVIDER)
-                logger.info(f"Initialized {AI_PROVIDER} provider for prompt enhancement")
-            except Exception as e:
-                logger.error(f"Failed to initialize AI provider: {e}")
-
     def get_python_command(self):
         """Get the appropriate Python command based on the platform"""
         if platform.system() == "Windows":
@@ -173,7 +174,28 @@ class MyBot(discord_commands.Bot):
                 logger.error(f"Error in process_subprocess_queue: {e}")
 
     async def setup_hook(self):
+        """Setup hook that runs before the bot starts."""
         init_db()
+        try:
+            if ENABLE_PROMPT_ENHANCEMENT and AIProviderFactory:
+                logger.info(f"Initializing AI provider. Provider: {AI_PROVIDER}")
+                self.ai_provider = AIProviderFactory.get_provider(AI_PROVIDER)
+                logger.info(f"AI provider type: {type(self.ai_provider)}")
+                logger.info(f"AI provider attributes: {dir(self.ai_provider)}")
+                logger.info(f"Initialized {AI_PROVIDER} provider for prompt enhancement")
+
+                # Test the connection
+                connection_ok = await self.ai_provider.test_connection()
+                if connection_ok:
+                    logger.info("AI provider connection test successful")
+                else:
+                    logger.error("AI provider connection test failed")
+            else:
+                logger.info("Prompt enhancement is disabled")
+        except Exception as e:
+            logger.error(f"Error initializing AI provider: {e}", exc_info=True)
+            self.ai_provider = None
+
         try:
             ratios_data = load_json('ratios.json')
             self.resolution_options = list(ratios_data['ratios'].keys())
@@ -181,16 +203,6 @@ class MyBot(discord_commands.Bot):
             lora_data = load_json('lora.json')
             self.lora_options = lora_data['available_loras']
             
-            # Test AI provider connection if enabled
-            if ENABLE_PROMPT_ENHANCEMENT and self.ai_provider:
-                try:
-                    if await self.ai_provider.test_connection():
-                        logger.info("AI provider connection test successful")
-                    else:
-                        logger.warning("AI provider connection test failed")
-                except Exception as e:
-                    logger.error(f"AI provider connection test error: {e}")
-                    
         except Exception as e:
             logger.error(f"Error loading options: {str(e)}")
 

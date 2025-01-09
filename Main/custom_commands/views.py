@@ -1,23 +1,25 @@
-import discord
-from discord import ui
-from .models import RequestItem
 import logging
+import discord
+from discord import app_commands, SelectOption
+from discord.ui import View, Select, Button, Modal, TextInput
+from typing import Optional, List
 import uuid
 import time
 import json
 import asyncio
 import re
 import os
-from typing import List, Optional
+from .banned_utils import check_banned
+from .image_processing import process_image_request
 from Main.utils import load_json, save_json, generate_random_seed
 from .workflow_utils import update_workflow, update_reduxprompt_workflow
 from config import fluxversion
 from .models import RequestItem, ReduxRequestItem, ReduxPromptRequestItem
-from Main.custom_commands.banned_utils import check_banned
+from Main.LMstudio_bot.ai_providers.base import AIProvider
 
 logger = logging.getLogger(__name__)
 
-class PaginatedLoRASelect(discord.ui.Select):
+class PaginatedLoRASelect(Select):
     def __init__(self, lora_options: List[dict], page: int = 0, selected_loras: List[str] = None):
         self.all_options = []
         selected_loras = selected_loras or []
@@ -30,7 +32,7 @@ class PaginatedLoRASelect(discord.ui.Select):
         # Create options only for current page
         for lora in page_options:
             self.all_options.append(
-                discord.SelectOption(
+                SelectOption(
                     label=lora['name'],
                     value=lora['file'],
                     default=bool(lora['file'] in selected_loras)
@@ -77,7 +79,7 @@ class PaginatedLoRASelect(discord.ui.Select):
             
             # Update confirm button
             for child in view.children:
-                if isinstance(child, discord.ui.Button) and "confirm" in str(child.custom_id):
+                if isinstance(child, Button) and "confirm" in str(child.custom_id):
                     child.label = f"Confirm Selection ({len(selections)} LoRAs)"
                     break
                     
@@ -107,7 +109,7 @@ class PaginatedLoRASelect(discord.ui.Select):
             await interaction.response.defer()
 
 
-class LoRAView(discord.ui.View):
+class LoRAView(View):
     def __init__(self, bot):
         super().__init__(timeout=300)
         self.bot = bot
@@ -134,7 +136,7 @@ class LoRAView(discord.ui.View):
         total_pages = (len(self.bot.lora_options) - 1) // 25 + 1
         
         if self.page > 0:
-            previous_button = discord.ui.Button(
+            previous_button = Button(
                 custom_id=f"previous_page_{self.page}",
                 label="◀ Previous",
                 style=discord.ButtonStyle.secondary,
@@ -144,7 +146,7 @@ class LoRAView(discord.ui.View):
             self.add_item(previous_button)
         
         if self.page < total_pages - 1:
-            next_button = discord.ui.Button(
+            next_button = Button(
                 custom_id=f"next_page_{self.page}",
                 label="Next ▶",
                 style=discord.ButtonStyle.secondary,
@@ -154,7 +156,7 @@ class LoRAView(discord.ui.View):
             self.add_item(next_button)
         
         # Always show selection count
-        confirm_button = discord.ui.Button(
+        confirm_button = Button(
             custom_id=f"confirm_{self.page}",
             label=f"Confirm Selection ({len(self.all_selections)} LoRAs)",
             style=discord.ButtonStyle.primary,
@@ -163,7 +165,7 @@ class LoRAView(discord.ui.View):
         confirm_button.callback = self.confirm_callback
         self.add_item(confirm_button)
 
-        cancel_button = discord.ui.Button(
+        cancel_button = Button(
             custom_id=f"cancel_{self.page}",
             label="Cancel",
             style=discord.ButtonStyle.secondary,
@@ -276,11 +278,11 @@ class LoRAView(discord.ui.View):
             
         return True
 
-class ResolutionSelect(ui.Select):
+class ResolutionSelect(Select):
     def __init__(self, bot, original_resolution):
         # Create options from bot's resolution options
         options = [
-            discord.SelectOption(
+            SelectOption(
                 label=res,
                 value=res,
                 default=(res == original_resolution)
@@ -323,7 +325,7 @@ class ResolutionSelect(ui.Select):
     async def refresh_options(self, bot, current_resolution):
         """Refresh the resolution options"""
         self.options = [
-            discord.SelectOption(
+            SelectOption(
                 label=res,
                 value=res,
                 default=(res == current_resolution)
@@ -331,7 +333,7 @@ class ResolutionSelect(ui.Select):
             for res in bot.resolution_options
         ]
 
-class OptionsView(ui.View):
+class OptionsView(View):
     def __init__(self, bot, original_prompt, image_filename, original_resolution, original_loras, original_upscale_factor, original_seed, original_interaction):
         super().__init__(timeout=300)
         self.bot = bot
@@ -378,7 +380,7 @@ class OptionsView(ui.View):
         
         if total_pages > 1:
             if self.page > 0:
-                prev_button = ui.Button(
+                prev_button = Button(
                     label=f"◀ Previous (Page {self.page + 1}/{total_pages})",
                     custom_id="previous_page",
                     style=discord.ButtonStyle.secondary,
@@ -388,7 +390,7 @@ class OptionsView(ui.View):
                 self.add_item(prev_button)
 
             if self.page < total_pages - 1:
-                next_button = ui.Button(
+                next_button = Button(
                     label=f"Next (Page {self.page + 2}/{total_pages}) ▶",
                     custom_id="next_page",
                     style=discord.ButtonStyle.secondary,
@@ -398,7 +400,7 @@ class OptionsView(ui.View):
                 self.add_item(next_button)
 
         # Action buttons (Row 3)
-        confirm_button = ui.Button(
+        confirm_button = Button(
             label=f"Confirm Selection ({len(self.all_selected_loras)} LoRAs)",
             style=discord.ButtonStyle.primary,
             custom_id="confirm_button",
@@ -538,7 +540,7 @@ def __init_subclass__(cls, **kwargs):
         cls.resolution_select.callback = cls.resolution_select_callback
         cls.lora_select.callback = cls.lora_select_callback
 
-class PromptModal(ui.Modal, title="Edit Prompt"):
+class PromptModal(Modal, title="Edit Prompt"):
     def __init__(self, bot, original_prompt, image_filename, resolution, loras, upscale_factor, original_interaction, original_seed=None):
         super().__init__()
         self.bot = bot
@@ -548,7 +550,7 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
         self.upscale_factor = upscale_factor
         self.original_interaction = original_interaction
 
-        self.prompt = ui.TextInput(
+        self.prompt = TextInput(
             label="Prompt",
             style=discord.TextStyle.paragraph,
             placeholder="Enter your prompt here...",
@@ -557,7 +559,7 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
         )
         self.add_item(self.prompt)
 
-        self.seed = ui.TextInput(
+        self.seed = TextInput(
             label="Seed (leave blank for random)",
             style=discord.TextStyle.short,
             placeholder="Enter a seed number or leave blank",
@@ -630,13 +632,13 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
             logger.error(f"Error in modal submit: {e}", exc_info=True)
             await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
 
-class ReduxModal(discord.ui.Modal, title='Redux Image Generator'):
+class ReduxModal(Modal, title='Redux Image Generator'):
     def __init__(self, bot, resolution: str):
         super().__init__()
         self.bot = bot
         self.resolution = resolution
         
-        self.strength1 = discord.ui.TextInput(
+        self.strength1 = TextInput(
             label="Strength for Image 1 (0.1-1.0)",
             placeholder="Enter a number between 0.1 and 1.0",
             default="1.0",
@@ -644,7 +646,7 @@ class ReduxModal(discord.ui.Modal, title='Redux Image Generator'):
             max_length=4
         )
         
-        self.strength2 = discord.ui.TextInput(
+        self.strength2 = TextInput(
             label="Strength for Image 2 (0.1-1.0)",
             placeholder="Enter a number between 0.1 and 1.0",
             default="0.5",
@@ -745,7 +747,7 @@ class ReduxModal(discord.ui.Modal, title='Redux Image Generator'):
                 )
                 
         except Exception as e:
-            logger.error(f"Error in redux modal: {e}", exc_info=True)
+            logger.error(f"Error in redux modal: {str(e)}", exc_info=True)
             try:
                 await interaction.followup.send(
                     f"An error occurred: {str(e)}",
@@ -760,14 +762,14 @@ class ReduxModal(discord.ui.Modal, title='Redux Image Generator'):
                         ephemeral=True
                     )
 
-class ReduxPromptModal(discord.ui.Modal, title='Redux Prompt'):
+class ReduxPromptModal(Modal, title='Redux Prompt'):
     def __init__(self, bot, resolution: str, strength: str):
         super().__init__()
         self.bot = bot
         self.resolution = resolution
         self.strength = strength
 
-        self.prompt = discord.ui.TextInput(
+        self.prompt = TextInput(
             label='Enter your prompt',
             style=discord.TextStyle.paragraph,
             placeholder='Type your prompt here...',
@@ -775,7 +777,7 @@ class ReduxPromptModal(discord.ui.Modal, title='Redux Prompt'):
             max_length=1000
         )
 
-        self.seed = discord.ui.TextInput(
+        self.seed = TextInput(
             label='Seed (optional)',
             style=discord.TextStyle.short,
             placeholder='Leave empty for random seed',
@@ -818,7 +820,7 @@ class ReduxPromptModal(discord.ui.Modal, title='Redux Prompt'):
 
             def check_message(m):
                 return (m.author.id == interaction.user.id and 
-                        m.channel.id == interaction.channel_id and 
+                        m.channel.id == interaction.channel.id and 
                         len(m.attachments) > 0)
 
             try:
@@ -934,7 +936,7 @@ class ReduxPromptModal(discord.ui.Modal, title='Redux Prompt'):
                     ephemeral=True
                 )
 
-class ReduxProcessingView(discord.ui.View):
+class ReduxProcessingView(View):
     def __init__(self, bot, resolution: str, strength1: float, strength2: float):
         super().__init__()
         self.bot = bot
@@ -945,7 +947,7 @@ class ReduxProcessingView(discord.ui.View):
         self.image2 = None
 
     @discord.ui.button(label="Upload Image 1", style=discord.ButtonStyle.primary)
-    async def upload_image1(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def upload_image1(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_message(
             "Please upload the first image (send it as a message attachment)",
             ephemeral=True
@@ -971,7 +973,7 @@ class ReduxProcessingView(discord.ui.View):
             await interaction.followup.send("Timed out waiting for image upload", ephemeral=True)
 
     @discord.ui.button(label="Upload Image 2", style=discord.ButtonStyle.primary)
-    async def upload_image2(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def upload_image2(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_message(
             "Please upload the second image (send it as a message attachment)",
             ephemeral=True
@@ -1018,7 +1020,7 @@ class ReduxProcessingView(discord.ui.View):
 
             # Create processing message
             processing_msg = await interaction.channel.send("🔄 Processing Redux generation...")
-            
+
             # Create request item
             request_item = ReduxRequestItem(
                 id=str(interaction.id),
@@ -1033,10 +1035,9 @@ class ReduxProcessingView(discord.ui.View):
                 image1=self.image1,
                 image2=self.image2
             )
-            
-            # Add to processing queue
+
             await interaction.client.subprocess_queue.put(request_item)
-            
+
             # Disable all buttons after processing starts
             for child in self.children:
                 child.disabled = True
@@ -1049,7 +1050,7 @@ class ReduxProcessingView(discord.ui.View):
                 ephemeral=True
             )
 
-class ImageControlView(ui.View):
+class ImageControlView(View):
     def __init__(self, bot, original_prompt=None, image_filename=None, original_resolution=None, original_loras=None, original_upscale_factor=None, original_seed=None):
         super().__init__(timeout=None)
         self.bot = bot
@@ -1060,8 +1061,8 @@ class ImageControlView(ui.View):
         self.original_upscale_factor = original_upscale_factor
         self.original_seed = original_seed
 
-    @ui.button(label="Options", style=discord.ButtonStyle.primary, custom_id="options_button", emoji="📚")
-    async def options(self, interaction: discord.Interaction, button: ui.Button):
+    @discord.ui.button(label="Options", style=discord.ButtonStyle.primary, custom_id="options_button", emoji="📚")
+    async def options(self, interaction: discord.Interaction, button: Button):
         options_view = OptionsView(
             self.bot, 
             self.original_prompt, 
@@ -1074,8 +1075,8 @@ class ImageControlView(ui.View):
         )
         await interaction.response.send_message("Choose your options:", view=options_view, ephemeral=True)
 
-    @ui.button(label="Regenerate", style=discord.ButtonStyle.primary, custom_id="regenerate_button", emoji="♻️")
-    async def regenerate(self, interaction: discord.Interaction, button: ui.Button):
+    @discord.ui.button(label="Regenerate", style=discord.ButtonStyle.primary, custom_id="regenerate_button", emoji="♻️")
+    async def regenerate(self, interaction: discord.Interaction, button: Button):
         try:
             await interaction.response.defer(ephemeral=False)
             
@@ -1114,8 +1115,8 @@ class ImageControlView(ui.View):
             logger.error(f"Error in regenerate button: {str(e)}", exc_info=True)
             await interaction.followup.send("An error occurred while regenerating the image.", ephemeral=True)
 
-    @ui.button(label="Delete", style=discord.ButtonStyle.danger, custom_id="delete_button", emoji="🗑️")
-    async def delete_message(self, interaction: discord.Interaction, button: ui.Button):
+    @discord.ui.button(label="Delete", style=discord.ButtonStyle.danger, custom_id="delete_button", emoji="🗑️")
+    async def delete_message(self, interaction: discord.Interaction, button: Button):
         try:
             await interaction.response.defer(ephemeral=True)
             await interaction.message.delete()
@@ -1126,7 +1127,7 @@ class ImageControlView(ui.View):
         except Exception as e:
             logger.error(f"Error deleting message: {str(e)}")
 
-class PromptModal(ui.Modal, title="Edit Prompt"):
+class PromptModal(Modal, title="Edit Prompt"):
     def __init__(self, bot, original_prompt, image_filename, resolution, loras, upscale_factor, original_interaction, original_seed=None):
         super().__init__()
         self.bot = bot
@@ -1136,7 +1137,7 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
         self.upscale_factor = upscale_factor
         self.original_interaction = original_interaction
 
-        self.prompt = ui.TextInput(
+        self.prompt = TextInput(
             label="Prompt",
             style=discord.TextStyle.paragraph,
             placeholder="Enter your prompt here...",
@@ -1145,7 +1146,7 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
         )
         self.add_item(self.prompt)
 
-        self.seed = ui.TextInput(
+        self.seed = TextInput(
             label="Seed (leave blank for random)",
             style=discord.TextStyle.short,
             placeholder="Enter a seed number or leave blank",
@@ -1218,7 +1219,7 @@ class PromptModal(ui.Modal, title="Edit Prompt"):
             logger.error(f"Error in modal submit: {e}", exc_info=True)
             await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
 
-class LoraInfoView(ui.View):
+class LoraInfoView(View):
     """A paginated view for displaying LoRA information"""
     def __init__(self, loras: List[dict]):
         super().__init__(timeout=300)  # 5 minute timeout
@@ -1266,38 +1267,38 @@ class LoraInfoView(ui.View):
             view=self
         )
 
-    @ui.button(label="⏮️", style=discord.ButtonStyle.gray)
-    async def first_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="⏮️", style=discord.ButtonStyle.gray)
+    async def first_page(self, interaction: discord.Interaction, button: Button):
         self.current_page = 0
         self.update_buttons()
         await self.update_message(interaction)
 
-    @ui.button(label="◀️", style=discord.ButtonStyle.gray)
-    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="◀️", style=discord.ButtonStyle.gray)
+    async def prev_page(self, interaction: discord.Interaction, button: Button):
         self.current_page = max(0, self.current_page - 1)
         self.update_buttons()
         await self.update_message(interaction)
 
-    @ui.button(label="▶️", style=discord.ButtonStyle.gray)
-    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="▶️", style=discord.ButtonStyle.gray)
+    async def next_page(self, interaction: discord.Interaction, button: Button):
         self.current_page = min(self.total_pages - 1, self.current_page + 1)
         self.update_buttons()
         await self.update_message(interaction)
 
-    @ui.button(label="⏭️", style=discord.ButtonStyle.gray)
-    async def last_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="⏭️", style=discord.ButtonStyle.gray)
+    async def last_page(self, interaction: discord.Interaction, button: Button):
         self.current_page = self.total_pages - 1
         self.update_buttons()
         await self.update_message(interaction)
 
-class ReduxImageView(ui.View):
+class ReduxImageView(View):
     """A simple view for Redux images that only contains a delete button."""
     def __init__(self):
         # Set timeout to None for persistent view
         super().__init__(timeout=None)
 
-    @ui.button(label="Delete", style=discord.ButtonStyle.danger, custom_id="delete_button", emoji="🗑️")
-    async def delete_message(self, interaction: discord.Interaction, button: ui.Button):
+    @discord.ui.button(label="Delete", style=discord.ButtonStyle.danger, custom_id="delete_button", emoji="🗑️")
+    async def delete_message(self, interaction: discord.Interaction, button: Button):
         """Handle the delete button press."""
         try:
             await interaction.response.defer(ephemeral=True)
@@ -1311,6 +1312,157 @@ class ReduxImageView(ui.View):
             logger.error(f"Error deleting message: {str(e)}")
             await interaction.followup.send("An error occurred while trying to delete the message.", ephemeral=True)
 
+class CreativityModal(Modal, title='Creativity Settings'):
+    def __init__(self, bot, resolution: str = None, initial_prompt: str = None, upscale_factor: int = 1, initial_seed: Optional[int] = None):
+        super().__init__()
+        self.bot = bot
+        self.resolution = resolution
+        self.upscale_factor = upscale_factor
+
+        self.prompt = TextInput(
+            label='Enter your prompt',
+            style=discord.TextStyle.paragraph,
+            placeholder='Type your prompt here...',
+            default=initial_prompt if initial_prompt else '',
+            required=True,
+            max_length=1000
+        )
+
+        self.seed = TextInput(
+            label='Seed (optional)',
+            style=discord.TextStyle.short,
+            placeholder='Leave empty for random seed',
+            default=str(initial_seed) if initial_seed is not None else '',
+            required=False,
+            max_length=20
+        )
+
+        self.creativity = TextInput(
+            label='Creativity Level (1-10)',
+            style=discord.TextStyle.short,
+            placeholder='1: No changes, 5: Moderate, 10: Extreme',
+            default='5',
+            required=True,
+            max_length=2
+        )
+
+        self.add_item(self.prompt)
+        self.add_item(self.seed)
+        self.add_item(self.creativity)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            await interaction.response.defer(ephemeral=False)
+            
+            # Validate creativity value
+            try:
+                creativity = int(self.creativity.value)
+                if not 1 <= creativity <= 10:
+                    raise ValueError("Creativity must be between 1 and 10")
+            except ValueError as e:
+                await interaction.followup.send(f"Invalid creativity value: {e}", ephemeral=True)
+                return
+
+            # Get the prompt and seed
+            prompt = self.prompt.value
+            seed = int(self.seed.value) if self.seed.value else None
+
+            # Convert creativity level from 1-10 to temperature (0.1-1.0)
+            temperature = creativity / 10.0
+
+            try:
+                # Initialize AI provider if needed
+                if not hasattr(self.bot, 'ai_provider') or not self.bot.ai_provider:
+                    try:
+                        logger.info(f"Initializing AI provider: {AI_PROVIDER}")
+                        self.bot.ai_provider = AIProviderFactory.get_provider(AI_PROVIDER)
+                        logger.info(f"Successfully initialized {AI_PROVIDER} provider")
+                    except Exception as e:
+                        logger.error(f"Failed to initialize AI provider: {e}")
+                        await interaction.followup.send(
+                            "Could not initialize AI provider. Using original prompt.",
+                            ephemeral=True
+                        )
+                        await process_image_request(
+                            interaction,
+                            prompt,
+                            self.resolution,
+                            upscale_factor=self.upscale_factor,
+                            seed=seed
+                        )
+                        return
+
+                enhanced_prompt = await self.bot.ai_provider.generate_response(
+                    prompt,
+                    temperature=temperature
+                )
+
+                # Get the enhancement level description
+                if creativity == 1:
+                    level_desc = "No enhancement"
+                elif creativity == 2:
+                    level_desc = "Minimal enhancement"
+                elif creativity == 3:
+                    level_desc = "Light enhancement"
+                elif creativity == 4:
+                    level_desc = "Moderate enhancement"
+                elif creativity == 5:
+                    level_desc = "Balanced enhancement"
+                elif creativity == 6:
+                    level_desc = "Notable enhancement"
+                elif creativity == 7:
+                    level_desc = "Significant enhancement"
+                elif creativity == 8:
+                    level_desc = "Extensive enhancement"
+                elif creativity == 9:
+                    level_desc = "Substantial enhancement"
+                else:  # 10
+                    level_desc = "Maximum enhancement"
+
+                logger.info(f"Enhanced prompt (creativity {creativity} - {level_desc}): {enhanced_prompt}")
+                
+                if creativity > 1:
+                    await interaction.followup.send(
+                        f"Creativity Level {creativity} ({level_desc}):\n"
+                        f"Original prompt: {prompt}\n"
+                        f"Enhanced prompt: {enhanced_prompt}",
+                        ephemeral=True
+                    )
+                else:
+                    await interaction.followup.send(
+                        f"Creativity Level 1 (No enhancement): Using original prompt",
+                        ephemeral=True
+                    )
+                
+                await process_image_request(
+                    interaction,
+                    enhanced_prompt,
+                    self.resolution,
+                    upscale_factor=self.upscale_factor,
+                    seed=seed
+                )
+
+            except Exception as e:
+                logger.error(f"Error in prompt enhancement: {e}")
+                await interaction.followup.send(
+                    f"Error enhancing prompt: {str(e)}. Using original prompt.",
+                    ephemeral=True
+                )
+                await process_image_request(
+                    interaction,
+                    prompt,
+                    self.resolution,
+                    upscale_factor=self.upscale_factor,
+                    seed=seed
+                )
+
+        except Exception as e:
+            logger.error(f"Error in creativity modal: {e}")
+            await interaction.followup.send(
+                "An error occurred while processing your request.",
+                ephemeral=True
+            )
+
 # Optional interface class for better type hints and documentation
 class ViewInterface:
     """Interface class defining the expected view structure"""
@@ -1321,6 +1473,8 @@ class ViewInterface:
     PaginatedLoRASelect = PaginatedLoRASelect
     ResolutionSelect = ResolutionSelect
     LoraInfoView = LoraInfoView
+    ReduxImageView = ReduxImageView
+    CreativityModal = CreativityModal
 
 __all__ = [
     'ImageControlView',
@@ -1331,5 +1485,6 @@ __all__ = [
     'ResolutionSelect',
     'LoraInfoView',
     'ReduxImageView',
-    'ViewInterface'
+    'ViewInterface',
+    'CreativityModal'
 ]

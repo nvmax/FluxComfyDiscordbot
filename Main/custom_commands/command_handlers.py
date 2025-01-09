@@ -1,30 +1,24 @@
+import logging
 import discord
 from discord import app_commands
-from discord.ext import commands as discord_commands
+from discord.ext import commands
 from typing import Optional
 import asyncio
-import logging
-import uuid
+import subprocess
+import sys
 import time
-import sqlite3
-import re
+import uuid
+import json
 import os
-from typing import Optional
-from config import BOT_MANAGER_ROLE_ID, CHANNEL_IDS, ENABLE_PROMPT_ENHANCEMENT
-from .views import ReduxPromptModal, ReduxImageView, LoRAView, LoraInfoView
-from .models import RequestItem, ReduxRequestItem, ReduxPromptRequestItem
-
-from Main.database import (
-    DB_NAME, ban_user, unban_user, get_ban_info, 
-    add_banned_word, remove_banned_word,
-    get_banned_words, remove_user_warnings,
-    get_all_warnings, get_user_warnings
-)
-from Main.utils import load_json, save_json, generate_random_seed
-from Main.custom_commands.banned_utils import check_banned
-from Main.custom_commands.workflow_utils import update_workflow, update_reduxprompt_workflow
-from aiohttp import web
-from config import fluxversion
+import re
+from Main.utils import load_json, generate_random_seed, save_json
+from .banned_utils import check_banned
+from .views import CreativityModal, LoRAView, LoraInfoView, ReduxPromptModal
+from .image_processing import process_image_request
+from config import ENABLE_PROMPT_ENHANCEMENT, AI_PROVIDER, fluxversion
+from ..LMstudio_bot.ai_providers import AIProviderFactory
+from .workflow_utils import update_workflow
+from .models import RequestItem
 
 logger = logging.getLogger(__name__)
 
@@ -68,28 +62,36 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 def has_admin_or_bot_manager_role():
     async def predicate(interaction: discord.Interaction):
         is_admin = interaction.user.guild_permissions.administrator
-        has_role = any(role.id == BOT_MANAGER_ROLE_ID for role in interaction.user.roles)
+        has_role = any(role.id == 1055096424235516936 for role in interaction.user.roles)
         if is_admin or has_role:
             return True
         await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
         return False
     return app_commands.check(predicate)
 
-def in_allowed_channel():
-    async def predicate(interaction: discord.Interaction):
-        if interaction.channel_id not in CHANNEL_IDS:
-            await interaction.followup.send("This command can only be used in specific channels.", ephemeral=True)
+def check_channel():
+    """Check if the command is being used in an allowed channel"""
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if not interaction.client.allowed_channels:  # If no channels are specified, allow all
+            return True
+        
+        if interaction.channel_id not in interaction.client.allowed_channels:
+            try:
+                await interaction.response.send_message("This command can only be used in specific channels.", ephemeral=True)
+            except discord.InteractionResponded:
+                await interaction.followup.send("This command can only be used in specific channels.", ephemeral=True)
             return False
+            
         return True
     return app_commands.check(predicate)
 
-async def setup_commands(bot: discord_commands.Bot):
+async def setup_commands(bot: commands.Bot):
     """Setup all commands for the bot"""
     # Register the error handler first
     bot.tree.on_error = on_app_command_error
 
     @bot.tree.command(name="lorainfo", description="View available Loras information")
-    @in_allowed_channel()
+    @check_channel()
     async def lorainfo(interaction: discord.Interaction):
         try:
             loras_data = load_json('lora.json')
@@ -105,7 +107,7 @@ async def setup_commands(bot: discord_commands.Bot):
             await interaction.response.send_message("An error occurred while fetching Lora information.", ephemeral=True)
 
     @bot.tree.command(name="comfy", description="Generate an image based on a prompt.")
-    @in_allowed_channel()
+    @check_channel()
     @app_commands.describe(
         prompt="Enter your prompt",
         resolution="Choose the resolution",
@@ -129,127 +131,21 @@ async def setup_commands(bot: discord_commands.Bot):
                 await interaction.response.send_message(message, ephemeral=True)
                 return  # Don't continue with image generation if banned word is detected
             
+            # Show creativity modal or process directly based on prompt enhancement setting
             if ENABLE_PROMPT_ENHANCEMENT:
-                if not interaction.client.ai_provider:
-                    try:
-                        interaction.client.ai_provider = AIProviderFactory.get_provider(AI_PROVIDER)
-                    except Exception as e:
-                        logger.error(f"Failed to initialize AI provider: {e}")
-                        await interaction.response.send_message(
-                            "Prompt enhancement is enabled but the AI provider could not be initialized. "
-                            "Please contact an administrator.",
-                            ephemeral=True
-                        )
-                        return
-                            
-                creativity_modal = CreativityModal(bot, prompt, resolution, upscale_factor, seed)
+                # Show creativity modal without initializing AI provider yet
+                creativity_modal = CreativityModal(interaction.client, resolution, prompt, upscale_factor, seed)
                 await interaction.response.send_modal(creativity_modal)
-                return
             else:
+                # If prompt enhancement is disabled, process directly
                 await process_image_request(interaction, prompt, resolution, upscale_factor, seed)
 
         except Exception as e:
-            logger.error(f"Error in comfy command: {str(e)}")
+            logger.error(f"Error in comfy command: {str(e)}", exc_info=True)
             if not interaction.response.is_done():
                 await interaction.response.send_message(f"An error occurred: {str(e)}", ephemeral=True)
             else:
                 await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
-
-    async def process_image_request(interaction: discord.Interaction, prompt: str, resolution: str, upscale_factor: int = 1, seed: Optional[int] = None):
-        """Process a standard image generation request without prompt enhancement."""
-        try:
-            # Only defer if we haven't responded yet (i.e., no warning message was sent)
-            if not interaction.response.is_done():
-                await interaction.response.defer(ephemeral=False)
-            
-            # Show LoRA selection view
-            lora_view = LoRAView(interaction.client)
-            lora_message = await interaction.followup.send(
-                "Please select the LoRAs you want to use:",
-                view=lora_view,
-                ephemeral=True
-            )
-            
-            # Wait for LoRA selection
-            await lora_view.wait()
-            
-            if not hasattr(lora_view, 'has_confirmed') or not lora_view.has_confirmed:
-                await lora_message.edit(content="Selection cancelled or timed out.", view=None)
-                return
-                
-            selected_loras = lora_view.selected_loras
-            logger.debug(f"Selected LoRAs: {selected_loras}")
-            
-            try:
-                await lora_message.delete()
-            except discord.NotFound:
-                pass
-            
-            # Get LoRA trigger words for currently selected LoRAs
-            lora_config = load_json('lora.json')
-            additional_prompts = []
-            for lora_file in selected_loras:
-                lora_info = next(
-                    (l for l in lora_config['available_loras'] if l['file'] == lora_file),
-                    None
-                )
-                if lora_info and lora_info.get('add_prompt') and lora_info['add_prompt'].strip():
-                    additional_prompts.append(lora_info['add_prompt'].strip())
-            
-            # Construct final prompt with new trigger words
-            full_prompt = prompt
-            if additional_prompts:
-                if not full_prompt.endswith(','):
-                    full_prompt += ','
-                full_prompt += ' ' + ', '.join(additional_prompts)
-            
-            full_prompt = full_prompt.strip(' ,')
-            logger.debug(f"Final prompt with LoRA triggers: {full_prompt}")
-            
-            # Use provided seed or generate new one
-            current_seed = seed if seed is not None else generate_random_seed()
-            
-            workflow = load_json(fluxversion)
-            request_uuid = str(uuid.uuid4())
-            
-            workflow = update_workflow(
-                workflow,
-                full_prompt,
-                resolution,
-                selected_loras,
-                upscale_factor,
-                current_seed
-            )
-
-            workflow_filename = f'flux3_{request_uuid}.json'
-            save_json(workflow_filename, workflow)
-
-            original_message = await interaction.followup.send(
-                "🔄 Starting generation process...",
-                ephemeral=False
-            )
-
-            request_item = RequestItem(
-                id=str(interaction.id),
-                user_id=str(interaction.user.id),
-                channel_id=str(interaction.channel.id),
-                interaction_id=str(interaction.id),
-                original_message_id=str(original_message.id),
-                prompt=full_prompt,
-                resolution=resolution,
-                loras=selected_loras,
-                upscale_factor=upscale_factor,
-                workflow_filename=workflow_filename,
-                seed=current_seed
-            )
-            await interaction.client.subprocess_queue.put(request_item)
-            
-        except Exception as e:
-            logger.error(f"Error in process_image_request: {str(e)}", exc_info=True)
-            await interaction.followup.send(
-                f"An error occurred while processing your request: {str(e)}",
-                ephemeral=True
-            )
 
     async def reduxprompt(
         interaction: discord.Interaction, 
@@ -305,9 +201,11 @@ async def setup_commands(bot: discord_commands.Bot):
 
     @bot.tree.command(name="reboot", description="Reboot the bot (Restricted to specific admin)")
     async def reboot(interaction: discord.Interaction):
-        if interaction.user.id == BOT_MANAGER_ROLE_ID:
+        if interaction.user.id == 1055096424235516936:
             await interaction.followup.send("Rebooting bot...", ephemeral=True)
             await bot.close()
+            import sys
+            import os
             os.execv(sys.executable, ['python'] + sys.argv)
         else:
             await interaction.followup.send("You don't have permission.", ephemeral=True)
@@ -567,11 +465,11 @@ async def setup_commands(bot: discord_commands.Bot):
             await interaction.followup.send(f"An error occurred: {str(e)}")
 
     class CreativityModal(discord.ui.Modal, title='Select Creativity Level'):
-        def __init__(self, bot, original_prompt, resolution, upscale_factor, seed):
+        def __init__(self, bot, resolution, prompt, upscale_factor, seed):
             super().__init__()
             self.bot = bot
-            self.original_prompt = original_prompt
             self.resolution = resolution
+            self.prompt = prompt
             self.upscale_factor = upscale_factor
             self.seed = seed  # Store the seed as an instance variable
             
@@ -608,18 +506,14 @@ async def setup_commands(bot: discord_commands.Bot):
                 await interaction.response.defer(ephemeral=True)
                 
                 # Check for banned words first
-                is_banned, message = check_banned(str(interaction.user.id), self.original_prompt)
+                is_banned, message = check_banned(str(interaction.user.id), self.prompt)
                 if message:  # If there's a warning or ban message
                     await interaction.followup.send(message, ephemeral=True)
                     if is_banned:  # If the user is banned, stop processing
                         return
 
-                # Use PromptEnhancer directly
-                from LMstudio_bot.lora_manager.prompt_enhancer import PromptEnhancer
-                enhancer = PromptEnhancer()
-                
                 # Clean prompt of any existing LoRA trigger words and timestamps
-                base_prompt = re.sub(r'\s*\(Timestamp:.*?\)', '', self.original_prompt)
+                base_prompt = re.sub(r'\s*\(Timestamp:.*?\)', '', self.prompt)
                 lora_config = load_json('lora.json')
                 
                 # Remove existing LoRA trigger words from base prompt
@@ -630,35 +524,55 @@ async def setup_commands(bot: discord_commands.Bot):
                 # Clean up multiple commas and whitespace
                 base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
                 
-                if ENABLE_PROMPT_ENHANCEMENT:
-                    # Enhance the cleaned prompt
-                    enhanced_prompt = enhancer.enhance_prompt(
-                        base_prompt,
-                        {"name": "default", "description": "Default prompt enhancement", "keywords": []},
-                        creativity=creativity_level
-                    )
-                    
-                    if not enhanced_prompt:
+                if ENABLE_PROMPT_ENHANCEMENT and interaction.client.ai_provider:
+                    try:
+                        # Test AI provider connection
+                        connection_ok = await interaction.client.ai_provider.test_connection()
+                        if not connection_ok:
+                            logger.error("AI provider connection test failed")
+                            await interaction.followup.send(
+                                "Could not connect to AI provider. Using original prompt.",
+                                ephemeral=True
+                            )
+                            enhanced_prompt = base_prompt
+                        else:
+                            # Enhance the cleaned prompt
+                            enhanced_prompt = await interaction.client.ai_provider.generate_response(
+                                base_prompt,
+                                temperature=float(creativity_level) / 10.0  # Convert 1-10 to 0.1-1.0
+                            )
+                            
+                            if not enhanced_prompt:
+                                enhanced_prompt = base_prompt
+                                logger.warning("No enhanced prompt generated, using original")
+                    except Exception as e:
+                        logger.error(f"Error enhancing prompt: {e}", exc_info=True)
                         enhanced_prompt = base_prompt
-                        logger.warning("No enhanced prompt generated, using original")
-
-                    # Check enhanced prompt for banned words
-                    is_banned, message = check_banned(str(interaction.user.id), enhanced_prompt)
-                    if message:  # If there's a warning or ban message
-                        await interaction.followup.send(message, ephemeral=True)
-                        if is_banned:  # If the user is banned, stop processing
-                            return
-
-                    # Show the original and enhanced prompts (without LoRA trigger words)
-                    await interaction.followup.send(
-                        f"Original prompt: {self.original_prompt}\n"
-                        f"Enhanced prompt (before LoRA): {enhanced_prompt}\n"
-                        "Proceeding to LoRA selection...",
-                        ephemeral=True
-                    )
+                        await interaction.followup.send(
+                            f"Error enhancing prompt: {str(e)}. Using original prompt.",
+                            ephemeral=True
+                        )
                 else:
                     enhanced_prompt = base_prompt
-                    logger.info("Prompt enhancement disabled, using original prompt")
+                    if not interaction.client.ai_provider:
+                        logger.info("AI provider not initialized, using original prompt")
+                    else:
+                        logger.info("Prompt enhancement disabled, using original prompt")
+
+                # Check enhanced prompt for banned words
+                is_banned, message = check_banned(str(interaction.user.id), enhanced_prompt)
+                if message:  # If there's a warning or ban message
+                    await interaction.followup.send(message, ephemeral=True)
+                    if is_banned:  # If the user is banned, stop processing
+                        return
+
+                # Show the original and enhanced prompts (without LoRA trigger words)
+                await interaction.followup.send(
+                    f"Original prompt: {self.prompt}\n"
+                    f"Enhanced prompt (before LoRA): {enhanced_prompt}\n"
+                    "Proceeding to LoRA selection...",
+                    ephemeral=True
+                )
                 
                 logger.debug(f"Final prompt before LoRA selection: {enhanced_prompt}")
                 
@@ -708,7 +622,7 @@ async def setup_commands(bot: discord_commands.Bot):
                 # Use the seed from instance variable, or generate new one if None
                 current_seed = self.seed if self.seed is not None else generate_random_seed()
                 
-                workflow = load_json(fluxversion)
+                workflow = load_json(f'{fluxversion}')
                 request_uuid = str(uuid.uuid4())
                 
                 workflow = update_workflow(
@@ -720,7 +634,7 @@ async def setup_commands(bot: discord_commands.Bot):
                     current_seed
                 )
 
-                workflow_filename = f'flux3_{request_uuid}.json'
+                workflow_filename = f'{fluxversion}_{request_uuid}.json'
                 save_json(workflow_filename, workflow)
 
                 original_message = await interaction.followup.send(

@@ -1,6 +1,6 @@
 import logging
 import json
-from Main.utils import load_json
+from Main.utils import load_json, generate_random_seed
 import os
 import random
 

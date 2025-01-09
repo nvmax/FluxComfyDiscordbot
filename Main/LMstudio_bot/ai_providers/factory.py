@@ -6,7 +6,7 @@ from .lmstudio.provider import LMStudioProvider
 from .openai.provider import OpenAIProvider
 from .xai.provider import XAIProvider
 
-logger = logging.getLogger(__name__)
+
 
 class AIProviderFactory:
     """Factory class for creating AI provider instances."""
@@ -38,11 +38,8 @@ class AIProviderFactory:
         if not provider_class:
             raise ValueError(f"Unknown provider: {provider_name}")
         
-        logger.info(f"Creating provider instance for: {provider_name}")
         try:
             provider_instance = provider_class()
-            logger.info(f"Created provider instance: {provider_instance}")
             return provider_instance
         except Exception as e:
-            logger.error(f"Failed to create provider {provider_name}: {e}", exc_info=True)
             raise

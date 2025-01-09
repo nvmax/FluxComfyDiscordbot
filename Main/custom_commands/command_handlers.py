@@ -12,7 +12,11 @@ import json
 import os
 import re
 from Main.utils import load_json, generate_random_seed, save_json
-from .banned_utils import check_banned
+from Main.database import (
+    is_user_banned, ban_user, get_banned_words, add_user_warning, 
+    get_user_warnings, remove_user_warnings, get_all_warnings, add_banned_word, 
+    remove_banned_word, unban_user, get_ban_info, get_all_banned_users
+)
 from .views import CreativityModal, LoRAView, LoraInfoView, ReduxPromptModal
 from .image_processing import process_image_request
 from config import ENABLE_PROMPT_ENHANCEMENT, AI_PROVIDER, fluxversion
@@ -199,23 +203,41 @@ async def setup_commands(bot: commands.Bot):
         )
     )
 
-    @bot.tree.command(name="reboot", description="Reboot the bot (Restricted to specific admin)")
+    @bot.tree.command(name="reboot", description="Reboot the bot (Admin only)")
+    @app_commands.checks.has_permissions(administrator=True)
     async def reboot(interaction: discord.Interaction):
-        if interaction.user.id == 1055096424235516936:
+        try:
+            # Always defer first
+            await interaction.response.defer(ephemeral=True)
+            
             await interaction.followup.send("Rebooting bot...", ephemeral=True)
             await bot.close()
             import sys
             import os
             os.execv(sys.executable, ['python'] + sys.argv)
-        else:
-            await interaction.followup.send("You don't have permission.", ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in reboot command: {str(e)}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"Error rebooting bot: {str(e)}", ephemeral=True)
+            else:
+                await interaction.followup.send(f"Error rebooting bot: {str(e)}", ephemeral=True)
 
     @bot.tree.command(name="add_banned_word", description="Add a word to the banned list")
     @app_commands.checks.has_permissions(administrator=True)
     async def add_banned_word_command(interaction: discord.Interaction, word: str):
-        word = word.lower()
-        add_banned_word(word)
-        await interaction.followup.send(f"Added '{word}' to the banned words list.", ephemeral=True)
+        try:
+            # Defer the response first since we'll be doing database operations
+            await interaction.response.defer(ephemeral=True)
+            
+            word = word.lower()
+            add_banned_word(word)
+            await interaction.followup.send(f"Added '{word}' to the banned words list.", ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in add_banned_word command: {str(e)}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"Error adding banned word: {str(e)}", ephemeral=True)
+            else:
+                await interaction.followup.send(f"Error adding banned word: {str(e)}", ephemeral=True)
 
     @bot.tree.command(name="remove_banned_word", description="Remove a word from the banned list")
     @app_commands.checks.has_permissions(administrator=True)
@@ -242,40 +264,71 @@ async def setup_commands(bot: commands.Bot):
     @bot.tree.command(name="unban_user", description="Unban a user from using the comfy command")
     @app_commands.checks.has_permissions(administrator=True)
     async def unban_user_command(interaction: discord.Interaction, user: discord.User):
-        if unban_user(str(user.id)):
-            await interaction.response.send_message(f"Unbanned {user.name} from using the comfy command.", ephemeral=True)
-        else:
-            await interaction.response.send_message(f"{user.name} is not banned from using the comfy command.", ephemeral=True)
+        try:
+            # Defer the response first
+            await interaction.response.defer(ephemeral=True)
+            
+            if unban_user(str(user.id)):
+                await interaction.followup.send(f"Unbanned {user.name} from using the comfy command.", ephemeral=True)
+            else:
+                await interaction.followup.send(f"{user.name} is not banned.", ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in unban_user command: {str(e)}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"Error unbanning user: {str(e)}", ephemeral=True)
+            else:
+                await interaction.followup.send(f"Error unbanning user: {str(e)}", ephemeral=True)
 
     @bot.tree.command(name="whybanned", description="Check why a user was banned")
     @app_commands.checks.has_permissions(administrator=True)
     async def whybanned(interaction: discord.Interaction, user: discord.User):
-        ban_info = get_ban_info(str(user.id))
-        if ban_info:
+        try:
+            ban_info = get_ban_info(str(user.id))
+            if ban_info:
+                await interaction.response.send_message(
+                    f"{user.name} was banned on {ban_info['banned_at']} for the following reason: {ban_info['reason']}", 
+                    ephemeral=True
+                )
+            else:
+                await interaction.response.send_message(f"{user.name} is not banned.", ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in whybanned command: {str(e)}")
             await interaction.response.send_message(
-                f"{user.name} was banned on {ban_info['banned_at']} for the following reason: {ban_info['reason']}", 
+                f"An error occurred while checking ban information: {str(e)}", 
                 ephemeral=True
             )
-        else:
-            await interaction.response.send_message(f"{user.name} is not banned.", ephemeral=True)
 
     @bot.tree.command(name="list_banned_users", description="List all banned users")
     @app_commands.checks.has_permissions(administrator=True)
     async def list_banned_users(interaction: discord.Interaction):
-        conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
-        c.execute("SELECT user_id, reason, banned_at FROM banned_users")
-        banned_users = c.fetchall()
-        conn.close()
+        try:
+            banned_users = get_all_banned_users()
+            if not banned_users:
+                await interaction.response.send_message("No users are currently banned.", ephemeral=True)
+                return
 
-        if banned_users:
-            banned_list = "\n".join([
-                f"User ID: {user[0]}, Reason: {user[1]}, Banned at: {user[2]}" 
-                for user in banned_users
-            ])
-            await interaction.response.send_message(f"Banned users:\n{banned_list}", ephemeral=True)
-        else:
-            await interaction.response.send_message("There are no banned users.", ephemeral=True)
+            # Format the banned users list
+            message = "**Currently Banned Users:**\n\n"
+            for user in banned_users:
+                message += f"User ID: {user['user_id']}\n"
+                message += f"Reason: {user['reason']}\n"
+                message += f"Banned At: {user['banned_at']}\n"
+                message += "-" * 40 + "\n"
+
+            # Split message if it's too long
+            if len(message) > 2000:
+                messages = [message[i:i+1900] for i in range(0, len(message), 1900)]
+                await interaction.response.send_message(messages[0], ephemeral=True)
+                for msg in messages[1:]:
+                    await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(message, ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error in list_banned_users command: {str(e)}")
+            await interaction.response.send_message(
+                f"An error occurred while fetching banned users: {str(e)}", 
+                ephemeral=True
+            )
 
     @bot.tree.command(name="remove_warning", description="Remove warnings from a user")
     @has_admin_or_bot_manager_role()

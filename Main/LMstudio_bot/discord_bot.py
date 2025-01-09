@@ -30,104 +30,7 @@ class CopyButton(Button):
         except Exception as e:
             await interaction.response.send_message(f"Failed to copy prompt: {str(e)}", ephemeral=True)
 
-class LoraBot(discord.Client):
-    def __init__(self):
-        super().__init__(intents=discord.Intents.default())
-        self.tree = app_commands.CommandTree(self)
-        self.prompt_enhancer = PromptEnhancer()
-        with open('LMlora.json', 'r') as f:
-            self.lora_info = json.load(f)
-        
-        # Initialize AI provider as None - will be set after selection
-        self.ai_provider = None
 
-    async def check_lmstudio_available(self):
-        """Check if LMStudio is accessible."""
-        try:
-            provider = AIProviderFactory.get_provider("lmstudio")
-            return await provider.test_connection()
-        except Exception as e:
-            print(f"LMStudio check failed: {e}")
-            return False
-
-    async def check_openai_available(self):
-        """Check if OpenAI is properly configured."""
-        try:
-            provider = AIProviderFactory.get_provider("openai")
-            return await provider.test_connection()
-        except Exception as e:
-            print(f"OpenAI check failed: {e}")
-            return False
-
-    async def check_xai_available(self):
-        """Check if X.AI is properly configured."""
-        try:
-            provider = AIProviderFactory.get_provider("xai")
-            return await provider.test_connection()
-        except Exception as e:
-            print(f"X.AI check failed: {e}")
-            return False
-
-    async def prompt_provider_selection(self):
-        """Prompt user to select AI provider and initialize it."""
-        available_providers = []
-        
-        print("\nChecking available AI providers...")
-        
-        if await self.check_lmstudio_available():
-            available_providers.append("lmstudio")
-            print("✓ LM Studio is available")
-        else:
-            print("✗ LM Studio is not available")
-            
-        if await self.check_openai_available():
-            available_providers.append("openai")
-            print("✓ OpenAI is available")
-        else:
-            print("✗ OpenAI is not configured or API key is invalid")
-
-        if await self.check_xai_available():
-            available_providers.append("xai")
-            print("✓ X.AI is available")
-        else:
-            print("✗ X.AI is not configured or API key is invalid")
-
-        if not available_providers:
-            print("\n⚠️ No AI providers are available. Please check your configuration.")
-            return False
-
-        if len(available_providers) == 1:
-            selected = available_providers[0]
-            print(f"\nAutomatically selecting the only available provider: {selected}")
-        else:
-            print("\nMultiple providers available. Please select one:")
-            for i, provider in enumerate(available_providers, 1):
-                print(f"{i}. {provider}")
-                if provider == "lmstudio":
-                    print("   (Local LM Studio server)")
-                elif provider == "openai":
-                    print("   (OpenAI GPT API)")
-                elif provider == "xai":
-                    print("   (X.AI API)")
-            
-            while True:
-                try:
-                    choice = input("\nEnter the number of your choice (1-{}): ".format(len(available_providers)))
-                    index = int(choice) - 1
-                    if 0 <= index < len(available_providers):
-                        selected = available_providers[index]
-                        break
-                    print("Invalid choice. Please try again.")
-                except ValueError:
-                    print("Please enter a valid number.")
-
-        try:
-            self.ai_provider = AIProviderFactory.get_provider(selected)
-            print(f"\n✓ Successfully initialized {selected} provider")
-            return True
-        except Exception as e:
-            print(f"\n⚠️ Failed to initialize {selected} provider: {e}")
-            return False
 
     async def setup_hook(self):
         """Setup hook that runs before the bot starts."""
@@ -162,14 +65,6 @@ class PromptModal(Modal, title='Lora Enhancer'):
         style=discord.TextStyle.paragraph,
         placeholder='Type your prompt here...',
         required=True,
-    )
-    
-    count_input = TextInput(
-        label='Number of LoRAs to find (1-5)',
-        style=discord.TextStyle.short,
-        placeholder='How many top matching LoRAs to find',
-        required=True,
-        max_length=1,
     )
     
     creativity_input = TextInput(

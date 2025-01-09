@@ -17,6 +17,39 @@ class XAIProvider(AIProvider):
         self.model = "grok-2-latest"  # Using latest Grok model
         logger.info(f"Initialized XAI provider with model: {self.model}")
         
+        # Define word limits for each creativity level
+        self.word_limits = {
+            1: 0,      
+            2: 10,     
+            3: 20,     
+            4: 30,    
+            5: 40,     
+            6: 50,     
+            7: 60,     
+            8: 70,     
+            9: 80,     
+            10: 90    
+        }
+
+    def _get_word_limit(self, temperature: float) -> int:
+        """Get word limit based on temperature/creativity level."""
+        # Convert temperature (0.1-1.0) to creativity level (1-10)
+        creativity_level = round(temperature * 10)
+        # Get word limit for this level
+        return self.word_limits.get(creativity_level, 100)  # Default to 100 if level not found
+
+    def _enforce_word_limit(self, text: str, limit: int) -> str:
+        """Enforce word limit on generated text."""
+        if limit == 0:
+            return text
+            
+        words = text.split()
+        if len(words) > limit:
+            limited_text = ' '.join(words[:limit])
+            # logger.info(f"Truncated response from {len(words)} to {limit} words")
+            return limited_text
+        return text
+
     @property
     def base_url(self) -> str:
         """Get the base URL for the XAI API."""
@@ -52,6 +85,12 @@ class XAIProvider(AIProvider):
                 logger.info("Creativity level 1: Using original prompt")
                 return prompt
 
+            # Get word limit for this creativity level
+            word_limit = self._get_word_limit(temperature)
+            
+            # Add word limit instruction to system prompt
+            word_limit_instruction = f"\n\nIMPORTANT: Your response must not exceed {word_limit} words. Be concise and precise."
+
             # Scale the system prompt based on temperature
             if temperature <= 0.2:  # Level 2
                 system_prompt = (
@@ -59,6 +98,7 @@ class XAIProvider(AIProvider):
                     "\n1. Keep the original prompt almost entirely intact"
                     "\n2. Only add basic descriptive details if absolutely necessary"
                     "\n3. Do not change the core concept or style"
+                    + word_limit_instruction
                 )
             elif temperature <= 0.3:  # Level 3
                 system_prompt = (
@@ -66,6 +106,7 @@ class XAIProvider(AIProvider):
                     "\n1. Keep the main elements of the original prompt"
                     "\n2. Add minimal artistic style suggestions"
                     "\n3. Include basic descriptive details"
+                    + word_limit_instruction
                 )
             elif temperature <= 0.4:  # Level 4
                 system_prompt = (
@@ -73,6 +114,7 @@ class XAIProvider(AIProvider):
                     "\n1. Preserve the core concept"
                     "\n2. Add some artistic style elements"
                     "\n3. Include additional descriptive details"
+                    + word_limit_instruction
                 )
             elif temperature <= 0.5:  # Level 5
                 system_prompt = (
@@ -80,6 +122,7 @@ class XAIProvider(AIProvider):
                     "\n1. Keep the main theme while adding detail"
                     "\n2. Suggest complementary artistic styles"
                     "\n3. Add meaningful descriptive elements"
+                    + word_limit_instruction
                 )
             elif temperature <= 0.6:  # Level 6
                 system_prompt = (
@@ -87,6 +130,7 @@ class XAIProvider(AIProvider):
                     "\n1. Expand on the original concept"
                     "\n2. Add specific artistic style recommendations"
                     "\n3. Include detailed visual descriptions"
+                    + word_limit_instruction
                 )
             elif temperature <= 0.7:  # Level 7
                 system_prompt = (
@@ -94,6 +138,7 @@ class XAIProvider(AIProvider):
                     "\n1. Build upon the core concept"
                     "\n2. Add rich artistic style elements"
                     "\n3. Include comprehensive visual details"
+                    + word_limit_instruction
                 )
             elif temperature <= 0.8:  # Level 8
                 system_prompt = (
@@ -101,6 +146,7 @@ class XAIProvider(AIProvider):
                     "\n1. Elaborate on the original concept"
                     "\n2. Add detailed artistic direction"
                     "\n3. Include rich visual descriptions"
+                    + word_limit_instruction
                 )
             elif temperature <= 0.9:  # Level 9
                 system_prompt = (
@@ -108,6 +154,7 @@ class XAIProvider(AIProvider):
                     "\n1. Significantly expand the concept"
                     "\n2. Add comprehensive artistic direction"
                     "\n3. Include intricate visual details"
+                    + word_limit_instruction
                 )
             else:  # Level 10
                 system_prompt = (
@@ -115,6 +162,7 @@ class XAIProvider(AIProvider):
                     "\n1. Fully develop and expand the concept"
                     "\n2. Add extensive artistic direction"
                     "\n3. Include highly detailed visual descriptions"
+                    + word_limit_instruction
                 )
 
             headers = {
@@ -146,7 +194,11 @@ class XAIProvider(AIProvider):
                         raise Exception("Invalid response format from XAI API")
                         
                     enhanced_prompt = data["choices"][0]["message"]["content"].strip()
-                    logger.info(f"Enhanced prompt with temperature {temperature}: {enhanced_prompt}")
+                    
+                    # Enforce word limit
+                    enhanced_prompt = self._enforce_word_limit(enhanced_prompt, word_limit)
+                    
+                    #logger.info(f"Enhanced prompt with temperature {temperature} (limit {word_limit} words): {enhanced_prompt}")
                     
                     return enhanced_prompt
 

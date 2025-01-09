@@ -30,66 +30,7 @@ class PromptEnhancer:
         # Find all quoted text and process them
         pattern = r'"[^"]*"'
         return re.sub(pattern, replace_quote, prompt)
-
-    # """def _extract_important_keywords(self, prompt: str) -> set:
-    #     """
-    #     Extract important keywords from the user's prompt.
-    #     Excludes common words and focuses on descriptive terms.
-    #     """
-    #     # Convert to lowercase and split into words
-    #     words = prompt.lower().split()
         
-    #     # Common words to exclude
-    #     common_words = {'a', 'an', 'the', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'}
-        
-    #     # Keep words that are not in common_words and are at least 3 characters long
-    #     return {word for word in words if word not in common_words and len(word) >= 3}"""
-
-    # """def _ensure_keywords_present(self, enhanced_prompt: str, original_keywords: set) -> str:
-    #     """
-    #     Ensure all important keywords from the original prompt are present in the enhanced prompt.
-    #     Add any missing keywords in a natural way, preserving their original context.
-    #     """
-    #     # Tokenize original keywords into a list to maintain order
-    #     original_keywords = list(original_keywords)
-    #     enhanced_words = enhanced_prompt.split()
-    #     enhanced_lower = [word.lower() for word in enhanced_words]
-
-    #     # Identify missing keywords
-    #     missing_keywords = [word for word in original_keywords if word.lower() not in enhanced_lower]
-
-    #     if not missing_keywords:
-    #         return enhanced_prompt  # If no keywords are missing, return the prompt as-is
-
-    #     # Process each missing keyword
-    #     for missing in missing_keywords:
-    #         for i, word in enumerate(original_keywords):
-    #             if word.lower() == missing.lower():
-    #                 # Find the next or previous word in the original prompt for context
-    #                 context_before = original_keywords[i - 1] if i > 0 else None
-    #                 context_after = original_keywords[i + 1] if i < len(original_keywords) - 1 else None
-
-    #                 # Check if context matches in the enhanced prompt
-    #                 inserted = False
-    #                 if context_before:
-    #                     for j, enhanced_word in enumerate(enhanced_words):
-    #                         if context_before.lower() in enhanced_word.lower():
-    #                             enhanced_words.insert(j + 1, missing)
-    #                             inserted = True
-    #                             break
-    #                 if not inserted and context_after:
-    #                     for j, enhanced_word in enumerate(enhanced_words):
-    #                         if context_after.lower() in enhanced_word.lower():
-    #                             enhanced_words.insert(j, missing)
-    #                             inserted = True
-    #                             break
-    #                 if not inserted:
-    #                     # Append at the end as a last resort (unlikely to be needed)
-    #                     enhanced_words.append(missing)
-
-    #     # Reconstruct the enhanced prompt
-    #     return " ".join(enhanced_words)"""
-
     def enhance_prompt(self, user_prompt: str, lora_info: Dict[str, Any], 
                       creativity: int = DEFAULT_CREATIVITY) -> str:
         """

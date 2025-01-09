@@ -348,6 +348,18 @@ def is_user_banned(user_id):
     conn.close()
     return is_banned
 
+def get_all_banned_users():
+    """
+    Get all banned users from the database with their ban information.
+    Returns a list of dictionaries containing user_id, reason, and banned_at.
+    """
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT user_id, reason, banned_at FROM banned_users ORDER BY banned_at DESC")
+    banned_users = [{"user_id": row[0], "reason": row[1], "banned_at": row[2]} for row in c.fetchall()]
+    conn.close()
+    return banned_users
+
 # Function to load LoRA information from lora.json
 def load_lora_info():
     try:

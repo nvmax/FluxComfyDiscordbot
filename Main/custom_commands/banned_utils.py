@@ -1,8 +1,7 @@
 import re
 import logging
 from Main.database import (
-    is_user_banned, ban_user, get_banned_words,
-    add_user_warning, get_user_warnings
+    is_user_banned, ban_user, get_banned_words, add_user_warning, get_user_warnings
 )
 
 logger = logging.getLogger(__name__)

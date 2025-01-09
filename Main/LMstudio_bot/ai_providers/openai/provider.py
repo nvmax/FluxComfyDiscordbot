@@ -11,11 +11,45 @@ class OpenAIProvider(AIProvider):
     """OpenAI provider implementation."""
     
     def __init__(self):
-        self.api_key = OPENAI_API_KEY
+        """Initialize OpenAI provider with API key."""
+        self.api_key = os.getenv("OPENAI_API_KEY")
         if not self.api_key:
-            raise ValueError("OPENAI_API_KEY is not set in config")
-        self.model = OPENAI_MODEL or "gpt-3.5-turbo"
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+        self.model = "gpt-4-turbo-preview"  # Using latest GPT-4 model
         logger.info(f"Initialized OpenAI provider with model: {self.model}")
+        
+        # Define word limits for each creativity level
+        self.word_limits = {
+            1: 0,      
+            2: 10,     
+            3: 20,     
+            4: 30,    
+            5: 40,     
+            6: 50,     
+            7: 60,     
+            8: 70,     
+            9: 80,     
+            10: 90    
+        }
+
+    def _get_word_limit(self, temperature: float) -> int:
+        """Get word limit based on temperature/creativity level."""
+        # Convert temperature (0.1-1.0) to creativity level (1-10)
+        creativity_level = round(temperature * 10)
+        # Get word limit for this level
+        return self.word_limits.get(creativity_level, 100)  # Default to 100 if level not found
+
+    def _enforce_word_limit(self, text: str, limit: int) -> str:
+        """Enforce word limit on generated text."""
+        if limit == 0:
+            return text
+            
+        words = text.split()
+        if len(words) > limit:
+            limited_text = ' '.join(words[:limit])
+            logger.info(f"Truncated response from {len(words)} to {limit} words")
+            return limited_text
+        return text
 
     @property
     def base_url(self) -> str:
@@ -153,6 +187,8 @@ class OpenAIProvider(AIProvider):
                         raise Exception("Invalid response format from OpenAI API")
                     
                     enhanced_prompt = data["choices"][0]["message"]["content"].strip()
+                    word_limit = self._get_word_limit(temperature)
+                    enhanced_prompt = self._enforce_word_limit(enhanced_prompt, word_limit)
                     logger.info(f"Enhanced prompt with temperature {temperature}: {enhanced_prompt}")
                     
             return enhanced_prompt

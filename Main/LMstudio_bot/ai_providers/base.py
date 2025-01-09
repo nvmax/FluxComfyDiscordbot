@@ -1,7 +1,5 @@
 from abc import ABC, abstractmethod
-import logging
 
-logger = logging.getLogger(__name__)
 
 class AIProvider(ABC):
     """Base class for all AI providers."""

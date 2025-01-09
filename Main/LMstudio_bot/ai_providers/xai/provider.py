@@ -1,9 +1,8 @@
 import os
-import logging
 import aiohttp
+import logging
 from typing import Optional
 from ..base import AIProvider
-from config import XAI_API_KEY, XAI_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -11,14 +10,16 @@ class XAIProvider(AIProvider):
     """XAI provider implementation."""
     
     def __init__(self):
-        self.api_key = XAI_API_KEY
+        """Initialize XAI provider with API key."""
+        self.api_key = os.getenv("XAI_API_KEY")
         if not self.api_key:
-            raise ValueError("XAI_API_KEY is not set in config")
-        self.model = XAI_MODEL or "grok-beta"
+            raise ValueError("XAI_API_KEY environment variable is not set")
+        self.model = "grok-2-latest"  # Using latest Grok model
         logger.info(f"Initialized XAI provider with model: {self.model}")
-
+        
     @property
     def base_url(self) -> str:
+        """Get the base URL for the XAI API."""
         return "https://api.x.ai/v1"
 
     async def test_connection(self) -> bool:
@@ -29,25 +30,18 @@ class XAIProvider(AIProvider):
                 "Content-Type": "application/json"
             }
             
-            url = f"{self.base_url}/chat/completions"
+            # Test with a simple completion request
             payload = {
                 "model": self.model,
                 "messages": [{"role": "user", "content": "test"}],
-                "temperature": 0.7,
-                "max_tokens": 50
+                "max_tokens": 10
             }
-
+            
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, json=payload, timeout=10) as response:
-                    if response.status == 200:
-                        logger.info("XAI connection test successful")
-                        return True
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"XAI connection test failed with status {response.status}: {error_text}")
-                        return False
+                async with session.post(f"{self.base_url}/chat/completions", headers=headers, json=payload) as response:
+                    return response.status == 200
         except Exception as e:
-            logger.error(f"XAI connection test failed: {e}", exc_info=True)
+            logger.error(f"XAI connection test failed: {e}")
             return False
 
     async def generate_response(self, prompt: str, temperature: float = 0.7) -> str:
@@ -124,10 +118,12 @@ class XAIProvider(AIProvider):
                 )
 
             headers = {
+                "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
             }
 
             payload = {
+                "model": self.model,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Original prompt: {prompt}\n\nEnhanced prompt:"}
@@ -139,11 +135,16 @@ class XAIProvider(AIProvider):
             }
 
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"{self.base_url}/v1/chat/completions", headers=headers, json=payload, timeout=30) as response:
+                async with session.post(f"{self.base_url}/chat/completions", headers=headers, json=payload, timeout=30) as response:
                     if response.status != 200:
-                        raise Exception(f"HTTP {response.status}: {await response.text()}")
+                        error_text = await response.text()
+                        logger.error(f"XAI API error: HTTP {response.status} - {error_text}")
+                        raise Exception(f"XAI API error: HTTP {response.status} - {error_text}")
                     
                     data = await response.json()
+                    if not data.get("choices") or not data["choices"][0].get("message"):
+                        raise Exception("Invalid response format from XAI API")
+                        
                     enhanced_prompt = data["choices"][0]["message"]["content"].strip()
                     logger.info(f"Enhanced prompt with temperature {temperature}: {enhanced_prompt}")
                     

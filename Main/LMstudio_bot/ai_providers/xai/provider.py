@@ -98,6 +98,7 @@ class XAIProvider(AIProvider):
                     "\n1. Keep the original prompt almost entirely intact"
                     "\n2. Only add basic descriptive details if absolutely necessary"
                     "\n3. Do not change the core concept or style"
+                    "\n4. Return the prompt in a single sentence without any unnecessary information"
                     + word_limit_instruction
                 )
             elif temperature <= 0.3:  # Level 3
@@ -106,6 +107,7 @@ class XAIProvider(AIProvider):
                     "\n1. Keep the main elements of the original prompt"
                     "\n2. Add minimal artistic style suggestions"
                     "\n3. Include basic descriptive details"
+                    "\n4. Return the prompt in a single sentence without any unnecessary information"
                     + word_limit_instruction
                 )
             elif temperature <= 0.4:  # Level 4
@@ -114,6 +116,7 @@ class XAIProvider(AIProvider):
                     "\n1. Preserve the core concept"
                     "\n2. Add some artistic style elements"
                     "\n3. Include additional descriptive details"
+                    "\n4. Return the prompt in a single sentence without any unnecessary information"
                     + word_limit_instruction
                 )
             elif temperature <= 0.5:  # Level 5
@@ -122,6 +125,7 @@ class XAIProvider(AIProvider):
                     "\n1. Keep the main theme while adding detail"
                     "\n2. Suggest complementary artistic styles"
                     "\n3. Add meaningful descriptive elements"
+                    "\n4. Return the prompt in a single sentence without any unnecessary information"
                     + word_limit_instruction
                 )
             elif temperature <= 0.6:  # Level 6
@@ -130,6 +134,7 @@ class XAIProvider(AIProvider):
                     "\n1. Expand on the original concept"
                     "\n2. Add specific artistic style recommendations"
                     "\n3. Include detailed visual descriptions"
+                    "\n4. Return the prompt in a single sentence without any unnecessary information"
                     + word_limit_instruction
                 )
             elif temperature <= 0.7:  # Level 7
@@ -138,6 +143,7 @@ class XAIProvider(AIProvider):
                     "\n1. Build upon the core concept"
                     "\n2. Add rich artistic style elements"
                     "\n3. Include comprehensive visual details"
+                    "\n4. Return the prompt in a single sentence without any unnecessary information"
                     + word_limit_instruction
                 )
             elif temperature <= 0.8:  # Level 8
@@ -146,6 +152,7 @@ class XAIProvider(AIProvider):
                     "\n1. Elaborate on the original concept"
                     "\n2. Add detailed artistic direction"
                     "\n3. Include rich visual descriptions"
+                    "\n4. Return the prompt in a single sentence without any unnecessary information"
                     + word_limit_instruction
                 )
             elif temperature <= 0.9:  # Level 9
@@ -154,6 +161,7 @@ class XAIProvider(AIProvider):
                     "\n1. Significantly expand the concept"
                     "\n2. Add comprehensive artistic direction"
                     "\n3. Include intricate visual details"
+                    "\n4. Return the prompt in a single sentence without any unnecessary information"
                     + word_limit_instruction
                 )
             else:  # Level 10
@@ -162,6 +170,7 @@ class XAIProvider(AIProvider):
                     "\n1. Fully develop and expand the concept"
                     "\n2. Add extensive artistic direction"
                     "\n3. Include highly detailed visual descriptions"
+                    "\n4. Return the prompt in a single sentence without any unnecessary information"
                     + word_limit_instruction
                 )
 

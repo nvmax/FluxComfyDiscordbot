@@ -579,6 +579,12 @@ async def setup_commands(bot: commands.Bot):
                 base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
                 
                 if ENABLE_PROMPT_ENHANCEMENT and interaction.client.ai_provider:
+                    # Send "Please wait" message before enhancement
+                    wait_message = await interaction.followup.send(
+                        "Please wait a moment while I process your prompt...",
+                        ephemeral=True
+                    )
+                    
                     try:
                         # Test AI provider connection
                         connection_ok = await interaction.client.ai_provider.test_connection()
@@ -606,6 +612,12 @@ async def setup_commands(bot: commands.Bot):
                             f"Error enhancing prompt: {str(e)}. Using original prompt.",
                             ephemeral=True
                         )
+                    finally:
+                        # Delete the "Please wait" message
+                        try:
+                            await wait_message.delete()
+                        except Exception as e:
+                            logger.error(f"Error deleting wait message: {e}", exc_info=True)
                 else:
                     enhanced_prompt = base_prompt
                     if not interaction.client.ai_provider:
@@ -620,13 +632,18 @@ async def setup_commands(bot: commands.Bot):
                     if is_banned:  # If the user is banned, stop processing
                         return
 
-                # Show the original and enhanced prompts (without LoRA trigger words)
+                # Show the original prompt
                 await interaction.followup.send(
-                    f"Original prompt: {self.prompt}\n"
-                    f"Enhanced prompt (before LoRA): {enhanced_prompt}\n"
-                    "Proceeding to LoRA selection...",
+                    f"Original prompt: {self.prompt}",
                     ephemeral=True
                 )
+                
+                # Only show enhanced prompt if creativity level is higher than 1
+                if creativity_level > 1:
+                    await interaction.followup.send(
+                        f"Enhanced prompt: {enhanced_prompt}",
+                        ephemeral=True
+                    )
                 
                 logger.debug(f"Final prompt before LoRA selection: {enhanced_prompt}")
                 

@@ -5,12 +5,11 @@ import json
 import io
 from Main.database import add_to_history
 from Main.utils import load_json
-from Main.custom_commands.views import ImageControlView
 from .models import RequestItem, ReduxRequestItem, ReduxPromptRequestItem
 from typing import Dict, Any
 import asyncio
 from .message_constants import STATUS_MESSAGES
-from .views import ImageControlView, ReduxImageView
+from .views import ImageControlView, ReduxImageView, PuLIDImageView
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +128,8 @@ async def handle_generated_image(request):
             # Select appropriate view based on request type
             if isinstance(request_item, (ReduxRequestItem, ReduxPromptRequestItem)):
                 view = ReduxImageView()
+            elif request_item.workflow_filename and request_item.workflow_filename.lower().startswith('pulid'):
+                view = PuLIDImageView()
             else:
                 view = ImageControlView(
                     request.app['bot'],

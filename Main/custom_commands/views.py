@@ -1,21 +1,18 @@
 import logging
 import discord
+import uuid
+import os
+import re
+import asyncio
 from discord import app_commands, SelectOption
 from discord.ui import View, Select, Button, Modal, TextInput
-from typing import Optional, List
-import uuid
-import time
-import json
-import asyncio
-import re
-import os
+from typing import List, Optional, Dict, Any
+from Main.utils import load_json, save_json, generate_random_seed
+from .workflow_utils import update_workflow, update_pulid_workflow, update_reduxprompt_workflow
+from .models import RequestItem, ReduxPromptRequestItem, ReduxRequestItem
 from .banned_utils import check_banned
 from .image_processing import process_image_request
-from Main.utils import load_json, save_json, generate_random_seed
-from .workflow_utils import update_workflow, update_reduxprompt_workflow
-from config import fluxversion
-from .models import RequestItem, ReduxRequestItem, ReduxPromptRequestItem
-from Main.LMstudio_bot.ai_providers.base import AIProvider
+from config import PULIDWORKFLOW
 
 logger = logging.getLogger(__name__)
 
@@ -839,7 +836,7 @@ class ReduxPromptModal(Modal, title='Redux Prompt'):
                     return
 
                 # Save the image
-                temp_dir = os.path.join('Main', 'Datasets', 'temp')
+                temp_dir = os.path.join(os.getcwd(), 'Main', 'Datasets', 'temp')
                 os.makedirs(temp_dir, exist_ok=True)
                 image_path = os.path.join(temp_dir, f"{request_id}_{attachment.filename}")
                 await attachment.save(image_path)
@@ -1297,7 +1294,7 @@ class ReduxImageView(View):
         # Set timeout to None for persistent view
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Delete", style=discord.ButtonStyle.danger, custom_id="delete_button", emoji="🗑️")
+    @discord.ui.button(label="Delete", style=discord.ButtonStyle.danger, custom_id="redux_delete")
     async def delete_message(self, interaction: discord.Interaction, button: Button):
         """Handle the delete button press."""
         try:
@@ -1311,6 +1308,18 @@ class ReduxImageView(View):
         except Exception as e:
             logger.error(f"Error deleting message: {str(e)}")
             await interaction.followup.send("An error occurred while trying to delete the message.", ephemeral=True)
+
+class PuLIDImageView(View):
+    """A simple view for PuLID images that only contains a delete button."""
+    def __init__(self):
+        # Set timeout to None for persistent view
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, custom_id="pulid_delete")
+    async def delete_message(self, interaction: discord.Interaction, button: Button):
+        """Handle the delete button press."""
+        if interaction.message:
+            await interaction.message.delete()
 
 class CreativityModal(Modal, title='Creativity Settings'):
     def __init__(self, bot, resolution: str = None, initial_prompt: str = None, upscale_factor: int = 1, initial_seed: Optional[int] = None):
@@ -1463,6 +1472,158 @@ class CreativityModal(Modal, title='Creativity Settings'):
                 ephemeral=True
             )
 
+class PulidModal(discord.ui.Modal, title='PuLID Image Generation'):
+    def __init__(self, bot, resolution: str):
+        super().__init__()
+        self.bot = bot
+        self.resolution = resolution
+
+        self.prompt = TextInput(
+            label='Enter your prompt',
+            style=discord.TextStyle.paragraph,
+            placeholder='Type your prompt here...',
+            required=True,
+            max_length=1000
+        )
+
+        self.seed = TextInput(
+            label='Seed (optional)',
+            style=discord.TextStyle.short,
+            placeholder='Leave empty for random seed',
+            required=False,
+            max_length=20
+        )
+
+        self.add_item(self.prompt)
+        self.add_item(self.seed)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            # Process seed value
+            seed = None
+            if self.seed.value.strip():
+                try:
+                    seed = int(self.seed.value)
+                except ValueError:
+                    await interaction.response.send_message(
+                        "Invalid seed value. Please use a valid integer or leave empty for random seed.",
+                        ephemeral=True
+                    )
+                    return
+            else:
+                seed = generate_random_seed()
+
+            # Check for banned words in the prompt
+            is_banned, message = check_banned(str(interaction.user.id), self.prompt.value)
+            if message:  # If there's a warning or ban message
+                await interaction.response.send_message(message, ephemeral=True)
+                if is_banned:  # If the user is banned, stop processing
+                    return
+
+            # Create a unique request ID
+            request_id = str(uuid.uuid4())
+
+            # Send message asking for image upload
+            initial_message = await interaction.response.send_message(
+                "Please upload the reference image you'd like to use.",
+                ephemeral=True
+            )
+            initial_message = await interaction.original_response()
+
+            def check_message(m):
+                return (m.author.id == interaction.user.id and 
+                        m.channel.id == interaction.channel.id and 
+                        len(m.attachments) > 0)
+
+            try:
+                # Wait for image upload
+                message = await self.bot.wait_for('message', timeout=300.0, check=check_message)
+                
+                # Get the first attachment
+                attachment = message.attachments[0]
+                
+                # Check if it's an image
+                if not attachment.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                    await interaction.followup.send(
+                        "Please upload a valid image file (PNG, JPG, JPEG, or WEBP).",
+                        ephemeral=True
+                    )
+                    return
+
+                # Save the image
+                temp_dir = os.path.join(os.getcwd(), 'Main', 'Datasets', 'temp')
+                os.makedirs(temp_dir, exist_ok=True)
+                image_path = os.path.join(temp_dir, f"{request_id}_{attachment.filename}")
+                await attachment.save(image_path)
+
+                # Convert to absolute path with forward slashes
+                image_path = os.path.abspath(image_path).replace('\\', '/')
+
+                # Delete both the initial message and the upload message
+                try:
+                    await initial_message.delete()
+                    await message.delete()
+                except Exception as e:
+                    logger.error(f"Error deleting messages: {str(e)}")
+
+                # Show LoRA selection view
+                view = LoRAView(self.bot)
+                lora_message = await interaction.followup.send(
+                    "Select the LoRAs you want to use:",
+                    view=view,
+                    ephemeral=True
+                )
+
+                # Wait for LoRA selection
+                await view.wait()
+                if not view.has_confirmed:
+                    await interaction.followup.send("LoRA selection was cancelled or timed out.", ephemeral=True)
+                    return
+
+                # Delete the LoRA selection message
+                try:
+                    await lora_message.delete()
+                except Exception as e:
+                    logger.error(f"Error deleting LoRA selection message: {str(e)}")
+
+                # Load and update workflow using environment variable
+                workflow_path = os.path.join('Main', 'Datasets', PULIDWORKFLOW)
+                workflow = load_json(workflow_path)
+                workflow = update_pulid_workflow(
+                    workflow,
+                    image_url=image_path,  # Convert to forward slashes
+                    prompt=self.prompt.value,
+                    resolution=self.resolution,
+                    loras=list(view.all_selections),
+                    seed=seed
+                )
+
+                # Save the modified workflow
+                workflow_filename = f'pulid_{request_id}.json'
+                save_json(workflow_filename, workflow)
+
+                # Process the request
+                await process_image_request(
+                    interaction,
+                    self.prompt.value,
+                    self.resolution,
+                    upscale_factor=1,
+                    seed=seed,
+                    workflow=workflow,
+                    workflow_filename=workflow_filename
+                )
+
+            except asyncio.TimeoutError:
+                await interaction.followup.send("Image upload timed out. Please try again.", ephemeral=True)
+                return
+
+        except Exception as e:
+            logger.error(f"Error in PulidModal on_submit: {str(e)}", exc_info=True)
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"An error occurred: {str(e)}", ephemeral=True)
+            else:
+                await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
+
 # Optional interface class for better type hints and documentation
 class ViewInterface:
     """Interface class defining the expected view structure"""
@@ -1474,7 +1635,10 @@ class ViewInterface:
     ResolutionSelect = ResolutionSelect
     LoraInfoView = LoraInfoView
     ReduxImageView = ReduxImageView
+    PuLIDImageView = PuLIDImageView
     CreativityModal = CreativityModal
+    ReduxPromptModal = ReduxPromptModal
+    PulidModal = PulidModal
 
 __all__ = [
     'ImageControlView',
@@ -1485,6 +1649,9 @@ __all__ = [
     'ResolutionSelect',
     'LoraInfoView',
     'ReduxImageView',
+    'PuLIDImageView',
     'ViewInterface',
-    'CreativityModal'
+    'CreativityModal',
+    'ReduxPromptModal',
+    'PulidModal'
 ]

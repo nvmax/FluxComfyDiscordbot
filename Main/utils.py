@@ -10,7 +10,9 @@ def load_json(filename):
     """Load JSON file with error handling and encoding fallback"""
     # Try both case variations of the directory name
     possible_paths = [
-        os.path.join('Main', 'Datasets', filename)
+        os.path.join('Main', 'Datasets', filename),
+        os.path.join('Main', 'DataSets', filename),
+        filename  # Also try the direct path if provided
     ]
     
     filepath = None

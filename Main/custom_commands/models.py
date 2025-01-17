@@ -30,6 +30,7 @@ class RequestItem(BaseRequestItem):
     loras: List[str]
     upscale_factor: int
     seed: Optional[int] = None
+    is_pulid: bool = False
 
     def __post_init__(self):
         super().__post_init__()

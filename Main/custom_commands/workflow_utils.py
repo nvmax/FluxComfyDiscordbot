@@ -3,6 +3,7 @@ import json
 from Main.utils import load_json, generate_random_seed
 import os
 import random
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -194,3 +195,70 @@ def update_reduxprompt_workflow(workflow, image_path, prompt, strength, seed=Non
     except Exception as e:
         logger.error(f"Error updating ReduxPrompt workflow: {str(e)}")
         raise
+
+def update_pulid_workflow(workflow: dict, image_url: str, prompt: str, resolution: str, loras: List[str], seed: Optional[int] = None) -> dict:
+    """Updates the PuLID workflow with the provided parameters."""
+    try:
+        # Create a deep copy to avoid modifying original
+        workflow = json.loads(json.dumps(workflow))
+        
+        # Ensure image_url is an absolute path with forward slashes
+        image_url = os.path.abspath(image_url).replace('\\', '/')
+        
+        # Update image URL in LoadImage node
+        if '54' in workflow:
+            workflow['54']['inputs']['image'] = image_url
+            logger.debug(f"Updated image URL in workflow: {image_url}")
+        else:
+            logger.warning("LoadImage node (54) not found in workflow")
+
+        # Update prompt
+        if '6' in workflow:
+            workflow['6']['inputs']['text'] = prompt
+            logger.debug(f"Updated prompt in workflow")
+        else:
+            logger.warning("CLIPTextEncode node (6) not found in workflow")
+
+        # Update LoRAs
+        if '73' in workflow:
+            lora_loader = workflow['73']['inputs']
+            
+            # Load lora config
+            lora_config = load_json('lora.json')
+            lora_info = {lora['file']: lora for lora in lora_config['available_loras']}
+
+            # Clean existing LoRA entries
+            for key in list(lora_loader.keys()):
+                if key.startswith('lora_'):
+                    del lora_loader[key]
+
+            # Add new LoRA entries
+            for i, lora in enumerate(loras, start=1):
+                if lora in lora_info:
+                    lora_key = f'lora_{i}'
+                    lora_loader[lora_key] = {
+                        'on': True,
+                        'lora': lora,
+                        'strength': float(lora_info[lora].get('weight', 1.0))
+                    }
+            logger.debug(f"Updated LoRAs in workflow: {len(loras)} LoRAs configured")
+        else:
+            logger.warning("LoraLoader node (73) not found in workflow")
+
+        # Update seed
+        if seed is not None and '25' in workflow:
+            workflow['25']['inputs']['noise_seed'] = seed
+            logger.debug(f"Updated seed in workflow: {seed}")
+        else:
+            logger.warning("RandomNoise node (25) not found in workflow")
+
+        # Validate the final workflow
+        if not isinstance(workflow, dict):
+            raise ValueError("Workflow must remain a dictionary after updates")
+
+        logger.debug("Successfully updated workflow with all parameters")
+        return workflow
+
+    except Exception as e:
+        logger.error(f"Error updating workflow: {str(e)}")
+        raise ValueError(f"Failed to update workflow: {str(e)}")

@@ -16,11 +16,14 @@ ALLOWED_SERVERS = [int(id) for id in os.getenv('ALLOWED_SERVERS').split(',')]
 BOT_MANAGER_ROLE_ID = int(os.getenv('BOT_MANAGER_ROLE_ID'))
 fluxversion = os.getenv('fluxversion')
 
+# Workflow configurations
+PULIDWORKFLOW = os.getenv('PULIDWORKFLOW').strip('"') 
+
 # LMStudio Integration
 ENABLE_PROMPT_ENHANCEMENT = os.getenv('ENABLE_PROMPT_ENHANCEMENT', 'false').lower() == 'true'
 LMSTUDIO_HOST = os.getenv('LMSTUDIO_HOST', 'localhost')
 LMSTUDIO_PORT = os.getenv('LMSTUDIO_PORT', '1234')
-AI_PROVIDER = os.getenv('AI_PROVIDER', 'lmstudio')  # Options: lmstudio, openai, xai
+AI_PROVIDER = os.getenv('AI_PROVIDER', 'lmstudio') 
 XAI_API_KEY = os.getenv('XAI_API_KEY', '')
 XAI_MODEL = os.getenv('XAI_MODEL', 'grok-beta')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
@@ -40,6 +43,7 @@ __all__ = [
     'ALLOWED_SERVERS',
     'BOT_MANAGER_ROLE_ID',
     'fluxversion',
+    'PULIDWORKFLOW',
     'ENABLE_PROMPT_ENHANCEMENT',
     'LMSTUDIO_HOST',
     'LMSTUDIO_PORT',

@@ -18,7 +18,7 @@ from Main.database import (
     remove_banned_word, unban_user, get_ban_info, get_all_banned_users
 )
 from .banned_utils import check_banned
-from .views import CreativityModal, LoRAView, LoraInfoView, ReduxPromptModal
+from .views import CreativityModal, LoRAView, LoraInfoView, ReduxPromptModal, PulidModal
 from .image_processing import process_image_request
 from config import ENABLE_PROMPT_ENHANCEMENT, AI_PROVIDER, fluxversion
 from ..LMstudio_bot.ai_providers import AIProviderFactory
@@ -517,6 +517,30 @@ async def setup_commands(bot: commands.Bot):
         except Exception as e:
             logger.error(f"Error in sync_commands: {str(e)}", exc_info=True)
             await interaction.followup.send(f"An error occurred: {str(e)}")
+
+    @bot.tree.command(name="pulid", description="Generate an image using PuLID workflow with a reference image")
+    @check_channel()
+    @app_commands.describe(
+        resolution="Choose the resolution"
+    )
+    @app_commands.choices(resolution=[
+        app_commands.Choice(name=name, value=name)
+        for name in load_json('ratios.json')['ratios'].keys()
+    ])
+    async def pulid(interaction: discord.Interaction, resolution: str):
+        try:
+            logger.debug(f"Received pulid command with resolution: {resolution}")
+
+            # Show the modal for prompt input
+            modal = PulidModal(bot, resolution)
+            await interaction.response.send_modal(modal)
+
+        except Exception as e:
+            logger.error(f"Error in pulid command: {str(e)}")
+            await interaction.response.send_message(
+                f"An error occurred: {str(e)}",
+                ephemeral=True
+            )
 
     class CreativityModal(discord.ui.Modal, title='Select Creativity Level'):
         def __init__(self, bot, resolution, prompt, upscale_factor, seed):

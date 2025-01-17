@@ -1,13 +1,21 @@
 # Changelog
 
 ## Latest Updates
-
-### January 6, 2025
 #### New Features
+
+### January 17, 2025
+- **PuLID Workflow**
+  - Now supports PuLID workflow
+  - Upload a reference image to generate an image using a PuLID just fill in style information
+    - example: image of a woman wearing a yellow dress,  "/pulid select your resolution, enter in the prompt " woman with a red dress"
+
+### January 10, 2025
 - **Security Implementation**
   - Implemented a security middleware to prevent abuse and protect against malicious requests.
   - Added a permanent block list to block IP addresses that have been repeatedly tried to access restricted endpoints.
   - you can check the security folder for the permanent block list and see what they were requesting.
+- **AI Prompt Enhancements**
+  - Now supports Google Gemini 2.0 Flash
 
 ### December 15, 2024
   **Banned words list**

@@ -12,6 +12,7 @@
 
 4. Install the required dependencies using the requirements.txt file: 
  ```pip install -r requirements.txt```
+ 
 5. To get Redux working properly you will need to open Redux.json and Reduxprompt.json and install the missing nodes.
    - depending on your setup you may need to edit the json files to select the version of dev flux you are using. 
    - In redux.json find and change the name to your checkpoint name.
@@ -34,6 +35,13 @@
     "class_type": "UNETLoader"
   },
 ```
+
+- Flux Dev requires you to approve the license agreement on huggingface before the setup too can download the models, please do this before running the setup tool.
+
+## 📦 Required Files
+   - [Flux AE.Safetensors](https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/ae.safetensors) - just get access setup tool downloads automatically
+
+   - [Flux1.dev](https://huggingface.co/black-forest-labs/FLUX.1-dev ) - just get access setup tool downloads automatically
    - download and install redux models manually **requires authentication on HF cannot be automated**
    - [Flux.1-Redux-dev](https://huggingface.co/black-forest-labs/FLUX.1-Redux-dev/tree/main) - place in ComfyUI/models/style_models
    - [sigclip_vision_384](https://huggingface.co/Comfy-Org/sigclip_vision_384/blob/main/sigclip_vision_patch14_384.safetensors) - place in ComfyUI/models/clip_vision folder

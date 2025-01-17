@@ -165,7 +165,8 @@ class MyBot(discord_commands.Bot):
                         json.dumps(request_item.loras),
                         str(request_item.upscale_factor),
                         request_item.workflow_filename,  # Pass the workflow filename
-                        str(request_item.seed) if request_item.seed is not None else "None"
+                        str(request_item.seed) if request_item.seed is not None else "None",
+                        str(request_item.is_pulid).lower()  # Pass is_pulid flag
                     ])
 
                 self.subprocess_queue.task_done()

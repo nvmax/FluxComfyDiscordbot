@@ -78,11 +78,11 @@ class MyBot(discord_commands.Bot):
             temp_dir = os.path.abspath(os.path.join('Main', 'DataSets', 'temp'))
             os.makedirs(temp_dir, exist_ok=True)
             
-            # Use the original filenames from the attachments
+            # Use the filenames from the request item
             image1_path = os.path.join(temp_dir, request_item.image1_filename)
             image2_path = os.path.join(temp_dir, request_item.image2_filename)
             
-            # Save images
+            # Save images with request ID in filenames
             with open(image1_path, 'wb') as f:
                 f.write(request_item.image1)
             with open(image2_path, 'wb') as f:

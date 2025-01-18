@@ -942,6 +942,9 @@ class ReduxProcessingView(View):
         self.strength2 = strength2
         self.image1 = None
         self.image2 = None
+        self.request_id = str(uuid.uuid4())  # Generate request ID at initialization
+        self.image1_filename = None
+        self.image2_filename = None
 
     @discord.ui.button(label="Upload Image 1", style=discord.ButtonStyle.primary)
     async def upload_image1(self, interaction: discord.Interaction, button: Button):
@@ -958,6 +961,9 @@ class ReduxProcessingView(View):
         try:
             msg = await self.bot.wait_for('message', timeout=60.0, check=check)
             self.image1 = await msg.attachments[0].read()
+            # Keep original filename but prefix with request ID
+            original_filename = msg.attachments[0].filename
+            self.image1_filename = f"redux_{self.request_id}_1_{original_filename}"
             button.disabled = True
             button.label = "✓ Image 1 Uploaded"
             await interaction.edit_original_response(view=self)
@@ -984,6 +990,9 @@ class ReduxProcessingView(View):
         try:
             msg = await self.bot.wait_for('message', timeout=60.0, check=check)
             self.image2 = await msg.attachments[0].read()
+            # Keep original filename but prefix with request ID
+            original_filename = msg.attachments[0].filename
+            self.image2_filename = f"redux_{self.request_id}_2_{original_filename}"
             button.disabled = True
             button.label = "✓ Image 2 Uploaded"
             await interaction.edit_original_response(view=self)
@@ -1010,10 +1019,36 @@ class ReduxProcessingView(View):
             if '44' in workflow:
                 workflow['44']['inputs']['conditioning_to_strength'] = self.strength2
             
-            # Generate a unique workflow file
-            request_uuid = str(uuid.uuid4())
-            workflow_filename = f'redux_{request_uuid}.json'
+            # Generate workflow filename with request ID
+            workflow_filename = f'redux_{self.request_id}.json'
             save_json(workflow_filename, workflow)
+
+            # Save images in the DataSets directory (not temp)
+            datasets_dir = os.path.join('Main', 'DataSets')
+            os.makedirs(datasets_dir, exist_ok=True)
+            
+            # Save images with request ID in filenames
+            image1_path = os.path.join(datasets_dir, self.image1_filename)
+            image2_path = os.path.join(datasets_dir, self.image2_filename)
+            
+            with open(image1_path, 'wb') as f:
+                f.write(self.image1)
+            with open(image2_path, 'wb') as f:
+                f.write(self.image2)
+
+            # Update workflow with image paths
+            if '40' in workflow:
+                workflow['40']['inputs']['image'] = self.image1_filename
+            if '46' in workflow:
+                workflow['46']['inputs']['image'] = self.image2_filename
+            
+            # Save updated workflow
+            save_json(workflow_filename, workflow)
+
+            # Convert to absolute paths and use forward slashes for logging
+            image1_path = os.path.abspath(image1_path).replace('\\', '/')
+            image2_path = os.path.abspath(image2_path).replace('\\', '/')
+            logger.debug(f"Saved images at: {image1_path}, {image2_path}")
 
             # Create processing message
             processing_msg = await interaction.channel.send("🔄 Processing Redux generation...")
@@ -1030,7 +1065,9 @@ class ReduxProcessingView(View):
                 strength2=self.strength2,
                 workflow_filename=workflow_filename,
                 image1=self.image1,
-                image2=self.image2
+                image2=self.image2,
+                image1_filename=self.image1_filename,  # Pass the filenames with request ID
+                image2_filename=self.image2_filename
             )
 
             await interaction.client.subprocess_queue.put(request_item)

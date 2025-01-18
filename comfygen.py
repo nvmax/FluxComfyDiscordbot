@@ -347,40 +347,47 @@ def calculate_upscaled_resolution(resolution, upscale_factor):
 def cleanup_workflow_file(workflow_filename):
     """Delete a temporary workflow file and its associated temporary files after they've been used"""
     try:
+        # Delete workflow file
         file_path = os.path.join('Main', 'DataSets', workflow_filename)
         if os.path.exists(file_path):
             os.remove(file_path)
             logger.debug(f"Successfully deleted workflow file: {workflow_filename}")
             
-            # Cleanup temporary images if this is a redux or pulid workflow
-            if workflow_filename.startswith(('redux_', 'pulid_')):
-                temp_dir = os.path.join('Main', 'DataSets', 'temp')
-                if os.path.exists(temp_dir):
-                    # Get the request ID from the workflow filename
-                    request_id = workflow_filename.split('_', 1)[1].rsplit('.', 1)[0]
-                    
-                    for file in os.listdir(temp_dir):
-                        try:
-                            # Only delete files that match this request's ID
-                            if request_id in file:
-                                file_path = os.path.join(temp_dir, file)
-                                if os.path.isfile(file_path):
-                                    os.remove(file_path)
-                                    logger.debug(f"Deleted temporary file: {file}")
-                        except Exception as e:
-                            logger.error(f"Error deleting temporary file {file}: {str(e)}")
-                    
-                    # Try to remove temp directory if it's empty
+        # Get the request ID from the workflow filename if it exists
+        request_id = None
+        if workflow_filename and ('_' in workflow_filename):
+            request_id = workflow_filename.split('_', 1)[1].rsplit('.', 1)[0]
+            logger.debug(f"Extracted request ID: {request_id}")
+            
+        # Check both temp directory and main directory
+        dirs_to_check = [
+            os.path.join('Main', 'DataSets', 'temp'),
+            os.path.join('Main', 'DataSets')
+        ]
+        
+        for dir_path in dirs_to_check:
+            if os.path.exists(dir_path):
+                for file in os.listdir(dir_path):
                     try:
-                        if not os.listdir(temp_dir):
-                            os.rmdir(temp_dir)
-                            logger.debug("Removed empty temp directory")
+                        file_path = os.path.join(dir_path, file)
+                        if os.path.isfile(file_path):
+                            # If we have a request ID, check if file contains it
+                            if request_id and request_id in file:
+                                os.remove(file_path)
+                                logger.debug(f"Deleted request-related file: {file} from {dir_path}")
+                            # For temp directory, also clean up any temporary files
+                            elif dir_path.endswith('temp'):
+                                # Check for common image extensions
+                                if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.bmp')):
+                                    os.remove(file_path)
+                                    logger.debug(f"Deleted temp image file: {file} from {dir_path}")
                     except Exception as e:
-                        logger.debug(f"Could not remove temp directory: {str(e)}")
+                        logger.error(f"Error deleting file {file}: {str(e)}")
+                        continue
                         
     except Exception as e:
         logger.error(f"Error in cleanup_workflow_file: {str(e)}")
-        # Don't raise the exception - cleanup errors shouldn't stop the main process
+        # Don't raise the exception - we don't want cleanup failures to affect the main process
 
 def send_final_image(request_id, user_id, channel_id, interaction_id, original_message_id, 
                     prompt, resolution, upscaled_resolution, loras, upscale_factor, 
@@ -525,11 +532,15 @@ if __name__ == "__main__":
                 workflow['44']['inputs']['conditioning_to_strength'] = strength2
             if '49' in workflow:
                 workflow['49']['inputs']['ratio_selected'] = resolution
+            # Add random seed generation for redux using node '25'
+            if '25' in workflow:
+                seed = generate_random_seed()
+                workflow['25']['inputs']['noise_seed'] = seed
+                logger.debug(f"Set random seed for redux in node 25: {seed}")
 
             upscale_factor = 1
             full_prompt = "Redux image generation"
             loras = []
-            seed = None
             upscaled_resolution = resolution
 
         elif request_type == 'reduxprompt':  # ReduxPrompt command
@@ -549,15 +560,25 @@ if __name__ == "__main__":
             })
 
             workflow = open_workflow(workflow_filename)
+            temp_image_path = os.path.abspath(temp_image_path)
+            temp_image_path = temp_image_path.replace('\\', '/')
 
             # Update the workflow with our parameters
             try:
-                workflow = update_reduxprompt_workflow(
-                    workflow,
-                    temp_image_path,  # Pass the full path
-                    prompt,
-                    strength
-                )
+                if '40' in workflow:
+                    workflow['40']['inputs']['image'] = temp_image_path
+                if '6' in workflow:
+                    workflow['6']['inputs']['text'] = prompt
+                if '54' in workflow:
+                    workflow['54']['inputs']['image_strength'] = strength
+                if '62' in workflow:
+                    workflow['62']['inputs']['ratio_selected'] = resolution
+                # Add random seed generation for reduxprompt using node '25'
+                if '25' in workflow:
+                    seed = generate_random_seed()
+                    workflow['25']['inputs']['noise_seed'] = seed
+                    logger.debug(f"Set random seed for reduxprompt in node 25: {seed}")
+
                 # Save the modified workflow
                 save_json(workflow_filename, workflow)
                 logger.debug(f"Saved modified workflow to: {workflow_filename}")
@@ -572,8 +593,8 @@ if __name__ == "__main__":
             upscale_factor = 1
             full_prompt = prompt
             loras = []
-            seed = None
             upscaled_resolution = resolution
+            seed = None
 
         else:
             raise ValueError(f"Invalid request type: {request_type}")

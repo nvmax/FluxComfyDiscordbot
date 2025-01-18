@@ -212,6 +212,13 @@ def update_pulid_workflow(workflow: dict, image_url: str, prompt: str, resolutio
         else:
             logger.warning("LoadImage node (54) not found in workflow")
 
+        # Update resolution in node 70 if it exists
+        if '70' in workflow:
+            workflow['70']['inputs']['ratio_selected'] = resolution
+            logger.debug(f"Updated resolution in node 70: {resolution}")
+        else:
+            logger.warning("Resolution node (70) not found in workflow")
+
         # Load lora config and get trigger words
         lora_config = load_json('lora.json')
         lora_info = {lora['file']: lora for lora in lora_config['available_loras']}

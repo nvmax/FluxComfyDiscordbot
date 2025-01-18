@@ -385,7 +385,7 @@ class SetupManager:
                     env_vars[key] = default_value
 
             # Variables that should be quoted
-            always_quote = {'fluxversion', 'BOT_SERVER', 'server_address', 'workflow'}
+            always_quote = {'fluxversion', 'BOT_SERVER', 'server_address', 'workflow', 'PULIDWORKFLOW'}
 
             # Write the .env file
             with open(self.env_file, 'w', encoding='utf-8') as f:

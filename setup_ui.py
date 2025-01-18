@@ -197,7 +197,7 @@ class SetupUI:
         workflow_files = []
         if os.path.exists(datasets_path):
             for file in os.listdir(datasets_path):
-                if file.endswith('.json') and file not in ['lora.json', 'ratios.json', 'Redux.json', 'Reduxprompt.json']:
+                if file.endswith('.json') and file not in ['lora.json', 'ratios.json', 'Redux.json', 'Reduxprompt.json', 'Pulid6GB.json', 'Pulid8GB.json', 'Pulid10GB.json', 'Pulid12GB.json', 'Pulid24GB.json', 'PulidFluxDev.json']:
                     workflow_files.append(file)
         
         workflow_combo = ttk.Combobox(workflow_frame, textvariable=self.selected_checkpoint, 
@@ -538,6 +538,16 @@ class SetupUI:
                 'FluxDev24GB.json': 'FLUX.1 Dev'
             }
             
+            # Map workflow names to Pulid files
+            workflow_to_pulid = {
+                'fluxfusion6GB4step.json': 'Pulid6GB.json',
+                'fluxfusion8GB4step.json': 'Pulid8GB.json',
+                'fluxfusion10GB4step.json': 'Pulid10GB.json',
+                'fluxfusion12GB4step.json': 'Pulid12GB.json',
+                'fluxfusion24GB4step.json': 'Pulid24GB.json',
+                'FluxDev24GB.json': 'PulidFluxDev.json'
+            }
+            
             # Check if the workflow file exists in the target directory
             target_path = os.path.join(self.base_dir.get(), 'ComfyUI', 'workflows', 'Main', 'Datasets', selected)
             if os.path.exists(target_path):
@@ -552,6 +562,12 @@ class SetupUI:
                 self.selected_model = workflow_to_model[selected]
             else:
                 self.selected_model = None
+                
+            # Update PULIDWORKFLOW in .env file if workflow has a corresponding Pulid file
+            if selected in workflow_to_pulid:
+                pulid_file = workflow_to_pulid[selected]
+                self.setup_manager.update_env_file('PULIDWORKFLOW', f'"{pulid_file}"')
+                self.status_var.set(f"Status: Updated PULIDWORKFLOW to '{pulid_file}'")
                 
     def start_installation(self):
         """Start the installation process"""

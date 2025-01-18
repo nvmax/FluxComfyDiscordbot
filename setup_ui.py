@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+from ttkthemes import ThemedTk
 import threading
 from setup_support import SetupManager, BASE_MODELS, CHECKPOINTS
 import os
@@ -28,6 +29,9 @@ class SetupUI:
     def __init__(self, root):
         self.root = root
         self.root.title("FluxComfy Setup")
+        
+        # Set theme
+        self.root.set_theme("black")  # Using 'arc' theme, you can change to any other available theme
         
         # Initialize setup manager
         self.setup_manager = SetupManager()
@@ -92,201 +96,192 @@ class SetupUI:
         # Load existing values before creating UI
         self.load_existing_values()
         
-        # Directory Selection
-        dir_frame = ttk.LabelFrame(self.bot_tab, text="ComfyUI Directory", padding=10)
-        dir_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Create main container with grid
+        main_frame = ttk.Frame(self.bot_tab, padding="10")
+        main_frame.pack(fill='both', expand=True)
         
-        ttk.Label(dir_frame, text="Base Directory:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(dir_frame, textvariable=self.base_dir, width=50).pack(side=tk.LEFT, padx=5)
-        ttk.Button(dir_frame, text="Browse", command=self.select_base_directory).pack(side=tk.LEFT, padx=5)
+        # Configure column weights (1/5, 2/3, remainder)
+        main_frame.grid_columnconfigure(0, weight=1, minsize=160)  # Label column (1/5)
+        main_frame.grid_columnconfigure(1, weight=4, minsize=480)  # Entry column (2/3)
+        main_frame.grid_columnconfigure(2, weight=1, minsize=160)  # Button column
         
-        # API Tokens
-        token_frame = ttk.LabelFrame(self.bot_tab, text="API Tokens", padding=10)
-        token_frame.pack(fill=tk.X, padx=5, pady=5)
+        current_row = 0
+        
+        # ComfyUI Directory Section
+        dir_frame = ttk.LabelFrame(main_frame, text="ComfyUI Directory", padding=10)
+        dir_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        dir_frame.grid_columnconfigure(1, weight=1)
+        
+        ttk.Label(dir_frame, text="Base Directory:", anchor="e").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        ttk.Entry(dir_frame, textvariable=self.base_dir).grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        ttk.Button(dir_frame, text="Browse", command=self.select_base_directory).grid(row=0, column=2, padx=5, pady=5, sticky="w")
+        current_row += 1
+        
+        # API Tokens Section
+        token_frame = ttk.LabelFrame(main_frame, text="API Tokens", padding=10)
+        token_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        token_frame.grid_columnconfigure(1, weight=1)
         
         # HuggingFace Token
-        hf_frame = ttk.Frame(token_frame)
-        hf_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(hf_frame, text="HuggingFace Token:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(hf_frame, textvariable=self.hf_token, width=40, show="*").pack(side=tk.LEFT, padx=5)
-        ttk.Button(hf_frame, text="Validate", command=lambda: self.validate_token("hf")).pack(side=tk.LEFT, padx=5)
+        ttk.Label(token_frame, text="HuggingFace Token:", anchor="e").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        ttk.Entry(token_frame, textvariable=self.hf_token, show="*").grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        ttk.Button(token_frame, text="Validate", command=lambda: self.validate_token("hf")).grid(row=0, column=2, padx=5, pady=5, sticky="w")
         
         # CivitAI Token
-        civitai_frame = ttk.Frame(token_frame)
-        civitai_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(civitai_frame, text="CivitAI Token:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(civitai_frame, textvariable=self.civitai_token, width=40, show="*").pack(side=tk.LEFT, padx=5)
-        ttk.Button(civitai_frame, text="Validate", command=lambda: self.validate_token("civitai")).pack(side=tk.LEFT, padx=5)
+        ttk.Label(token_frame, text="CivitAI Token:", anchor="e").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        ttk.Entry(token_frame, textvariable=self.civitai_token, show="*").grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        ttk.Button(token_frame, text="Validate", command=lambda: self.validate_token("civitai")).grid(row=1, column=2, padx=5, pady=5, sticky="w")
         
         # Discord Token
-        discord_frame = ttk.Frame(token_frame)
-        discord_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(discord_frame, text="Discord Token:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(discord_frame, textvariable=self.discord_token, width=40, show="*").pack(side=tk.LEFT, padx=5)
+        ttk.Label(token_frame, text="Discord Token:", anchor="e").grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        ttk.Entry(token_frame, textvariable=self.discord_token, show="*").grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        current_row += 1
         
-        # Server Configuration
-        server_frame = ttk.LabelFrame(self.bot_tab, text="Server Configuration", padding=10)
-        server_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Server Configuration Section
+        server_frame = ttk.LabelFrame(main_frame, text="Server Configuration", padding=10)
+        server_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        server_frame.grid_columnconfigure(1, weight=1)
         
-        # Bot Server
-        bot_server_frame = ttk.Frame(server_frame)
-        bot_server_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(bot_server_frame, text="Bot Server:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(bot_server_frame, textvariable=self.bot_server, width=40).pack(side=tk.LEFT, padx=5)
+        ttk.Label(server_frame, text="Bot Server:", anchor="e").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        ttk.Entry(server_frame, textvariable=self.bot_server).grid(row=0, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
         
-        # Server Address
-        server_addr_frame = ttk.Frame(server_frame)
-        server_addr_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(server_addr_frame, text="Server Address:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(server_addr_frame, textvariable=self.server_address, width=40).pack(side=tk.LEFT, padx=5)
+        ttk.Label(server_frame, text="Server Address:", anchor="e").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        ttk.Entry(server_frame, textvariable=self.server_address).grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
+        current_row += 1
         
-        # Discord Configuration
-        discord_config_frame = ttk.LabelFrame(self.bot_tab, text="Discord Configuration", padding=10)
-        discord_config_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Discord Configuration Section
+        discord_frame = ttk.LabelFrame(main_frame, text="Discord Configuration", padding=10)
+        discord_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        discord_frame.grid_columnconfigure(1, weight=1)
         
-        # Allowed Servers
-        allowed_servers_frame = ttk.Frame(discord_config_frame)
-        allowed_servers_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(allowed_servers_frame, text="Allowed Server IDs:").pack(side=tk.LEFT, padx=5)
-        server_ids_entry = tk.Text(allowed_servers_frame, height=3, width=80)
-        server_ids_entry.pack(side=tk.LEFT, padx=5)
-        
-        # Set initial value from StringVar
+        ttk.Label(discord_frame, text="Allowed Server IDs:", anchor="e").grid(row=0, column=0, padx=5, pady=5, sticky="ne")
+        server_ids_entry = tk.Text(discord_frame, height=3)
+        server_ids_entry.grid(row=0, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
         if self.allowed_servers.get():
             server_ids_entry.insert("1.0", self.allowed_servers.get())
-            
-        # Bind the Text widget to the StringVar
         def update_allowed_servers(*args):
-            current_text = server_ids_entry.get("1.0", "end-1c")
-            if self.allowed_servers.get() != current_text:
-                self.allowed_servers.set(current_text)
+            self.allowed_servers.set(server_ids_entry.get("1.0", "end-1c"))
         server_ids_entry.bind('<KeyRelease>', update_allowed_servers)
         
-        # Channel IDs
-        channel_ids_frame = ttk.Frame(discord_config_frame)
-        channel_ids_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(channel_ids_frame, text="Channel IDs:").pack(side=tk.LEFT, padx=5)
-        channel_ids_entry = tk.Text(channel_ids_frame, height=3, width=80)
-        channel_ids_entry.pack(side=tk.LEFT, padx=5)
-        
-        # Set initial value from StringVar
+        ttk.Label(discord_frame, text="Channel IDs:", anchor="e").grid(row=1, column=0, padx=5, pady=5, sticky="ne")
+        channel_ids_entry = tk.Text(discord_frame, height=3)
+        channel_ids_entry.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
         if self.channel_ids.get():
             channel_ids_entry.insert("1.0", self.channel_ids.get())
-            
-        # Bind the Text widget to the StringVar
         def update_channel_ids(*args):
-            current_text = channel_ids_entry.get("1.0", "end-1c")
-            if self.channel_ids.get() != current_text:
-                self.channel_ids.set(current_text)
+            self.channel_ids.set(channel_ids_entry.get("1.0", "end-1c"))
         channel_ids_entry.bind('<KeyRelease>', update_channel_ids)
         
-        # Bot Manager Role
-        role_frame = ttk.Frame(discord_config_frame)
-        role_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(role_frame, text="Bot Manager Role ID:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(role_frame, textvariable=self.bot_manager_role_id, width=40).pack(side=tk.LEFT, padx=5)
+        ttk.Label(discord_frame, text="Bot Manager Role ID:", anchor="e").grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        ttk.Entry(discord_frame, textvariable=self.bot_manager_role_id).grid(row=2, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
+        current_row += 1
         
-        # Workflow Selection
-        workflow_frame = ttk.LabelFrame(self.bot_tab, text="Workflow Selection", padding=10)
-        workflow_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Workflow Selection Section
+        workflow_frame = ttk.LabelFrame(main_frame, text="Workflow Selection", padding=10)
+        workflow_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        workflow_frame.grid_columnconfigure(1, weight=1)
         
-        ttk.Label(workflow_frame, text="Select Workflow:").pack(side=tk.LEFT, padx=5)
-        
-        # Get list of workflow files
+        ttk.Label(workflow_frame, text="Select Workflow:", anchor="e").grid(row=0, column=0, padx=5, pady=5, sticky="e")
         datasets_path = os.path.join(os.getcwd(), 'Main', 'Datasets')
         workflow_files = []
         if os.path.exists(datasets_path):
             for file in os.listdir(datasets_path):
                 if file.endswith('.json') and file not in ['lora.json', 'ratios.json', 'Redux.json', 'Reduxprompt.json', 'Pulid6GB.json', 'Pulid8GB.json', 'Pulid10GB.json', 'Pulid12GB.json', 'Pulid24GB.json', 'PulidFluxDev.json']:
                     workflow_files.append(file)
-        
         workflow_combo = ttk.Combobox(workflow_frame, textvariable=self.selected_checkpoint, 
-                                    values=sorted(workflow_files), state="readonly", width=40)
-        workflow_combo.pack(side=tk.LEFT, padx=5)
+                                    values=sorted(workflow_files), state="readonly")
+        workflow_combo.grid(row=0, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
         workflow_combo.bind("<<ComboboxSelected>>", self.on_checkpoint_selected)
+        current_row += 1
         
-        # Progress Frame
-        progress_frame = ttk.LabelFrame(self.bot_tab, text="Installation Progress", padding=10)
-        progress_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Installation Progress Section
+        progress_frame = ttk.LabelFrame(main_frame, text="Installation Progress", padding=10)
+        progress_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        progress_frame.grid_columnconfigure(0, weight=1)
         
-        # Progress bar
         self.progress_bar = ttk.Progressbar(
             progress_frame,
             variable=self.progress_var,
             maximum=100,
             mode='determinate'
         )
-        self.progress_bar.pack(fill=tk.X, padx=5, pady=5)
+        self.progress_bar.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
         
-        # Status label
-        self.status_label = ttk.Label(progress_frame, textvariable=self.status_var)
-        self.status_label.pack(fill=tk.X, padx=5)
+        self.status_label = ttk.Label(progress_frame, textvariable=self.status_var, wraplength=600)
+        self.status_label.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
         
-        # Install Button
-        install_frame = ttk.Frame(self.bot_tab)
-        install_frame.pack(fill=tk.X, padx=5, pady=10)
-        self.install_button = ttk.Button(install_frame, text="Install", command=self.start_installation)
-        self.install_button.pack(side=tk.LEFT, padx=5)
+        # Create a frame to center the install button
+        button_frame = ttk.Frame(progress_frame)
+        button_frame.grid(row=2, column=0, pady=10)
+        button_frame.grid_columnconfigure(0, weight=1)  # This helps center the button
+        
+        self.install_button = ttk.Button(button_frame, text="Install", 
+                                       command=self.start_installation, width=20)  # Set fixed width
+        self.install_button.grid(row=0, column=0)
         
     def create_ai_tab(self):
+        # Create main container with grid
+        main_frame = ttk.Frame(self.ai_tab, padding="10")
+        main_frame.pack(fill='both', expand=True)
+        
+        # Configure column weights (1/5, 4/5)
+        main_frame.grid_columnconfigure(0, weight=1, minsize=150)  # Label column (1/5)
+        main_frame.grid_columnconfigure(1, weight=4, minsize=600)  # Entry column (4/5)
+        
+        current_row = 0
+        
+        # AI Configuration Section
+        ai_config_frame = ttk.LabelFrame(main_frame, text="AI Configuration", padding=10)
+        ai_config_frame.grid(row=current_row, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+        ai_config_frame.grid_columnconfigure(1, weight=1)
+        
         # AI Provider Selection
-        provider_frame = ttk.LabelFrame(self.ai_tab, text="AI Configuration", padding=10)
-        provider_frame.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Label(ai_config_frame, text="AI Provider:", anchor="e").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        ttk.Combobox(ai_config_frame, textvariable=self.ai_provider,
+                    values=["lmstudio", "openai", "xai", "gemini"], 
+                    state="readonly").grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         
-        # AI Provider dropdown
-        provider_select_frame = ttk.Frame(provider_frame)
-        provider_select_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(provider_select_frame, text="AI Provider:").pack(side=tk.LEFT, padx=5)
-        ttk.Combobox(provider_select_frame, textvariable=self.ai_provider,
-                    values=["lmstudio", "openai", "xai", "gemini"], state="readonly", width=20).pack(side=tk.LEFT, padx=5)
+        # Enable Prompt Enhancement
+        ttk.Label(ai_config_frame, text="Prompt Enhancement:", anchor="e").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        ttk.Checkbutton(ai_config_frame, text="Enable",
+                       variable=self.enable_prompt_enhancement).grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        current_row += 1
         
-        # Enable Prompt Enhancement checkbox
-        enhance_frame = ttk.Frame(provider_frame)
-        enhance_frame.pack(fill=tk.X, pady=2)
-        ttk.Checkbutton(enhance_frame, text="Enable Prompt Enhancement",
-                       variable=self.enable_prompt_enhancement).pack(side=tk.LEFT, padx=5)
+        # LMStudio Configuration Section
+        lmstudio_frame = ttk.LabelFrame(main_frame, text="LMStudio Configuration", padding=10)
+        lmstudio_frame.grid(row=current_row, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+        lmstudio_frame.grid_columnconfigure(1, weight=1)
         
-        # LMStudio Configuration
-        lmstudio_frame = ttk.LabelFrame(self.ai_tab, text="LMStudio Configuration", padding=10)
-        lmstudio_frame.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Label(lmstudio_frame, text="LMStudio Host:", anchor="e").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        ttk.Entry(lmstudio_frame, textvariable=self.lmstudio_host).grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         
-        # Host
-        host_frame = ttk.Frame(lmstudio_frame)
-        host_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(host_frame, text="LMStudio Host:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(host_frame, textvariable=self.lmstudio_host, width=30).pack(side=tk.LEFT, padx=5)
+        ttk.Label(lmstudio_frame, text="LMStudio Port:", anchor="e").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        ttk.Entry(lmstudio_frame, textvariable=self.lmstudio_port).grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        current_row += 1
         
-        # Port
-        port_frame = ttk.Frame(lmstudio_frame)
-        port_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(port_frame, text="LMStudio Port:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(port_frame, textvariable=self.lmstudio_port, width=10).pack(side=tk.LEFT, padx=5)
+        # API Keys Section
+        api_frame = ttk.LabelFrame(main_frame, text="API Keys", padding=10)
+        api_frame.grid(row=current_row, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+        api_frame.grid_columnconfigure(1, weight=1)
         
-        # API Keys
-        api_frame = ttk.LabelFrame(self.ai_tab, text="API Keys", padding=10)
-        api_frame.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Label(api_frame, text="XAI API Key:", anchor="e").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        ttk.Entry(api_frame, textvariable=self.xai_api_key, show="*").grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         
-        # XAI API Key
-        xai_frame = ttk.Frame(api_frame)
-        xai_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(xai_frame, text="XAI API Key:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(xai_frame, textvariable=self.xai_api_key, width=40, show="*").pack(side=tk.LEFT, padx=5)
-
-        # Gemini API Key
-        gemini_frame = ttk.Frame(api_frame)
-        gemini_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(gemini_frame, text="Gemini API Key:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(gemini_frame, textvariable=self.gemini_api_key, width=40, show="*").pack(side=tk.LEFT, padx=5)
+        ttk.Label(api_frame, text="Gemini API Key:", anchor="e").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        ttk.Entry(api_frame, textvariable=self.gemini_api_key, show="*").grid(row=1, column=1, padx=5, pady=5, sticky="ew")
         
-        # OpenAI API Key
-        openai_frame = ttk.Frame(api_frame)
-        openai_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(openai_frame, text="OpenAI API Key:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(openai_frame, textvariable=self.openai_api_key, width=40, show="*").pack(side=tk.LEFT, padx=5)
+        ttk.Label(api_frame, text="OpenAI API Key:", anchor="e").grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        ttk.Entry(api_frame, textvariable=self.openai_api_key, show="*").grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        current_row += 1
         
-        # Add save button at the bottom
-        ttk.Button(self.ai_tab, text="Save AI Configuration", 
-                  command=self.save_ai_configuration).pack(pady=10)
+        # Save Button - Create a frame to center the button
+        button_frame = ttk.Frame(main_frame)
+        button_frame.grid(row=current_row, column=0, columnspan=2, pady=10)
+        button_frame.grid_columnconfigure(0, weight=1)  # This helps center the button
+        
+        save_button = ttk.Button(button_frame, text="Save AI Configuration", 
+                               command=self.save_ai_configuration, width=20)  # Set fixed width
+        save_button.grid(row=0, column=0)
         
     def select_base_directory(self):
         directory = filedialog.askdirectory(title="Select ComfyUI Base Directory")
@@ -637,7 +632,7 @@ class SetupUI:
                         raise
 
                 # Handle selected workflow and model
-                if self.selected_checkpoint.get() and self.selected_checkpoint.get() != "Select a workflow...":
+                if self.selected_checkpoint.get() and self.selected_checkpoint.get() != "Select a checkpoint...":
                     workflow_file = self.selected_checkpoint.get()
                     self.update_progress(0, f"Processing workflow {workflow_file}...")
                     
@@ -710,7 +705,27 @@ class SetupUI:
         threading.Thread(target=run_async, daemon=True).start()
         
 def main():
-    root = tk.Tk()
+    root = ThemedTk(theme="arc")  # Create themed root window
+    root.title("FluxComfy Setup")
+    
+    # Set a reasonable window size
+    window_width = 830
+    window_height = 800
+    
+    # Get screen dimensions
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    
+    # Calculate position
+    x = (screen_width - window_width) // 2
+    y = (screen_height - window_height) // 2
+    
+    # Set window size and position
+    root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+    
+    # Make window resizable
+    root.resizable(True, True)
+    
     app = SetupUI(root)
     root.mainloop()
 

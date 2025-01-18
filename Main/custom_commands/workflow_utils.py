@@ -239,7 +239,7 @@ def update_pulid_workflow(workflow: dict, image_url: str, prompt: str, resolutio
         else:
             logger.warning("CLIPTextEncode node (6) not found in workflow")
 
-        # Update LoRAs
+        # Update LoRAs in node 73
         if '73' in workflow:
             lora_loader = workflow['73']['inputs']
             
@@ -252,11 +252,20 @@ def update_pulid_workflow(workflow: dict, image_url: str, prompt: str, resolutio
             for i, lora in enumerate(loras, start=1):
                 if lora in lora_info:
                     lora_key = f'lora_{i}'
+                    base_strength = float(lora_info[lora].get('weight', 1.0))
+                    
+                    # If multiple LoRAs are selected, scale down to 0.5 unless already lower
+                    if len(loras) > 1:
+                        lora_strength = min(base_strength, 0.5)
+                    else:
+                        lora_strength = base_strength
+                        
                     lora_loader[lora_key] = {
                         'on': True,
                         'lora': lora,
-                        'strength': float(lora_info[lora].get('weight', 1.0))
+                        'strength': lora_strength
                     }
+                    logger.debug(f"Added LoRA {lora} with strength {lora_strength}")
             logger.debug(f"Updated LoRAs in workflow: {len(loras)} LoRAs configured")
         else:
             logger.warning("LoraLoader node (73) not found in workflow")

@@ -91,7 +91,16 @@ async def process_image_request(interaction: discord.Interaction, prompt: str, r
             save_json(workflow_filename, workflow)
             current_seed = seed
             full_prompt = prompt
-            selected_loras = [] 
+            
+            # Extract LoRAs from workflow for PuLID requests
+            selected_loras = []
+            if workflow.get('73') and workflow['73'].get('inputs'):
+                lora_inputs = workflow['73']['inputs']
+                for key in lora_inputs:
+                    if key.startswith('lora_') and isinstance(lora_inputs[key], dict):
+                        lora = lora_inputs[key].get('lora')
+                        if lora:
+                            selected_loras.append(lora)
 
         # Send processing message
         original_message = await interaction.followup.send(

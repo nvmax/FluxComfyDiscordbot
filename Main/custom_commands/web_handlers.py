@@ -99,8 +99,12 @@ async def handle_generated_image(request):
             else:
                 embed.add_field(name="Resolution", value=request_data['resolution'], inline=True)
 
-            # Handle LoRA information for standard requests only
-            if not isinstance(request_item, (ReduxRequestItem, ReduxPromptRequestItem)):
+            # Handle LoRA information
+            if isinstance(request_item, (ReduxRequestItem, ReduxPromptRequestItem)):
+                # Skip LoRA display for Redux requests
+                pass
+            else:
+                # Show LoRAs for both standard and PuLID requests
                 lora_config = load_json('lora.json')
                 lora_names = []
                 if request_data['loras']:

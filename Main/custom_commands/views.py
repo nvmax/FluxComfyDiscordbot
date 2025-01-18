@@ -1121,8 +1121,17 @@ class ImageControlView(View):
             logger.warning("Message already deleted")
         except discord.errors.Forbidden:
             logger.warning("Missing permissions to delete message")
+            await interaction.followup.send("I don't have permission to delete this message.", ephemeral=True)
         except Exception as e:
             logger.error(f"Error deleting message: {str(e)}")
+            await interaction.followup.send("An error occurred while trying to delete the message.", ephemeral=True)
+
+    @classmethod
+    def register_view(cls, bot):
+        """Register this view with the bot to handle persistent buttons."""
+        # Create a default instance with minimal required parameters
+        view = cls(bot)
+        bot.add_view(view)
 
 class PromptModal(Modal, title="Edit Prompt"):
     def __init__(self, bot, original_prompt, image_filename, resolution, loras, upscale_factor, original_interaction, original_seed=None):
@@ -1289,7 +1298,7 @@ class LoraInfoView(View):
         await self.update_message(interaction)
 
 class ReduxImageView(View):
-    """A simple view for Redux images that only contains a delete button."""
+    """A simple view for Redux images that contains a delete button."""
     def __init__(self):
         # Set timeout to None for persistent view
         super().__init__(timeout=None)
@@ -1309,6 +1318,12 @@ class ReduxImageView(View):
             logger.error(f"Error deleting message: {str(e)}")
             await interaction.followup.send("An error occurred while trying to delete the message.", ephemeral=True)
 
+    @classmethod
+    def register_view(cls, bot):
+        """Register this view with the bot to handle persistent buttons."""
+        view = cls()
+        bot.add_view(view)
+
 class PuLIDImageView(View):
     """A simple view for PuLID images that only contains a delete button."""
     def __init__(self):
@@ -1318,8 +1333,23 @@ class PuLIDImageView(View):
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, custom_id="pulid_delete")
     async def delete_message(self, interaction: discord.Interaction, button: Button):
         """Handle the delete button press."""
-        if interaction.message:
+        try:
+            await interaction.response.defer(ephemeral=True)
             await interaction.message.delete()
+        except discord.errors.NotFound:
+            logger.warning("Message already deleted")
+        except discord.errors.Forbidden:
+            logger.warning("Missing permissions to delete message")
+            await interaction.followup.send("I don't have permission to delete this message.", ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error deleting message: {str(e)}")
+            await interaction.followup.send("An error occurred while trying to delete the message.", ephemeral=True)
+
+    @classmethod
+    def register_view(cls, bot):
+        """Register this view with the bot to handle persistent buttons."""
+        view = cls()
+        bot.add_view(view)
 
 class CreativityModal(Modal, title='Creativity Settings'):
     def __init__(self, bot, resolution: str = None, initial_prompt: str = None, upscale_factor: int = 1, initial_seed: Optional[int] = None):
@@ -1361,8 +1391,6 @@ class CreativityModal(Modal, title='Creativity Settings'):
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            await interaction.response.defer(ephemeral=False)
-            
             # Validate creativity value
             try:
                 creativity = int(self.creativity.value)

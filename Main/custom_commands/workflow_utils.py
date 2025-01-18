@@ -212,10 +212,23 @@ def update_pulid_workflow(workflow: dict, image_url: str, prompt: str, resolutio
         else:
             logger.warning("LoadImage node (54) not found in workflow")
 
-        # Update prompt
+        # Load lora config and get trigger words
+        lora_config = load_json('lora.json')
+        lora_info = {lora['file']: lora for lora in lora_config['available_loras']}
+
+        # Add LoRA trigger words to prompt
+        modified_prompt = prompt
+        for lora in loras:
+            if lora in lora_info and lora_info[lora].get('add_prompt'):
+                trigger_words = lora_info[lora]['add_prompt']
+                if trigger_words and not trigger_words in modified_prompt:
+                    modified_prompt = f"{modified_prompt}, {trigger_words}"
+                    logger.debug(f"Added trigger words '{trigger_words}' for LoRA {lora}")
+
+        # Update prompt with trigger words
         if '6' in workflow:
-            workflow['6']['inputs']['text'] = prompt
-            logger.debug(f"Updated prompt in workflow")
+            workflow['6']['inputs']['text'] = modified_prompt
+            logger.debug(f"Updated prompt in workflow with trigger words")
         else:
             logger.warning("CLIPTextEncode node (6) not found in workflow")
 
@@ -223,10 +236,6 @@ def update_pulid_workflow(workflow: dict, image_url: str, prompt: str, resolutio
         if '73' in workflow:
             lora_loader = workflow['73']['inputs']
             
-            # Load lora config
-            lora_config = load_json('lora.json')
-            lora_info = {lora['file']: lora for lora in lora_config['available_loras']}
-
             # Clean existing LoRA entries
             for key in list(lora_loader.keys()):
                 if key.startswith('lora_'):

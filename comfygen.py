@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from config import server_address, BOT_SERVER
 from Main.custom_commands.workflow_utils import (
     update_workflow, 
-    update_reduxprompt_workflow,  # Add this import
+    update_reduxprompt_workflow,  
     validate_workflow
 )
 
@@ -345,27 +345,42 @@ def calculate_upscaled_resolution(resolution, upscale_factor):
         raise ValueError(f"Unable to calculate upscaled resolution: {str(e)}")
 
 def cleanup_workflow_file(workflow_filename):
-    """Delete a temporary workflow file after it's been used"""
+    """Delete a temporary workflow file and its associated temporary files after they've been used"""
     try:
         file_path = os.path.join('Main', 'DataSets', workflow_filename)
         if os.path.exists(file_path):
             os.remove(file_path)
             logger.debug(f"Successfully deleted workflow file: {workflow_filename}")
             
-            # Also cleanup any temporary images if this is a redux workflow
-            if workflow_filename.startswith('redux_'):
+            # Cleanup temporary images if this is a redux or pulid workflow
+            if workflow_filename.startswith(('redux_', 'pulid_')):
                 temp_dir = os.path.join('Main', 'DataSets', 'temp')
                 if os.path.exists(temp_dir):
+                    # Get the request ID from the workflow filename
+                    request_id = workflow_filename.split('_', 1)[1].rsplit('.', 1)[0]
+                    
                     for file in os.listdir(temp_dir):
                         try:
-                            file_path = os.path.join(temp_dir, file)
-                            if os.path.isfile(file_path):
-                                os.remove(file_path)
-                                logger.debug(f"Deleted temporary file: {file}")
+                            # Only delete files that match this request's ID
+                            if request_id in file:
+                                file_path = os.path.join(temp_dir, file)
+                                if os.path.isfile(file_path):
+                                    os.remove(file_path)
+                                    logger.debug(f"Deleted temporary file: {file}")
                         except Exception as e:
                             logger.error(f"Error deleting temporary file {file}: {str(e)}")
+                    
+                    # Try to remove temp directory if it's empty
+                    try:
+                        if not os.listdir(temp_dir):
+                            os.rmdir(temp_dir)
+                            logger.debug("Removed empty temp directory")
+                    except Exception as e:
+                        logger.debug(f"Could not remove temp directory: {str(e)}")
+                        
     except Exception as e:
-        logger.error(f"Error deleting workflow file {workflow_filename}: {str(e)}")
+        logger.error(f"Error in cleanup_workflow_file: {str(e)}")
+        # Don't raise the exception - cleanup errors shouldn't stop the main process
 
 def send_final_image(request_id, user_id, channel_id, interaction_id, original_message_id, 
                     prompt, resolution, upscaled_resolution, loras, upscale_factor, 

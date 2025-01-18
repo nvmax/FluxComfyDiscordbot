@@ -207,9 +207,18 @@ class MyBot(discord_commands.Bot):
         except Exception as e:
             logger.error(f"Error loading options: {str(e)}")
 
-        # Set up commands first
+        # Register commands
         await setup_commands(self)
-        self.loop.create_task(self.process_subprocess_queue())
+        
+        # Register persistent views
+        from Main.custom_commands.views import PuLIDImageView, ReduxImageView, ImageControlView
+        PuLIDImageView.register_view(self)
+        ReduxImageView.register_view(self)
+        ImageControlView.register_view(self)
+        
+        # Start processing subprocess queue
+        self.bg_task = self.loop.create_task(self.process_subprocess_queue())
+        
         await start_web_server(self)
 
         # Add redux command
@@ -250,17 +259,6 @@ class MyBot(discord_commands.Bot):
             logger.info(f"Synced {len(synced)} commands during setup")
         except Exception as e:
             logger.error(f"Failed to sync commands during setup: {e}")
-
-        image_info = get_all_image_info()
-        for info in image_info:
-            self.add_view(ImageControlView(
-                self,
-                original_prompt=info[2],
-                image_filename=info[4],
-                original_resolution=info[5],
-                original_loras=json.loads(info[7]),
-                original_upscale_factor=info[8]
-            ))
 
     async def close(self):
         cleanup_lora_monitor(self)

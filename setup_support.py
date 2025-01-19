@@ -100,6 +100,69 @@ BASE_MODELS = {
         'repo_id': 'zer0int/CLIP-GmP-ViT-L-14',
         'file': 'ViT-L-14-TEXT-detail-improved-hiT-GmP-state_dict.pt',
         'source': 'huggingface'
+    },
+    'FLUX_Redux': {
+        'filename': 'flux1-redux-dev.safetensors',
+        'path': '/style_models',
+        'repo_id': 'black-forest-labs/FLUX.1-Redux-dev',
+        'file': 'flux1-redux-dev.safetensors',
+        'source': 'huggingface'
+    },
+    'SigClip_Vision': {
+        'filename': 'sigclip_vision_patch14_384.safetensors',
+        'path': '/clip_vision',
+        'repo_id': 'Comfy-Org/sigclip_vision_384',
+        'file': 'sigclip_vision_patch14_384.safetensors',
+        'source': 'huggingface'
+    },
+    'PuLID_Model': {
+        'filename': 'pulid_flux_v0.9.1.safetensors',
+        'path': '/pulid',
+        'repo_id': 'guozinan/PuLID',
+        'file': 'pulid_flux_v0.9.1.safetensors',
+        'source': 'huggingface'
+    },
+    'EVA_CLIP': {
+        'filename': 'EVA02_CLIP_L_336_psz14_s6B.pt',
+        'path': '/clip',
+        'repo_id': 'QuanSun/EVA-CLIP',
+        'file': 'EVA02_CLIP_L_336_psz14_s6B.pt',
+        'source': 'huggingface'
+    },
+    'InstantID_1k3d68': {
+        'filename': '1k3d68.onnx',
+        'path': '/insightface/models/antelopev2',
+        'repo_id': '12kaz/antelopev2',
+        'file': 'antelopev2/1k3d68.onnx',
+        'source': 'huggingface'
+    },
+    'InstantID_2d106det': {
+        'filename': '2d106det.onnx',
+        'path': '/insightface/models/antelopev2',
+        'repo_id': '12kaz/antelopev2',
+        'file': 'antelopev2/2d106det.onnx',
+        'source': 'huggingface'
+    },
+    'InstantID_genderage': {
+        'filename': 'genderage.onnx',
+        'path': '/insightface/models/antelopev2',
+        'repo_id': '12kaz/antelopev2',
+        'file': 'antelopev2/genderage.onnx',
+        'source': 'huggingface'
+    },
+    'InstantID_glintr100': {
+        'filename': 'glintr100.onnx',
+        'path': '/insightface/models/antelopev2',
+        'repo_id': '12kaz/antelopev2',
+        'file': 'antelopev2/glintr100.onnx',
+        'source': 'huggingface'
+    },
+    'InstantID_scrfd': {
+        'filename': 'scrfd_10g_bnkps.onnx',
+        'path': '/insightface/models/antelopev2',
+        'repo_id': '12kaz/antelopev2',
+        'file': 'antelopev2/scrfd_10g_bnkps.onnx',
+        'source': 'huggingface'
     }
 }
 
@@ -527,6 +590,21 @@ class SetupManager:
                         cache_dir=cache_dir
                     )
                     
+                    # Move file to correct location if it was downloaded with extra directories
+                    if os.path.dirname(file_path).endswith('antelopev2'):
+                        # Get the filename without the antelopev2 prefix
+                        filename = os.path.basename(file_path)
+                        correct_path = os.path.join(os.path.dirname(os.path.dirname(file_path)), filename)
+                        
+                        # Move the file up one directory
+                        shutil.move(file_path, correct_path)
+                        file_path = correct_path
+                        
+                        # Remove empty antelopev2 directory if it exists
+                        antelopev2_dir = os.path.dirname(file_path)
+                        if os.path.exists(antelopev2_dir) and not os.listdir(antelopev2_dir):
+                            os.rmdir(antelopev2_dir)
+                    
                     # Log actual transfer method and file info
                     if "hf_transfer" in sys.modules:
                         logger.info(f"Download completed using HF Transfer (high-speed) to: {file_path}")
@@ -614,31 +692,3 @@ class SetupManager:
         except Exception as e:
             logger.error(f"Download error: {str(e)}")
             raise
-
-    def validate_huggingface_token(self, token: str) -> bool:
-        """Validate Hugging Face token using HF Hub API"""
-        if not token or not token.startswith('hf_'):
-            return False
-            
-        try:
-            api = HfApi(token=token)
-            user = api.whoami()
-            
-            headers = {'Authorization': f'Bearer {token}'}
-            test_url = 'https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/ae.safetensors'
-            response = requests.head(test_url, headers=headers, allow_redirects=True, verify=False)
-            
-            return user is not None and response.status_code == 200
-        except Exception as e:
-            logger.error(f"HF token validation error: {str(e)}")
-            return False
-
-    def validate_civitai_token(self, token: str) -> bool:
-        """Validate CivitAI token"""
-        try:
-            headers = {'Authorization': f'Bearer {token}'}
-            response = requests.get('https://civitai.com/api/v1/models', headers=headers, timeout=10)
-            return response.status_code in [200, 401]
-        except Exception as e:
-            logger.error(f"CivitAI token validation error: {str(e)}")
-            return False

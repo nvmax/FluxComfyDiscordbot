@@ -689,19 +689,9 @@ class ReduxModal(Modal, title='Redux Image Generator'):
                 msg1 = await self.bot.wait_for('message', timeout=60.0, check=check_message)
                 image1_data = await msg1.attachments[0].read()
                 image1_filename = msg1.attachments[0].filename
-                try:
-                    await msg1.delete()
-                except discord.errors.Forbidden:
-                    logger.warning("Bot lacks permission to delete the initial message in redux modal")
-                except Exception as e:
-                    logger.error(f"Error deleting initial message in redux modal: {str(e)}")
+                await msg1.delete()
                 # Delete first prompt after image is received
-                try:
-                    await first_prompt.delete()
-                except discord.errors.Forbidden:
-                    logger.warning("Bot lacks permission to delete the first prompt in redux modal")
-                except Exception as e:
-                    logger.error(f"Error deleting first prompt in redux modal: {str(e)}")
+                await first_prompt.delete()
                 
                 # Get second image
                 second_prompt = await interaction.followup.send(
@@ -712,19 +702,9 @@ class ReduxModal(Modal, title='Redux Image Generator'):
                 msg2 = await self.bot.wait_for('message', timeout=60.0, check=check_message)
                 image2_data = await msg2.attachments[0].read()
                 image2_filename = msg2.attachments[0].filename
-                try:
-                    await msg2.delete()
-                except discord.errors.Forbidden:
-                    logger.warning("Bot lacks permission to delete the upload message in redux modal")
-                except Exception as e:
-                    logger.error(f"Error deleting upload message in redux modal: {str(e)}")
+                await msg2.delete()
                 # Delete second prompt after image is received
-                try:
-                    await second_prompt.delete()
-                except discord.errors.Forbidden:
-                    logger.warning("Bot lacks permission to delete the second prompt in redux modal")
-                except Exception as e:
-                    logger.error(f"Error deleting second prompt in redux modal: {str(e)}")
+                await second_prompt.delete()
 
                 # Create processing message
                 processing_msg = await interaction.followup.send(
@@ -861,43 +841,13 @@ class ReduxPromptModal(Modal, title='Redux Prompt'):
                 image_path = os.path.join(temp_dir, f"{request_id}_{attachment.filename}")
                 await attachment.save(image_path)
 
-                # Delete the uploaded image message immediately after saving
+                # Delete both the upload message and the original request message
                 try:
                     await message.delete()
-                except discord.errors.Forbidden:
-                    logger.warning("Bot lacks permission to delete the uploaded image message")
+                    original_message = await interaction.original_response()
+                    await original_message.delete()
                 except Exception as e:
-                    logger.error(f"Error deleting uploaded image message: {str(e)}")
-
-                # Delete the initial message
-                try:
-                    await upload_msg.delete()
-                except discord.errors.Forbidden:
-                    logger.warning("Bot lacks permission to delete the initial message")
-                except Exception as e:
-                    logger.error(f"Error deleting initial message: {str(e)}")
-
-                # Show LoRA selection view
-                view = LoRAView(self.bot)
-                lora_message = await interaction.followup.send(
-                    "Select the LoRAs you want to use:",
-                    view=view,
-                    ephemeral=True
-                )
-
-                # Wait for LoRA selection
-                await view.wait()
-                if not view.has_confirmed:
-                    await interaction.followup.send("LoRA selection was cancelled or timed out.", ephemeral=True)
-                    return
-
-                # Delete the LoRA selection message
-                try:
-                    await lora_message.delete()
-                except discord.errors.Forbidden:
-                    logger.warning("Bot lacks permission to delete the LoRA selection message")
-                except Exception as e:
-                    logger.error(f"Error deleting LoRA selection message: {str(e)}")
+                    logger.error(f"Error deleting messages: {str(e)}")
 
                 # Load and update the workflow
                 try:
@@ -909,7 +859,7 @@ class ReduxPromptModal(Modal, title='Redux Prompt'):
                         strength=self.strength,
                         seed=seed,
                         resolution=self.resolution
-                )
+                    )
 
                     # Save the modified workflow
                     workflow_filename = f'reduxprompt_{request_id}.json'
@@ -930,12 +880,12 @@ class ReduxPromptModal(Modal, title='Redux Prompt'):
                         original_message_id=str(processing_msg.id),
                         resolution=self.resolution,
                         strength=self.strength,
-                    prompt=self.prompt.value,
+                        prompt=self.prompt.value,
                         image_path=image_path,
                         image_filename=attachment.filename,
                         workflow_filename=workflow_filename,
                         seed=seed if seed is not None else None
-                )
+                    )
 
                     # Add to bot's subprocess queue for processing
                     await self.bot.subprocess_queue.put(request_item)
@@ -1017,12 +967,7 @@ class ReduxProcessingView(View):
             button.disabled = True
             button.label = "✓ Image 1 Uploaded"
             await interaction.edit_original_response(view=self)
-            try:
-                await msg.delete()
-            except discord.errors.Forbidden:
-                logger.warning("Bot lacks permission to delete the uploaded image message")
-            except Exception as e:
-                logger.error(f"Error deleting uploaded image message: {str(e)}")
+            await msg.delete()
             
             if self.image1 and self.image2:
                 await self.process_images(interaction)
@@ -1051,12 +996,7 @@ class ReduxProcessingView(View):
             button.disabled = True
             button.label = "✓ Image 2 Uploaded"
             await interaction.edit_original_response(view=self)
-            try:
-                await msg.delete()
-            except discord.errors.Forbidden:
-                logger.warning("Bot lacks permission to delete the uploaded image message")
-            except Exception as e:
-                logger.error(f"Error deleting uploaded image message: {str(e)}")
+            await msg.delete()
             
             if self.image1 and self.image2:
                 await self.process_images(interaction)
@@ -1084,7 +1024,7 @@ class ReduxProcessingView(View):
             save_json(workflow_filename, workflow)
 
             # Save images in the DataSets directory (not temp)
-            datasets_dir = os.path.join('Main', 'Datasets')
+            datasets_dir = os.path.join('Main', 'DataSets')
             os.makedirs(datasets_dir, exist_ok=True)
             
             # Save images with request ID in filenames
@@ -1681,21 +1621,15 @@ class PulidModal(discord.ui.Modal, title='PuLID Image Generation'):
                 image_path = os.path.join(temp_dir, f"{request_id}_{attachment.filename}")
                 await attachment.save(image_path)
 
-                # Delete the uploaded image message immediately after saving
-                try:
-                    await message.delete()
-                except discord.errors.Forbidden:
-                    logger.warning("Bot lacks permission to delete the uploaded image message")
-                except Exception as e:
-                    logger.error(f"Error deleting uploaded image message: {str(e)}")
+                # Convert to absolute path with forward slashes
+                image_path = os.path.abspath(image_path).replace('\\', '/')
 
-                # Delete the initial message
+                # Delete both the initial message and the upload message
                 try:
                     await initial_message.delete()
-                except discord.errors.Forbidden:
-                    logger.warning("Bot lacks permission to delete the initial message")
+                    await message.delete()
                 except Exception as e:
-                    logger.error(f"Error deleting initial message: {str(e)}")
+                    logger.error(f"Error deleting messages: {str(e)}")
 
                 # Show LoRA selection view
                 view = LoRAView(self.bot)
@@ -1714,8 +1648,6 @@ class PulidModal(discord.ui.Modal, title='PuLID Image Generation'):
                 # Delete the LoRA selection message
                 try:
                     await lora_message.delete()
-                except discord.errors.Forbidden:
-                    logger.warning("Bot lacks permission to delete the LoRA selection message")
                 except Exception as e:
                     logger.error(f"Error deleting LoRA selection message: {str(e)}")
 

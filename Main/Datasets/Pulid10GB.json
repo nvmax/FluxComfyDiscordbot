@@ -47,7 +47,7 @@
   },
   "25": {
     "inputs": {
-      "noise_seed": 707190556606328
+      "noise_seed": 536770609971607
     },
     "class_type": "RandomNoise",
     "_meta": {
@@ -210,9 +210,10 @@
   },
   "69": {
     "inputs": {
-      "clip_name1": "t5xxl_fp8_e4m3fn.safetensors",
+      "clip_name1": "t5xxl_fp16.safetensors",
       "clip_name2": "clip_l.safetensors",
-      "type": "flux"
+      "type": "flux",
+      "device": "default"
     },
     "class_type": "DualCLIPLoader",
     "_meta": {
@@ -256,7 +257,7 @@
       "embed_workflow": "true",
       "show_previews": "true",
       "images": [
-        "49",
+        "74:1",
         0
       ]
     },
@@ -269,11 +270,6 @@
     "inputs": {
       "PowerLoraLoaderHeaderWidget": {
         "type": "PowerLoraLoaderHeaderWidget"
-      },
-      "lora_1": {
-        "on": true,
-        "lora": "MetalArt01a_CE_FLUX_AIT3k.safetensors",
-        "strength": 1
       },
       "➕ Add Lora": "",
       "model": [
@@ -288,6 +284,105 @@
     "class_type": "Power Lora Loader (rgthree)",
     "_meta": {
       "title": "Power Lora Loader (rgthree)"
+    }
+  },
+  "75": {
+    "inputs": {
+      "model_name": "4x-ClearRealityV1.pth"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "Load Upscale Model"
+    }
+  },
+  "76": {
+    "inputs": {
+      "Xi": 2,
+      "Xf": 2,
+      "isfloatX": 1
+    },
+    "class_type": "mxSlider",
+    "_meta": {
+      "title": "Upscale ratio"
+    }
+  },
+  "74:0": {
+    "inputs": {
+      "format": "./%Y-%m-%d/Upscale"
+    },
+    "class_type": "JWDatetimeString",
+    "_meta": {
+      "title": "Datetime String"
+    }
+  },
+  "74:1": {
+    "inputs": {
+      "upscale_by": [
+        "76",
+        0
+      ],
+      "seed": 264534105663913,
+      "steps": 6,
+      "cfg": 1,
+      "sampler_name": "deis",
+      "scheduler": "normal",
+      "denoise": 0.28,
+      "mode_type": "Linear",
+      "tile_width": 1024,
+      "tile_height": 1024,
+      "mask_blur": 16,
+      "tile_padding": 32,
+      "seam_fix_mode": "None",
+      "seam_fix_denoise": 1,
+      "seam_fix_width": 64,
+      "seam_fix_mask_blur": 8,
+      "seam_fix_padding": 16,
+      "force_uniform_tiles": true,
+      "tiled_decode": false,
+      "image": [
+        "49",
+        0
+      ],
+      "model": [
+        "73",
+        0
+      ],
+      "positive": [
+        "26",
+        0
+      ],
+      "negative": [
+        "6",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ],
+      "upscale_model": [
+        "75",
+        0
+      ]
+    },
+    "class_type": "UltimateSDUpscale",
+    "_meta": {
+      "title": "Ultimate SD Upscale"
+    }
+  },
+  "74:2": {
+    "inputs": {
+      "filename_prefix": [
+        "74:0",
+        0
+      ],
+      "images": [
+        "74:1",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
     }
   }
 }

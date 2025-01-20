@@ -31,6 +31,10 @@ STATUS_MESSAGES = {
         'message': 'Generating image...',
         'emoji': '🎨'
     },
+    'upscaling': {
+        'message': 'Please wait upscaling image...',
+        'emoji': '🔍'
+    },
     'complete': {
         'message': 'Generation complete!',
         'emoji': '✅'

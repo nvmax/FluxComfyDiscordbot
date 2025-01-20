@@ -37,7 +37,11 @@ async def update_progress(request):
                 'emoji': '⚙️'
             })
 
-            if status == 'generating':
+            if status == 'generating' and progress == 100:
+                status = 'upscaling'
+                status_info = STATUS_MESSAGES['upscaling']
+                formatted_message = f"{status_info['emoji']} {status_info['message']}"
+            elif status == 'generating':
                 formatted_message = f"{status_info['emoji']} {status_info['message']} {progress}%"
             elif status == 'error':
                 formatted_message = f"{status_info['emoji']} {status_info['message']} {progress_message}"

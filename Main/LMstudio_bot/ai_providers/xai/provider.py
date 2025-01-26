@@ -47,6 +47,11 @@ class XAIProvider(AIProvider):
     async def generate_response(self, prompt: str, temperature: float = 0.7) -> str:
         """Generate an enhanced prompt using XAI API."""
         try:
+            # Immediately return original prompt if creativity level is 1 (temperature = 0.1)
+            if abs(temperature - 0.1) < 0.001:  # Use small epsilon for float comparison
+                logger.info("Creativity level 1: Using original prompt without enhancement")
+                return prompt
+
             system_prompt = self.get_system_prompt(temperature)
 
             # Get word limit for this creativity level

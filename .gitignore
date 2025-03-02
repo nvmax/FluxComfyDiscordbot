@@ -11,3 +11,6 @@ build/
 dist/
 upx/
 .windsurf
+.gitignore
+.gitmodules
+.windsurfrules

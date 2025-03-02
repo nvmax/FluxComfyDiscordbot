@@ -111,12 +111,7 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
         # Validate the updated workflow
         validate_workflow(workflow)
         logger.debug("Final workflow validation passed")
-        
-        # Update guidance value if present
-        if '198:4' in workflow and 'inputs' in workflow['198:4']:
-            workflow['198:4']['inputs']['guidance'] = 3.5
-            logger.debug("Set default guidance value to 3.5")
-        
+                       
         # Keep original steps value from workflow template
         if '198:1' in workflow and 'inputs' in workflow['198:1']:
             original_steps = workflow['198:1']['inputs'].get('steps', 20)  # fallback to 20 if not found

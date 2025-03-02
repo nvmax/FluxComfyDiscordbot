@@ -14,8 +14,8 @@ class GeminiProvider(AIProvider):
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY must be set")
         genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel('gemini-pro')
-        logger.info(f"Initialized Gemini provider with model: gemini-pro")
+        self.model = genai.GenerativeModel('gemini-2.0-flash')
+        logger.info(f"Initialized Gemini provider with model: gemini-2.0-flash")
 
     @property
     def base_url(self) -> str:

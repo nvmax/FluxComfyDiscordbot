@@ -125,10 +125,9 @@
       "loop_count": 0,
       "filename_prefix": "AnimateDiff",
       "format": "video/h264-mp4",
-      "pix_fmt": "yuv420p",
-      "crf": 12,
-      "save_metadata": false,
-      "trim_to_audio": false,
+      "pix_fmt": "yuv420p10le",
+      "crf": 22,
+      "save_metadata": true,
       "pingpong": false,
       "save_output": true,
       "images": [
@@ -143,8 +142,8 @@
   },
   "44": {
     "inputs": {
-      "from_translate": "english",
-      "to_translate": "chinese (simplified)",
+      "from_translate": "auto",
+      "to_translate": "english",
       "add_proxies": false,
       "proxies": "",
       "auth_data": "",
@@ -160,8 +159,8 @@
   },
   "45": {
     "inputs": {
-      "from_translate": "english",
-      "to_translate": "chinese (simplified)",
+      "from_translate": "auto",
+      "to_translate": "english",
       "add_proxies": false,
       "proxies": "",
       "auth_data": "",

@@ -187,7 +187,20 @@ def queue_prompt(workflow):
         logger.error(f"Error in queue_prompt: {str(e)}")
         raise
 
+def get_video(filename, subfolder, folder_type):
+    """Gets a video file from ComfyUI's output directory"""
+    data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
+    url_values = urllib.parse.urlencode(data)
+    url = f"http://{server_address}:8188/view?{url_values}"
+    try:
+        with urllib.request.urlopen(url, timeout=120) as response:
+            return response.read(), filename
+    except Exception as e:
+        logger.error(f"Error in get_video: {str(e)}")
+        raise
+
 def get_image(filename, subfolder, folder_type):
+    """Gets an image file from ComfyUI's output directory"""
     data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
     url_values = urllib.parse.urlencode(data)
     url = f"http://{server_address}:8188/view?{url_values}"
@@ -300,20 +313,52 @@ def get_images(ws, workflow, progress_callback):
                         })
                         last_milestone = current_milestone
 
-                elif message['type'] == 'execution_cached':
-                    progress_callback({
-                        "status": "cached",
-                        "message": "Using cached result..."
-                    })
-
         history = get_history(prompt_id)[prompt_id]
+        logger.debug(f"Got history for prompt {prompt_id}")
+        
+        # Debug log the available outputs
+        logger.debug(f"Available outputs in history: {list(history['outputs'].keys())}")
+        
         for node_id, node_output in history['outputs'].items():
-            if 'images' in node_output:
+            logger.debug(f"Processing output from node {node_id}")
+            logger.debug(f"Node output keys: {list(node_output.keys())}")
+            
+            # Special handling for node 42 (VHS_VideoCombine)
+            if node_id == '42':
+                # Check all possible video output keys
+                video_data = None
+                if 'gifs' in node_output:
+                    for gif in node_output['gifs']:
+                        if gif['filename'].endswith('.mp4'):
+                            video_data = gif
+                            break
+                
+                if video_data:
+                    logger.debug(f"Found video data in node 42: {video_data}")
+                    video_bytes, filename = get_video(
+                        video_data['filename'],
+                        video_data.get('subfolder', ''),
+                        video_data.get('type', 'output')
+                    )
+                    output_images[node_id] = [(video_bytes, filename)]
+                    logger.debug(f"Successfully processed video: {filename}")
+            
+            # Handle regular image outputs
+            elif 'images' in node_output:
                 images_output = []
                 for image in node_output['images']:
-                    image_data, filename = get_image(image['filename'], image['subfolder'], image['type'])
+                    image_data, filename = get_image(
+                        image['filename'],
+                        image.get('subfolder', ''),
+                        image.get('type', 'output')
+                    )
                     images_output.append((image_data, filename))
                 output_images[node_id] = images_output
+
+        if not output_images:
+            logger.error("No outputs found in workflow execution")
+            logger.error(f"History outputs: {history['outputs']}")
+            raise ValueError("No outputs generated from workflow")
 
         return output_images
 
@@ -397,19 +442,35 @@ def send_final_image(request_id, user_id, channel_id, interaction_id, original_m
         retries = 3
         retry_delay = 1  # seconds
 
-        files = {'image_data': (filename, image_data)}
+        # Determine if this is a video file
+        is_video = filename.lower().endswith('.mp4')
+        
+        # For video files, we need to send the binary data directly
+        if is_video:
+            files = {
+                'video_data': (
+                    filename,
+                    image_data,
+                    'video/mp4' if is_video else 'image/png'
+                )
+            }
+        else:
+            files = {'image_data': (filename, image_data)}
+
+        # Convert all data fields to strings to prevent encoding issues
         data = {
-            'request_id': request_id,
-            'user_id': user_id,
-            'channel_id': channel_id,
-            'interaction_id': interaction_id,
-            'original_message_id': original_message_id,
-            'prompt': prompt,
-            'resolution': resolution,
-            'upscaled_resolution': upscaled_resolution,
+            'request_id': str(request_id),
+            'user_id': str(user_id),
+            'channel_id': str(channel_id),
+            'interaction_id': str(interaction_id),
+            'original_message_id': str(original_message_id),
+            'prompt': str(prompt),
+            'resolution': str(resolution),
+            'upscaled_resolution': str(upscaled_resolution),
             'loras': json.dumps(loras),
-            'upscale_factor': upscale_factor,
-            'seed': seed
+            'upscale_factor': str(upscale_factor),
+            'seed': str(seed),
+            'is_video': str(is_video)
         }
 
         for attempt in range(retries):
@@ -421,13 +482,14 @@ def send_final_image(request_id, user_id, channel_id, interaction_id, original_m
                     timeout=120
                 )
                 if response.status_code == 200:
-                    logger.info("Successfully sent final image")
+                    logger.info(f"Successfully sent {'video' if is_video else 'image'}")
                     # Clean up workflow file after successful send
                     if workflow_filename:
                         cleanup_workflow_file(workflow_filename)
                     return response
                 else:
-                    logger.warning(f"Failed to send image, status code: {response.status_code}")
+                    logger.warning(f"Failed to send {'video' if is_video else 'image'}, status code: {response.status_code}")
+                    logger.warning(f"Response content: {response.text}")
             except requests.exceptions.RequestException as e:
                 if attempt < retries - 1:
                     logger.warning(f"Attempt {attempt + 1} failed, retrying in {retry_delay} seconds...")
@@ -437,7 +499,7 @@ def send_final_image(request_id, user_id, channel_id, interaction_id, original_m
                     logger.error(f"All retry attempts failed: {str(e)}")
                     raise
     except Exception as e:
-        logger.error(f"Error sending final image: {str(e)}")
+        logger.error(f"Error sending final {'video' if is_video else 'image'}: {str(e)}")
         raise
 
 if __name__ == "__main__":
@@ -595,6 +657,41 @@ if __name__ == "__main__":
             loras = []
             upscaled_resolution = resolution
             seed = None
+
+        elif request_type == 'video':  # Video generation command
+            if len(sys.argv) < 9:
+                raise ValueError("Not enough arguments for video request")
+                
+            prompt = sys.argv[7]
+            workflow_filename = sys.argv[8]
+            
+            # Send initial status
+            send_progress_update(request_id, {
+                'status': 'starting',
+                'message': 'Starting video generation process...'
+            })
+
+            workflow = open_workflow(workflow_filename)
+            
+            # Generate random seed if not provided
+            seed = generate_random_seed()
+            
+            # Update workflow nodes
+            if '3' in workflow:
+                workflow['3']['inputs']['seed'] = seed
+            if '44' in workflow:
+                workflow['44']['inputs']['text'] = prompt
+                
+            # Save the modified workflow
+            save_json(workflow_filename, workflow)
+            logger.debug(f"Updated video workflow file: {workflow_filename}")
+
+            # Set these for compatibility with existing code
+            full_prompt = prompt
+            resolution = "video"  # Special case for video
+            loras = []
+            upscale_factor = 1
+            upscaled_resolution = "video"
 
         else:
             raise ValueError(f"Invalid request type: {request_type}")

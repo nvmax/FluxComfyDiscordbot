@@ -12,11 +12,11 @@ STATUS_MESSAGES = {
         'emoji': '⚙️'
     },
     'connecting': {
-        'message': 'Connecting to ComfyUI (attempt 1)...',
+        'message': 'Connecting to ComfyUI...',
         'emoji': '⚙️'
     },
     'loading_models': {
-        'message': 'Loading models and preparing generation...',
+        'message': 'Sending workflow and settings...',
         'emoji': '⚙️'
     },
     'execution': {
@@ -24,15 +24,15 @@ STATUS_MESSAGES = {
         'emoji': '⚙️'
     },
     'cached': {
-        'message': 'Using cached result...',
+        'message': 'Loading Models...',
         'emoji': '📦'
     },
     'generating': {
-        'message': 'Generating image...',
+        'message': 'Generating...',
         'emoji': '🎨'
     },
     'upscaling': {
-        'message': 'Please wait upscaling image...',
+        'message': 'Finalizing Generation...',
         'emoji': '🔍'
     },
     'complete': {

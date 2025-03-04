@@ -3,6 +3,20 @@
 ## Latest Updates
 #### New Features
 
+### March 3, 2025
+- **Video Wan2.1 **
+  - Now supports T2V thanks to wan2.1 checkpoints
+  - Creates 4 sec clips using text to video.
+  - Command in discord /video
+  - As features come available and new loras, I will introduce them to the video option.
+  - Image2video is coming, working on it. 
+    - Various other fixes 
+      - Refactored some code to resolve small bugs, updated setup tool to better support downloads with out time outs, progress bar now shows for every file being downloaded
+      resolved issues with lora editor not having options to make loras active or inactive, button now down at the bottom of tool.
+      - Updated setup instructions to support wan2.1 options
+
+- Side note, security middleware removed, comfyiu has implemented it on their side no longer needed if you are running the latest version of comfyui. 
+
 ### January 17, 2025
 - **PuLID Workflow**
   - Now supports PuLID workflow
@@ -10,10 +24,6 @@
     - example: image of a woman wearing a yellow dress,  "/pulid select your resolution, enter in the prompt " woman with a red dress"
 
 ### January 10, 2025
-- **Security Implementation**
-  - Implemented a security middleware to prevent abuse and protect against malicious requests.
-  - Added a permanent block list to block IP addresses that have been repeatedly tried to access restricted endpoints.
-  - you can check the security folder for the permanent block list and see what they were requesting.
 - **AI Prompt Enhancements**
   - Now supports Google Gemini 2.0 Flash
 

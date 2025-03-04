@@ -46,7 +46,7 @@
 ### 🛠️ Bot Configuration
 
 #### Initial Setup
-1. Create `.env` file in root directory:
+1. Create `.env` file in root directory add:
    ```env
    COMMAND_PREFIX=/
    ```
@@ -54,7 +54,6 @@
 2. Run Setup Tool:
    ```bash
    python setup.py
-   # or use Setup.exe
    ```
 
 <div align="center">
@@ -66,7 +65,7 @@
 
 1. **Path Configuration**
    - Browse to ComfyUI models folder
-   - Example: `C:/Comfyui_windows_portable/ComfyUI/models`
+   - Example: `C:/Comfyui_windows_portable/` or your path
 
 2. **API Tokens**
    - **Civitai Token:**
@@ -98,27 +97,13 @@
 
 ### 🔧 Advanced Setup
 
-#### Creating Executables
-If you prefer building your own executables:
-```bash
-# Install PyInstaller
-pip install pyinstaller
 
-# Build Setup Tool
-pyinstaller setup.spec --clean --noconfirm
-
-# Build LoRA Editor
-pyinstaller LoraEditor.spec --clean --noconfirm
-# requires UPX for compression or executeable will be extremely large
-```
 
 #### ⚠️ Important Notes
 - Required files will be automatically moved to their respective folders
 - Checkpoint changes: Simply rerun setup tool
 - Model changes require bot restart
-- Antivirus may flag executables
-  - Build your own using provided specs
-  - OS-dependent compilation
+
 
 ### Docker Setup Steps
 
@@ -155,7 +140,7 @@ LoRA (Low-Rank Adaptation) models are the secret sauce that brings magic to your
 - Add unique characteristics to generations
 - Transform your prompts into stunning visuals
 
-### 📥 Getting LoRA Models
+### 📥 Getting LoRA Models manually
 1. Visit [Civitai.com/models](https://civitai.com/models)
 2. Apply filters:
    - Model Type: `LoRA`
@@ -164,14 +149,13 @@ LoRA (Low-Rank Adaptation) models are the secret sauce that brings magic to your
 4. Place files in: `comfyui/models/Lora` folder
 
 ### 🛠️ LoRA Editor Tool
-
+Navagate to lor_editor folder and run:
 ```bash
 python lora_editor.py
-# or build your own exe using the .spec file and pyinstaller
 ```
 
 <div align="center">
-  <img src="../loraeditor.png" width="600" alt="LoRA Editor Interface">
+  <img src="./loraeditor.png" width="600" alt="LoRA Editor Interface">
 </div>
 
 #### ✨ Latest Updates
@@ -185,12 +169,6 @@ python lora_editor.py
 - ⚡ Instant LoRA availability
 - 📋 Lora arrangement abilities
 
-#### 🚀 Getting Started
-1. Launch the editor:
-   ```bash
-   python lora_editor.py
-   # or build your own exe using the .spec file and pyinstaller
-   ```
 
 
 #### 🎯 Key Features
@@ -204,7 +182,7 @@ python lora_editor.py
 
 
 ### 📝 Manual Configuration
-If you prefer manual setup, edit `datasets/lora.json`:
+If you prefer manual setup, edit `Datasets/lora.json`:
 
 ```json
 {

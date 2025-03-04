@@ -13,15 +13,33 @@ Options:
 - `creativity`: Adjust creativity level (modal popup)
 - `lora`: Apply LoRA models
 
-### `/lorainfo`
-View information about available LoRA models
+### `/pulid`
+Generate image based on the image uploaded (facial or person pictures)
 ```
-/lorainfo 
+/pulid [resolution] then upload your image when prompted 
 ```
-- Displays a list of available LoRA models
-- Click on Lora info to view details
+
+### `/redux`
+Allows you to blend 2 images together first being the primary image, 2nd image being the style image
+``` 
+/redux[resolution]
+```
+
+### `/reduxprompt`
+Makes style changes or adds item to image (kinda iffy at best )
+```
+/reduxprompt [prompt][strength]
+```
+
+### `/video`
+Generates a 4 second video based on the text you send highly descriptive context goes a long way here
+```
+/video [prompt]
+```
+
 
 ### `other commands`   
+- `/lorainfo`: View information about available LoRA models and links to them
 - `/add_banned_word`: Add a banned word (admin only)
 - `/remove_banned_word`: Remove a banned word (admin only)
 - `/list_banned_words`: List banned words (all users)

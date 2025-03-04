@@ -25,7 +25,7 @@ python setup.py
 ```
 
 ### 2️⃣ Configuration
-1. Load `wokflow.json` to and install missing nodes
+1. Load `Pulid24GB, Redux, ReduxPrompt, Video, Workflow` from required_files folder
 2. Run the setup tool `python setup.py`
 3. Set your ComfyUI installation path
 4. Configure basic settings

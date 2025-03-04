@@ -7,7 +7,7 @@ import logging
 import concurrent.futures
 from pathlib import Path
 from typing import Optional, Dict, Any
-from huggingface_hub import hf_hub_download, HfApi
+from huggingface_hub import hf_hub_download, HfApi, hf_hub_url
 import tkinter as tk
 from tkinter import filedialog
 from tqdm.auto import tqdm
@@ -162,6 +162,34 @@ BASE_MODELS = {
         'path': '/insightface/models/antelopev2',
         'repo_id': '12kaz/antelopev2',
         'file': 'antelopev2/scrfd_10g_bnkps.onnx',
+        'source': 'huggingface'
+    },
+    'Wan_T2V_1.3B': {
+        'filename': 'wan2.1_t2v_1.3B_bf16.safetensors',
+        'path': '/diffusion_models',
+        'repo_id': 'Comfy-Org/Wan_2.1_ComfyUI_repackaged',
+        'file': 'split_files/diffusion_models/wan2.1_t2v_1.3B_bf16.safetensors',
+        'source': 'huggingface'
+    },
+    'Wan_UMT5_XXL': {
+        'filename': 'umt5_xxl_fp8_e4m3fn_scaled.safetensors',
+        'path': '/text_encoders',
+        'repo_id': 'Comfy-Org/Wan_2.1_ComfyUI_repackaged',
+        'file': 'split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors',
+        'source': 'huggingface'
+    },
+    'Wan_Clip_Vision': {
+        'filename': 'clip_vision_h.safetensors',
+        'path': '/clip_vision',
+        'repo_id': 'Comfy-Org/Wan_2.1_ComfyUI_repackaged',
+        'file': 'split_files/clip_vision/clip_vision_h.safetensors',
+        'source': 'huggingface'
+    },
+    'Wan_VAE': {
+        'filename': 'wan_2.1_vae.safetensors',
+        'path': '/vae',
+        'repo_id': 'Comfy-Org/Wan_2.1_ComfyUI_repackaged',
+        'file': 'split_files/vae/wan_2.1_vae.safetensors',
         'source': 'huggingface'
     }
 }
@@ -609,40 +637,55 @@ class SetupManager:
                 if not token:
                     raise ValueError("HuggingFace token is required")
 
-                if not setup_hf_transfer():
-                    logger.warning("HF Transfer initialization failed - download may be slower")
-
-                # Create cache directory if it doesn't exist
-                cache_dir = os.path.join(os.path.dirname(output_path), '.cache')
-                os.makedirs(cache_dir, exist_ok=True)
-
                 try:
-                    # Use HF Transfer for faster downloads
-                    file_path = hf_hub_download(
+                    # Get the direct download URL
+                    url = hf_hub_url(
                         repo_id=file_info['repo_id'],
                         filename=file_info['file'],
-                        local_dir=os.path.dirname(output_path),
-                        force_download=False,
-                        resume_download=True,
-                        token=token,
-                        local_files_only=False,
-                        cache_dir=cache_dir
+                        repo_type="model"
                     )
                     
-                    # Move file to correct location if needed
-                    if file_path != output_path and os.path.exists(file_path):
-                        shutil.move(file_path, output_path)
+                    # Set up headers for HF download
+                    headers = {
+                        'Authorization': f'Bearer {token}',
+                        'User-Agent': 'FluxComfyUI-Downloader/1.0'
+                    }
                     
-                    # Log actual transfer method and file info
-                    if "hf_transfer" in sys.modules:
-                        logger.info(f"Download completed using HF Transfer (high-speed) to: {output_path}")
-                        size_mb = os.path.getsize(output_path) / (1024 * 1024)
-                        logger.info(f"Downloaded file size: {size_mb:.2f} MB")
-                    else:
-                        logger.warning("Download completed using standard method (slower)")
+                    # First make a HEAD request to get file size
+                    response = requests.head(url, headers=headers, allow_redirects=True)
+                    total_size = int(response.headers.get('content-length', 0))
+                    
+                    # Download with progress tracking
+                    response = requests.get(url, headers=headers, stream=True)
+                    response.raise_for_status()
+                    
+                    downloaded_size = 0
+                    chunk_size = 8 * 1024 * 1024  # 8MB chunks
+                    
+                    with open(output_path, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=chunk_size):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded_size += len(chunk)
+                                if self.progress_callback and total_size > 0:
+                                    progress = (downloaded_size / total_size) * 100
+                                    speed = self.calculate_smooth_speed(downloaded_size)
+                                    status = f"Downloading {file_info['filename']}: {downloaded_size/(1024*1024):.1f}MB / {total_size/(1024*1024):.1f}MB ({speed/(1024*1024):.1f} MB/s)"
+                                    self.progress_callback(progress, status)
+                                    
+                                # Flush to disk periodically
+                                if downloaded_size % (64 * 1024 * 1024) == 0:  # Every 64MB
+                                    f.flush()
+                                    os.fsync(f.fileno())
+                    
+                    logger.info(f"Successfully downloaded file to: {output_path}")
+                    size_mb = os.path.getsize(output_path) / (1024 * 1024)
+                    logger.info(f"Downloaded file size: {size_mb:.2f} MB")
                         
                 except Exception as e:
                     logger.error(f"Download error: {str(e)}")
+                    if os.path.exists(output_path):
+                        os.remove(output_path)
                     raise
                     
             elif source == 'civitai':
@@ -671,6 +714,7 @@ class SetupManager:
                 # Define progress callback wrapper
                 def progress_wrapper(progress, status):
                     if self.progress_callback:
+                        status = f"Downloading {file_info['filename']}: {status}"
                         self.progress_callback(progress, status)
 
                 # Use our improved download_file_with_progress for CivitAI downloads

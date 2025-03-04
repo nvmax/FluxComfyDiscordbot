@@ -1,7 +1,7 @@
 {
   "3": {
     "inputs": {
-      "seed": 1043394414367586,
+      "seed": 575531426676742,
       "steps": 30,
       "cfg": 6,
       "sampler_name": "euler",
@@ -128,6 +128,7 @@
       "pix_fmt": "yuv420p10le",
       "crf": 22,
       "save_metadata": true,
+      "trim_to_audio": false,
       "pingpong": false,
       "save_output": true,
       "images": [
@@ -142,12 +143,12 @@
   },
   "44": {
     "inputs": {
-      "from_translate": "auto",
+      "from_translate": "english",
       "to_translate": "english",
       "add_proxies": false,
       "proxies": "",
       "auth_data": "",
-      "service": "GoogleTranslator",
+      "service": "MyMemoryTranslator [free]",
       "text": "a fox running in a wintery scene, sunset, camera following shot",
       "Show proxy": "proxy_hide",
       "Show authorization": "authorization_hide"
@@ -159,12 +160,12 @@
   },
   "45": {
     "inputs": {
-      "from_translate": "auto",
+      "from_translate": "english",
       "to_translate": "english",
       "add_proxies": false,
       "proxies": "",
       "auth_data": "",
-      "service": "GoogleTranslator",
+      "service": "MyMemoryTranslator [free]",
       "text": "Bright tones, overexposed, static, blurry details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards",
       "Show proxy": "proxy_hide",
       "Show authorization": "authorization_hide"

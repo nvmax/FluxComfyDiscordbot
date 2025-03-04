@@ -186,7 +186,7 @@ class SetupUI:
         workflow_files = []
         if os.path.exists(datasets_path):
             for file in os.listdir(datasets_path):
-                if file.endswith('.json') and file not in ['lora.json', 'ratios.json', 'Redux.json', 'Reduxprompt.json', 'Pulid6GB.json', 'Pulid8GB.json', 'Pulid10GB.json', 'Pulid12GB.json', 'Pulid24GB.json', 'PulidFluxDev.json']:
+                if file.endswith('.json') and file not in ['lora.json', 'ratios.json', 'Redux.json', 'Reduxprompt.json', 'Pulid6GB.json', 'Pulid8GB.json', 'Pulid10GB.json', 'Pulid12GB.json', 'Pulid24GB.json', 'PulidFluxDev.json', 'Video.json']:
                     workflow_files.append(file)
         workflow_combo = ttk.Combobox(workflow_frame, textvariable=self.selected_checkpoint, 
                                     values=sorted(workflow_files), state="readonly")

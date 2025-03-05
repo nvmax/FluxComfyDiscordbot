@@ -20,11 +20,11 @@ STATUS_MESSAGES = {
         'emoji': '⚙️'
     },
     'execution': {
-        'message': 'Starting execution...',
+        'message': 'Loading Models...',
         'emoji': '⚙️'
     },
     'cached': {
-        'message': 'Loading Models...',
+        'message': 'Loading Cached Models...',
         'emoji': '📦'
     },
     'generating': {

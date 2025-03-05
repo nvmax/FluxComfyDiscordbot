@@ -60,16 +60,19 @@ async def handle_generated_image(request):
         else:
             seed_value = None
 
-        # Create the ImageControlView with all necessary parameters
-        view = ImageControlView(
-            request.app['bot'],
-            original_prompt=request_data['prompt'],
-            image_filename='output.png',
-            original_resolution=request_data['resolution'],
-            original_loras=json.loads(request_data['loras']),
-            original_upscale_factor=int(request_data['upscale_factor']),
-            original_seed=seed_value
-        )
+        # Create the appropriate view based on content type
+        if is_video:
+            view = ReduxImageView()  # ReduxImageView only has a delete button
+        else:
+            view = ImageControlView(
+                request.app['bot'],
+                original_prompt=request_data['prompt'],
+                image_filename='output.png',
+                original_resolution=request_data['resolution'],
+                original_loras=json.loads(request_data['loras']),
+                original_upscale_factor=int(request_data['upscale_factor']),
+                original_seed=seed_value
+            )
 
         # Create embed for the prompt
         try:

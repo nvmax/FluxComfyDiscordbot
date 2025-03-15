@@ -46,12 +46,27 @@ import uuid
 from discord import app_commands
 from Main.custom_commands.views import ReduxModal, ImageControlView
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Configure logging
+import logging
+
+# Force all loggers to INFO level
+logging.getLogger().setLevel(logging.INFO)
+for name in logging.root.manager.loggerDict:
+    logging.getLogger(name).setLevel(logging.INFO)
+
+logging.basicConfig(
+    force=True,  # Override any existing configuration
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
 
-# Reduce discord.py websocket spam
+# Reduce discord.py websocket spam but keep it at INFO
 discord_logger = logging.getLogger('discord.gateway')
-discord_logger.setLevel(logging.WARNING)
+discord_logger.setLevel(logging.INFO)
 
 class MyBot(discord_commands.Bot):
     def __init__(self):
@@ -64,7 +79,7 @@ class MyBot(discord_commands.Bot):
         self.lora_options = []
         self.tree.on_error = self.on_tree_error
         setup_lora_monitor(self)
-        
+
     def get_python_command(self):
         """Get the appropriate Python command based on the platform"""
         if platform.system() == "Windows":
@@ -176,7 +191,11 @@ class MyBot(discord_commands.Bot):
 
     async def setup_hook(self):
         """Setup hook that runs before the bot starts."""
+        logger.info("=== Starting Bot Setup ===")
+        logger.info("Initializing database...")
         init_db()
+        
+        logger.info("Setting up AI provider...")
         try:
             if ENABLE_PROMPT_ENHANCEMENT and AIProviderFactory:
                 logger.info(f"Initializing AI provider. Provider: {AI_PROVIDER}")
@@ -197,16 +216,56 @@ class MyBot(discord_commands.Bot):
             logger.error(f"Error initializing AI provider: {e}", exc_info=True)
             self.ai_provider = None
 
+        logger.info("Loading configuration files...")
         try:
             ratios_data = load_json('ratios.json')
             self.resolution_options = list(ratios_data['ratios'].keys())
+            logger.info(f"Loaded {len(self.resolution_options)} resolution options")
 
             lora_data = load_json('lora.json')
             self.lora_options = lora_data['available_loras']
+            logger.info(f"Loaded {len(self.lora_options)} LoRA options")
+            
+            # Register redux command after options are loaded
+            logger.info("Registering redux command...")
+            
+            @self.tree.command(
+                name="redux",
+                description="Generate an image using two reference images"
+            )
+            @app_commands.describe(
+                resolution="Choose the resolution for the output image"
+            )
+            @app_commands.choices(resolution=[
+                app_commands.Choice(name=str(name), value=str(name))
+                for name in self.resolution_options
+            ])
+            async def redux(interaction: discord.Interaction, resolution: str):
+                try:
+                    # Check if channel is allowed
+                    if interaction.channel_id not in self.allowed_channels:
+                        await interaction.response.send_message(
+                            "This command can only be used in specific channels.", 
+                            ephemeral=True
+                        )
+                        return
+
+                    # Show the modal for image upload and strength settings
+                    modal = ReduxModal(self, resolution)
+                    await interaction.response.send_modal(modal)
+
+                except Exception as e:
+                    logger.error(f"Error in redux command: {e}", exc_info=True)
+                    await interaction.response.send_message(
+                        f"An error occurred: {str(e)}",
+                        ephemeral=True
+                    )
             
         except Exception as e:
-            logger.error(f"Error loading options: {str(e)}")
+            logger.error(f"Failed to load configuration: {e}", exc_info=True)
+            raise
 
+        logger.info("Setting up commands and views...")
         # Register commands
         await setup_commands(self)
         
@@ -215,63 +274,45 @@ class MyBot(discord_commands.Bot):
         PuLIDImageView.register_view(self)
         ReduxImageView.register_view(self)
         ImageControlView.register_view(self)
+        logger.info("Views registered successfully")
         
         # Start processing subprocess queue
+        logger.info("Starting subprocess queue...")
         self.bg_task = self.loop.create_task(self.process_subprocess_queue())
         
+        logger.info("Starting web server...")
         await start_web_server(self)
 
-        # Add redux command
-        @app_commands.command(name="redux", description="Generate an image using two reference images")
-        @app_commands.describe(
-            resolution="Choose the resolution for the output image"
-        )
-        @app_commands.choices(resolution=[
-            app_commands.Choice(name=name, value=name) 
-            for name in self.resolution_options
-        ])
-        async def redux(interaction: discord.Interaction, resolution: str):
-            try:
-                # Check if channel is allowed
-                if interaction.channel_id not in self.allowed_channels:
-                    await interaction.response.send_message(
-                        "This command can only be used in specific channels.", 
-                        ephemeral=True
-                    )
-                    return
-
-                # Show the modal for image upload and strength settings
-                modal = ReduxModal(self, resolution)
-                await interaction.response.send_modal(modal)
-
-            except Exception as e:
-                logger.error(f"Error in redux command: {e}", exc_info=True)
-                await interaction.response.send_message(
-                    f"An error occurred: {str(e)}",
-                    ephemeral=True
-                )
-
-        self.tree.add_command(redux)
-
-        # Sync commands
+        # Sync commands with Discord
+        logger.info("Syncing commands with Discord...")
         try:
-            synced = await self.tree.sync()
-            logger.info(f"Synced {len(synced)} commands during setup")
+            if not ALLOWED_SERVERS:
+                logger.warning("No allowed servers configured, syncing globally")
+                await self.tree.sync()
+            else:
+                for server_id in ALLOWED_SERVERS:
+                    try:
+                        guild = discord.Object(id=int(server_id))
+                        await self.tree.sync(guild=guild)
+                        logger.info(f"Synced commands to guild {server_id}")
+                    except Exception as e:
+                        logger.error(f"Failed to sync commands to guild {server_id}: {e}")
         except Exception as e:
-            logger.error(f"Failed to sync commands during setup: {e}")
+            logger.error(f"Failed to sync commands: {e}", exc_info=True)
+            raise
 
     async def close(self):
         cleanup_lora_monitor(self)
         await super().close()
 
     async def on_ready(self):
-        logger.info(f"Bot {self.user} is ready")
+        logger.info(f"=== Bot Ready: {self.user} ===")
         await self.change_presence(activity=discord.Game(name="with image generation"))
         try:
             synced = await self.tree.sync()
-            logger.info(f"Synced {len(synced)} commands after ready")
+            logger.info(f"Successfully synced {len(synced)} commands")
         except Exception as e:
-            logger.error(f"Failed to sync commands after ready: {e}")
+            logger.error(f"Failed to sync commands: {e}", exc_info=True)
 
     async def on_tree_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CommandOnCooldown):
@@ -314,8 +355,17 @@ class MyBot(discord_commands.Bot):
 bot = MyBot()
 
 async def main():
-    async with bot:
-        await bot.start(DISCORD_TOKEN)
+    logger.info("=== Starting Bot Process ===")
+    if not DISCORD_TOKEN:
+        logger.error("No Discord token found. Please check your .env file")
+        return
+        
+    try:
+        async with bot:
+            logger.info("Initializing bot connection...")
+            await bot.start(DISCORD_TOKEN)
+    except Exception as e:
+        logger.error(f"Failed to start bot: {e}", exc_info=True)
 
 if __name__ == "__main__":
     asyncio.run(main())

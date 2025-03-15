@@ -10,178 +10,108 @@ from typing import Dict, Any
 import asyncio
 from .message_constants import STATUS_MESSAGES
 from .views import ImageControlView, ReduxImageView, PuLIDImageView
+from config import fluxversion
 
 logger = logging.getLogger(__name__)
 
 async def handle_generated_image(request):
     try:
-        logger.debug("Received request to handle_generated_image")
+        request_data = {}
+        
+        # Process the multipart form data
         reader = await request.multipart()
-        request_data = {
-            'request_id': None,
-            'user_id': None,
-            'channel_id': None,
-            'interaction_id': None,
-            'original_message_id': None,
-            'prompt': None,
-            'resolution': None,
-            'upscaled_resolution': None,
-            'loras': None,
-            'upscale_factor': None,
-            'seed': None,
-            'image_data': None
-        }
-
-        # Read multipart data
-        async for part in reader:
-            if part.name == 'image_data':
-                request_data['image_data'] = await part.read(decode=False)
-            elif part.name == 'loras':
-                request_data['loras'] = json.loads(await part.text())
-            elif part.name == 'upscale_factor':
-                try:
-                    request_data['upscale_factor'] = int(await part.text())
-                except (ValueError, TypeError):
-                    request_data['upscale_factor'] = 1
+        
+        while True:
+            part = await reader.next()
+            if part is None:
+                break
+                
+            if part.name in ['video_data', 'image_data']:
+                # Handle binary data (video or image)
+                request_data[part.name] = await part.read()
             else:
+                # Handle text data
                 request_data[part.name] = await part.text()
 
-        # Validate required fields
-        required_fields = [
-            'request_id', 'user_id', 'channel_id', 'interaction_id',
-            'original_message_id', 'prompt', 'resolution', 'image_data'
-        ]
+        # Convert string 'True'/'False' to boolean
+        is_video = request_data.get('is_video', 'False').lower() == 'true'
         
-        missing_fields = [field for field in required_fields if not request_data[field]]
-        if missing_fields:
-            logger.warning(f"Missing required fields: {', '.join(missing_fields)}")
-            return web.Response(text="Missing required data", status=400)
+        # Get the channel where we need to send the response
+        channel_id = int(request_data['channel_id'])
+        channel = request.app['bot'].get_channel(channel_id)
+        
+        if not channel:
+            logger.error(f"Could not find channel with ID {channel_id}")
+            return web.Response(status=404, text="Channel not found")
 
-        # Check if request is still pending
-        if request_data['request_id'] not in request.app['bot'].pending_requests:
-            logger.warning(f"Received response for unknown request_id: {request_data['request_id']}")
-            return web.Response(text="Unknown request", status=404)
+        # Prepare the file to send
+        if is_video:
+            file = discord.File(io.BytesIO(request_data['video_data']), filename='output.mp4')
+        else:
+            file = discord.File(io.BytesIO(request_data['image_data']), filename='output.png')
 
-        # Get request item to check type
-        request_item = request.app['bot'].pending_requests[request_data['request_id']]
+        # Handle seed value - convert to int only if it's not None or 'None'
+        seed_value = request_data.get('seed')
+        if seed_value and seed_value.lower() != 'none':
+            try:
+                seed_value = int(seed_value)
+            except ValueError:
+                seed_value = None
+        else:
+            seed_value = None
 
+        # Create the appropriate view based on content type
+        if is_video:
+            view = ReduxImageView()  # ReduxImageView only has a delete button
+        else:
+            view = ImageControlView(
+                request.app['bot'],
+                original_prompt=request_data['prompt'],
+                image_filename='output.png',
+                original_resolution=request_data['resolution'],
+                original_loras=json.loads(request_data['loras']),
+                original_upscale_factor=int(request_data['upscale_factor']),
+                original_seed=seed_value
+            )
+
+        # Create embed for the prompt
         try:
-            # Fetch necessary Discord objects
-            user = await request.app['bot'].fetch_user(int(request_data['user_id']))
-            channel = await request.app['bot'].fetch_channel(int(request_data['channel_id']))
-            guild = channel.guild
-            member = await guild.fetch_member(int(request_data['user_id']))
+            # Try to get member through fetch_member for more reliable role info
+            user = await channel.guild.fetch_member(int(request_data['user_id'])) if channel.guild else None
             
-            user_name = user.display_name if user else "Unknown User"
-            user_color = member.color.value if member.color.value != 0 else 0x5DADEC
+            # Get the highest colored role
+            colored_role = None
+            if user:
+                for role in reversed(user.roles):
+                    if role.color.value != 0:
+                        colored_role = role
+                        break
+            
+            embed_color = colored_role.color if colored_role else discord.Color.blurple()
+            
+        except (discord.NotFound, discord.HTTPException):
+            # Fallback to blurple if we can't get the user or their roles
+            embed_color = discord.Color.blurple()
+            
+        embed = discord.Embed(color=embed_color)
+        embed.description = f"🎨 {request_data['prompt']}"
+        embed.set_author(name="Image generated by FluxComfyUI")
 
-            # Create embed
-            embed = discord.Embed(
-                title=f"Image generated by {user_name}",
-                description=request_data['prompt'],
-                color=user_color
-            )
+        # Get the original progress message and update it
+        try:
+            progress_message = await channel.fetch_message(int(request_data['original_message_id']))
+            await progress_message.edit(content=None, embed=embed, attachments=[], view=view)
+            await progress_message.add_files(file)
+        except (discord.NotFound, discord.HTTPException) as e:
+            # If we can't find the original message or there's an error editing, send as new message
+            logger.error(f"Could not edit original message, sending new one: {str(e)}")
+            await channel.send(file=file, embed=embed, view=view)
 
-            # Add resolution field
-            if request_data['upscale_factor'] > 1:
-                if request_data['upscaled_resolution'] and request_data['upscaled_resolution'] != "Unknown":
-                    embed.add_field(
-                        name="Resolution",
-                        value=f"{request_data['resolution']} → {request_data['upscaled_resolution']} (CR Upscaled {request_data['upscale_factor']}x)",
-                        inline=True
-                    )
-                else:
-                    embed.add_field(
-                        name="Resolution",
-                        value=f"{request_data['resolution']} (CR Upscaled {request_data['upscale_factor']}x)",
-                        inline=True
-                    )
-            else:
-                embed.add_field(name="Resolution", value=request_data['resolution'], inline=True)
-
-            # Handle LoRA information
-            if isinstance(request_item, (ReduxRequestItem, ReduxPromptRequestItem)):
-                # Skip LoRA display for Redux requests
-                pass
-            else:
-                # Show LoRAs for both standard and PuLID requests
-                lora_config = load_json('lora.json')
-                lora_names = []
-                if request_data['loras']:
-                    for lora_file in request_data['loras']:
-                        lora_info = next((lora for lora in lora_config['available_loras'] 
-                                        if lora['file'] == lora_file), None)
-                        if lora_info:
-                            lora_names.append(lora_info['name'])
-                        else:
-                            lora_names.append(lora_file)
-
-                embed.add_field(
-                    name="LoRAs",
-                    value=", ".join(lora_names) if lora_names else "None",
-                    inline=True
-                )
-
-            if request_data['seed'] is not None:
-                embed.add_field(name="Seed", value=str(request_data['seed']), inline=True)
-
-            # Generate image filename and create file
-            image_filename = f"generated_image_{request_data['request_id']}.png"
-            image_file = discord.File(io.BytesIO(request_data['image_data']), image_filename)
-
-            # Select appropriate view based on request type
-            if isinstance(request_item, (ReduxRequestItem, ReduxPromptRequestItem)):
-                view = ReduxImageView()
-            elif request_item.workflow_filename and request_item.workflow_filename.lower().startswith('pulid'):
-                view = PuLIDImageView()
-            else:
-                view = ImageControlView(
-                    request.app['bot'],
-                    request_data['prompt'],
-                    image_filename,
-                    request_data['resolution'],
-                    request_data['loras'],
-                    request_data['upscale_factor'],
-                    request_data['seed']
-                )
-
-            # Update the original message
-            channel = await request.app['bot'].fetch_channel(int(request_data['channel_id']))
-            original_message = await channel.fetch_message(int(request_data['original_message_id']))
-            await original_message.edit(content=None, embed=embed, attachments=[image_file], view=view)
-            request.app['bot'].add_view(view, message_id=original_message.id)
-
-            # Add to history
-            add_to_history(
-                request_data['user_id'],
-                request_data['prompt'],
-                None,  # workflow
-                image_filename,
-                request_data['resolution'],
-                request_data['loras'],
-                request_data['upscale_factor']
-            )
-
-            # Remove from pending requests
-            if request_data['request_id'] in request.app['bot'].pending_requests:
-                del request.app['bot'].pending_requests[request_data['request_id']]
-
-            logger.info(f"Successfully processed image for user {request_data['user_id']}")
-            return web.Response(text="Success")
-
-        except discord.NotFound:
-            logger.error("Channel or message not found")
-            return web.Response(text="Channel or message not found", status=404)
-        except discord.Forbidden:
-            logger.error("Bot lacks required permissions")
-            return web.Response(text="Permission denied", status=403)
-        except Exception as e:
-            logger.error(f"Error updating message: {str(e)}")
-            return web.Response(text=f"Error updating message: {str(e)}", status=500)
-
+        return web.Response(text="Success")
+        
     except Exception as e:
         logger.error(f"Error in handle_generated_image: {str(e)}", exc_info=True)
-        return web.Response(text=f"Internal server error: {str(e)}", status=500)
+        return web.Response(status=500, text=f"Internal server error: {str(e)}")
 
 async def update_progress(request):
     try:

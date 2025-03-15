@@ -7,7 +7,7 @@ import logging
 import concurrent.futures
 from pathlib import Path
 from typing import Optional, Dict, Any
-from huggingface_hub import hf_hub_download, HfApi
+from huggingface_hub import hf_hub_download, HfApi, hf_hub_url
 import tkinter as tk
 from tkinter import filedialog
 from tqdm.auto import tqdm
@@ -163,6 +163,34 @@ BASE_MODELS = {
         'repo_id': '12kaz/antelopev2',
         'file': 'antelopev2/scrfd_10g_bnkps.onnx',
         'source': 'huggingface'
+    },
+    'Wan_T2V_1.3B': {
+        'filename': 'wan2.1_t2v_1.3B_bf16.safetensors',
+        'path': '/diffusion_models',
+        'repo_id': 'Comfy-Org/Wan_2.1_ComfyUI_repackaged',
+        'file': 'split_files/diffusion_models/wan2.1_t2v_1.3B_bf16.safetensors',
+        'source': 'huggingface'
+    },
+    'Wan_UMT5_XXL': {
+        'filename': 'umt5_xxl_fp8_e4m3fn_scaled.safetensors',
+        'path': '/text_encoders',
+        'repo_id': 'Comfy-Org/Wan_2.1_ComfyUI_repackaged',
+        'file': 'split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors',
+        'source': 'huggingface'
+    },
+    'Wan_Clip_Vision': {
+        'filename': 'clip_vision_h.safetensors',
+        'path': '/clip_vision',
+        'repo_id': 'Comfy-Org/Wan_2.1_ComfyUI_repackaged',
+        'file': 'split_files/clip_vision/clip_vision_h.safetensors',
+        'source': 'huggingface'
+    },
+    'Wan_VAE': {
+        'filename': 'wan_2.1_vae.safetensors',
+        'path': '/vae',
+        'repo_id': 'Comfy-Org/Wan_2.1_ComfyUI_repackaged',
+        'file': 'split_files/vae/wan_2.1_vae.safetensors',
+        'source': 'huggingface'
     }
 }
 
@@ -220,133 +248,231 @@ CHECKPOINTS = {
 
 @dataclass
 class DownloadConfig:
-    chunk_size: int = 16 * 1024 * 1024  # 64MB chunks
-    max_concurrent_downloads: int = 5 
-    timeout: int = 600  
-    retry_attempts: int = 3
-    retry_delay: int = 5
+    chunk_size: int = 1024 * 1024  # 1MB chunks for progress tracking
+    timeout: int = 7200            # 2 hours timeout for large files
+    retry_attempts: int = 5
+    retry_delay: int = 10
     verify_hash: bool = True
 
 class AdvancedDownloadManager:
-    def __init__(self, max_workers=None, chunk_size=16*1024*1024):
-        """
-        Advanced download manager with parallel and resumable downloads
-        
-        :param max_workers: Number of concurrent downloads (defaults to CPU count)
-        :param chunk_size: Size of each download chunk
-        """
-        self.max_workers = max_workers or (multiprocessing.cpu_count() * 4)
-        self.chunk_size = chunk_size
+    def __init__(self):
         self.download_queue = queue.Queue()
         self.completed_downloads = []
         self.failed_downloads = []
         self.lock = threading.Lock()
 
-    def _download_chunk(self, url, start, end, output_file, headers=None):
-      
-        headers = headers or {}
-        headers['Range'] = f'bytes={start}-{end}'
-        
+    def _get_civitai_download_url(self, model_id, version_id):
+        """Get direct download URL from CivitAI API"""
         try:
+            api_url = f"https://civitai.com/api/v1/model-versions/{version_id}"
+            logger.info(f"Fetching download URL from CivitAI API: {api_url}")
+            
+            response = requests.get(api_url, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            files = data.get('files', [])
+            
+            if not files:
+                raise Exception(f"No files found for model version {version_id}")
+            
+            logger.info(f"Found {len(files)} files in API response")
+            
+            # Find the specific file we want
+            for file in files:
+                name = file.get('name', '')
+                size = file.get('sizeKB', 0)
+                logger.info(f"Checking file: {name} (Size: {size/1024:.2f} MB)")
+                
+                if name.endswith(('.safetensors', '.gguf')):
+                    download_url = file.get('downloadUrl')
+                    if download_url:
+                        logger.info(f"Found matching file: {name}")
+                        logger.info(f"Download URL: {download_url}")
+                        return download_url
+            
+            raise Exception(f"No suitable file found in model version {version_id}")
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"API request failed: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error getting CivitAI download URL: {e}")
+            raise
+
+    def download_file_with_progress(self, url, destination_path, headers=None, timeout=7200, progress_callback=None):
+        """Download file with progress tracking and resume support"""
+        try:
+            # First check if we have a partial download
+            downloaded_size = 0
+            file_mode = 'ab'  # Always use append binary mode for resume support
+            temp_path = f"{destination_path}.downloading"
+            
+            # Check for both temp and partial downloads
+            if os.path.exists(temp_path):
+                downloaded_size = os.path.getsize(temp_path)
+                logger.info(f"Found existing partial download in temp file: {downloaded_size / (1024*1024):.2f} MB")
+            elif os.path.exists(destination_path):
+                downloaded_size = os.path.getsize(destination_path)
+                # Move existing file to temp path for resuming
+                shutil.move(destination_path, temp_path)
+                logger.info(f"Moving existing file to temp path for resume: {downloaded_size / (1024*1024):.2f} MB")
+
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+
+            # Set up headers for range request
+            if headers is None:
+                headers = {}
+            if downloaded_size > 0:
+                headers['Range'] = f'bytes={downloaded_size}-'
+                logger.info(f"Resuming download from byte {downloaded_size}")
+
+            # First make a HEAD request to get the total size
+            head_response = requests.head(url, headers=headers, timeout=30, verify=False)
+            head_response.raise_for_status()
+            expected_size = int(head_response.headers.get('content-length', 0))
+            
+            # If we already have a file, verify its size
+            if os.path.exists(destination_path):
+                current_size = os.path.getsize(destination_path)
+                if current_size > 0 and current_size == expected_size:
+                    logger.info(f"Destination file exists and matches expected size ({current_size} bytes)")
+                    return True
+                else:
+                    logger.info(f"Destination file exists but size mismatch. Expected: {expected_size}, Got: {current_size}")
+                    if os.path.exists(destination_path):
+                        os.remove(destination_path)
+
+            # Now start the actual download
+            response = requests.get(url, headers=headers, stream=True, timeout=timeout, verify=False)
+            response.raise_for_status()
+
+            # Get actual total size from response
+            if 'content-length' in response.headers:
+                content_length = int(response.headers['content-length'])
+                if response.status_code == 206:
+                    total_size = downloaded_size + content_length
+                else:
+                    total_size = content_length
+            else:
+                total_size = expected_size
+            
+            if total_size == 0:
+                raise Exception("Could not determine file size")
+            
+            logger.info(f"Total download size: {total_size / (1024*1024):.2f} MB")
+            logger.info(f"Remaining to download: {(total_size - downloaded_size) / (1024*1024):.2f} MB")
+            
+            chunk_size = 8 * 1024 * 1024  # 8MB chunks
+            with open(temp_path, file_mode, buffering=16*1024*1024) as f:
+                start_time = time.time()
+                last_log_time = start_time
+                last_progress_time = start_time
+                last_flush_size = downloaded_size
+                initial_size = downloaded_size
+                last_progress_update = start_time
+                
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if not chunk:
+                        continue
+                    
+                    chunk_size = len(chunk)
+                    f.write(chunk)
+                    downloaded_size += chunk_size
+                    
+                    # Flush every 256MB
+                    if downloaded_size - last_flush_size >= 256 * 1024 * 1024:
+                        logger.debug(f"Forcing file flush at {downloaded_size / (1024*1024):.2f} MB")
+                        f.flush()
+                        os.fsync(f.fileno())
+                        last_flush_size = downloaded_size
+                    
+                    current_time = time.time()
+                    # Update console log every 30 seconds
+                    if current_time - last_log_time >= 30:
+                        progress = (downloaded_size / total_size) * 100 if total_size > 0 else 0
+                        current_speed = (downloaded_size - initial_size) / (current_time - start_time) / 1024 / 1024  # MB/s
+                        logger.info(f"Download progress: {progress:.2f}% ({downloaded_size / (1024*1024):.2f} MB / {total_size / (1024*1024):.2f} MB) at {current_speed:.2f} MB/s")
+                        last_log_time = current_time
+
+                    # Update progress bar more frequently (every 0.5 seconds)
+                    if progress_callback and (current_time - last_progress_update >= 0.5):
+                        progress = (downloaded_size / total_size) * 100 if total_size > 0 else 0
+                        current_speed = (downloaded_size - initial_size) / (current_time - start_time) / 1024 / 1024  # MB/s
+                        status = f"Downloaded: {int(downloaded_size / (1024*1024))} MB / {int(total_size / (1024*1024))} MB Speed: {current_speed:.2f} MB/s"
+                        progress_callback(progress, status)
+                        last_progress_update = current_time
+                    
+                    # Check for stalls
+                    if current_time - last_progress_time > 600:  # 10 minutes
+                        raise Exception("Download stalled - no progress for 10 minutes")
+                    last_progress_time = current_time
+            
+            logger.info(f"Download completed successfully. Total size: {downloaded_size / (1024*1024):.2f} MB")
+            
+            # Final size validation
+            if not os.path.exists(temp_path):
+                raise Exception("File not found after download")
+            
+            final_size = os.path.getsize(temp_path)
+            if total_size > 0 and final_size != total_size:
+                raise Exception(f"File size mismatch. Expected: {total_size} bytes, Got: {final_size} bytes")
+            
+            # Rename temp file to final destination
+            shutil.move(temp_path, destination_path)
+            logger.info("File validation successful")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Download failed: {str(e)}", exc_info=True)
+            # Don't delete partial file on failure - it can be used for resume
+            raise
+
+    def download_large_file(self, url, output_path, headers=None):
+        """Download large file with progress tracking"""
+        try:
+            # First get the file size
+            logger.info(f"Getting file size from URL: {url}")
+            logger.info(f"Using headers: {headers}")
+            
+            response = requests.head(url, headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            total_size = int(response.headers.get('content-length', 0))
+            logger.info(f"Total file size: {total_size / (1024*1024*1024):.2f} GB")
+            logger.info(f"Response headers: {dict(response.headers)}")
+            
+            # Now start the download
             response = requests.get(url, headers=headers, stream=True)
             response.raise_for_status()
             
-            with open(output_file, 'r+b') as f:
-                f.seek(start)
-                for chunk in response.iter_content(chunk_size=self.chunk_size):
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            
+            with open(output_path, 'wb') as f:
+                downloaded = 0
+                start_time = time.time()
+                last_log_time = start_time
+                
+                for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
+                        downloaded += len(chunk)
+                        
+                        current_time = time.time()
+                        if current_time - last_log_time >= 5:
+                            progress = (downloaded / total_size) * 100 if total_size > 0 else 0
+                            speed = downloaded / (current_time - start_time) / 1024 / 1024  # MB/s
+                            logger.info(f"Progress: {progress:.1f}% Speed: {speed:.1f} MB/s")
+                            last_log_time = current_time
             
             return True
         except Exception as e:
-            logger.error(f"Chunk download failed: {e}")
-            return False
-
-    def download_file_parallel(self, url, output_path, total_size=None, headers=None):
-       
-        try:
-            # If total size not provided, get file size first
-            if total_size is None:
-                head_response = requests.head(url, headers=headers)
-                head_response.raise_for_status()
-                total_size = int(head_response.headers.get('Content-Length', 0))
-            
-            # Prepare output file
-            with open(output_path, 'wb') as f:
-                f.seek(total_size - 1)
-                f.write(b'\0')
-            
-            # Calculate chunk sizes
-            chunk_count = self.max_workers
-            chunk_size = total_size // chunk_count
-            
-            # Prepare download chunks
-            chunks = []
-            for i in range(chunk_count):
-                start = i * chunk_size
-                end = start + chunk_size - 1 if i < chunk_count - 1 else total_size - 1
-                chunks.append((start, end))
-            
-            # Parallel download using ProcessPoolExecutor
-            with concurrent.futures.ProcessPoolExecutor(max_workers=self.max_workers) as executor:
-                partial_download = partial(self._download_chunk, url, output_path=output_path, headers=headers)
-                futures = [executor.submit(partial_download, start, end) for start, end in chunks]
-                
-                # Wait for all downloads to complete
-                concurrent.futures.wait(futures)
-                
-                # Check if all chunks downloaded successfully
-                results = [future.result() for future in futures]
-                
-                return all(results)
-        
-        except Exception as e:
-            logger.error(f"Parallel download failed: {e}")
-            return False
-
-    def download_with_retry(self, file_info, output_path, max_retries=3):
-  
-        for attempt in range(max_retries):
-            try:
-                start_time = time.time()
-                
-                # Choose download method based on source
-                if file_info.get('source', 'huggingface') == 'huggingface':
-                    # Use HuggingFace download method
-                    file_path = hf_hub_download(
-                        repo_id=file_info['repo_id'],
-                        filename=file_info['file'],
-                        local_dir=os.path.dirname(output_path),
-                        force_download=False,
-                        resume_download=True,
-                        token=file_info.get('token'),
-                        local_files_only=False
-                    )
-                    shutil.move(file_path, output_path)
-                
-                elif file_info.get('source') == 'civitai':
-                    # Use parallel download for CivitAI
-                    success = self.download_file_parallel(
-                        url=file_info['url'], 
-                        output_path=output_path, 
-                        headers={'Authorization': f'Bearer {file_info.get("token")}'}
-                    )
-                    if not success:
-                        raise Exception("Parallel download failed")
-                
-                end_time = time.time()
-                download_time = end_time - start_time
-                
-                logger.info(f"Download completed in {download_time:.2f} seconds")
-                return True
-            
-            except Exception as e:
-                logger.warning(f"Download attempt {attempt + 1} failed: {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)  # Exponential backoff
-                else:
-                    logger.error(f"Failed to download after {max_retries} attempts")
-                    return False
+            logger.error(f"Download failed: {str(e)}")
+            if os.path.exists(output_path):
+                os.remove(output_path)
+            raise
 
 class SetupManager:
     def __init__(self):
@@ -511,111 +637,57 @@ class SetupManager:
                 if not token:
                     raise ValueError("HuggingFace token is required")
 
-                # Patch tqdm with our progress callback
-                def patch_tqdm(progress_callback):
-                    """Monkey patch tqdm to use our progress callback"""
-                    original_update = tqdm.update
-
-                    def patched_update(self, n=1):
-                        try:
-                            if not hasattr(self, 'n') or not hasattr(self, 'total'):
-                                return original_update(self, n)
-                                
-                            if self.n is None or self.total is None:
-                                return original_update(self, n)
-                            
-                            # Format the information
-                            downloaded = float(self.n) / 1024 / 1024 if self.n is not None else 0
-                            total_size = float(self.total) / 1024 / 1024 if self.total is not None else 0
-                            
-                            # Get speed from format_dict, default to 0 if not available
-                            format_dict = getattr(self, 'format_dict', {})
-                            if not isinstance(format_dict, dict):
-                                format_dict = {}
-                            
-                            speed = float(format_dict.get("rate", 0)) / (1024 * 1024) if format_dict.get("rate") is not None else 0
-                            
-                            # Ensure speed is not zero to prevent division by zero
-                            speed = max(speed, 0.001)
-                            
-                            # Calculate remaining time
-                            remaining_bytes = float(self.total - self.n) if self.total is not None and self.n is not None else 0
-                            time_left = remaining_bytes / (speed * 1024 * 1024) if speed > 0 else 0
-                            
-                            # Format time
-                            if time_left < 60:
-                                time_str = f"{time_left:.0f}s"
-                            elif time_left < 3600:
-                                time_str = f"{time_left/60:.1f}m"
-                            else:
-                                time_str = f"{time_left/3600:.1f}h"
-                            
-                            # Calculate progress percentage
-                            progress = (float(self.n) / float(self.total)) * 100 if self.total and self.total > 0 else 0
-                            
-                            # Format status message
-                            status = f"Downloaded: {int(downloaded)}/{int(total_size)} MB Speed: {speed:.2f} MB/s Remaining: {time_str}"
-                            
-                            # Call the progress callback
-                            if progress_callback:
-                                progress_callback(progress, status)
-                            
-                        except Exception as e:
-                            logger.error(f"Error in progress update: {str(e)}")
-                            # Continue with original update even if our progress tracking fails
-                            
-                        return original_update(self, n)
-
-                    tqdm.update = patched_update
-
-                patch_tqdm(self.progress_callback)
-
-                if not setup_hf_transfer():
-                    logger.warning("HF Transfer initialization failed - download may be slower")
-
-                # Create cache directory if it doesn't exist
-                cache_dir = os.path.join(os.path.dirname(output_path), '.cache')
-                os.makedirs(cache_dir, exist_ok=True)
-
                 try:
-                    # Use HF Transfer for faster downloads
-                    file_path = hf_hub_download(
+                    # Get the direct download URL
+                    url = hf_hub_url(
                         repo_id=file_info['repo_id'],
                         filename=file_info['file'],
-                        local_dir=os.path.dirname(output_path),
-                        force_download=False,
-                        resume_download=True,
-                        token=token,
-                        local_files_only=False,
-                        cache_dir=cache_dir
+                        repo_type="model"
                     )
                     
-                    # Move file to correct location if it was downloaded with extra directories
-                    if os.path.dirname(file_path).endswith('antelopev2'):
-                        # Get the filename without the antelopev2 prefix
-                        filename = os.path.basename(file_path)
-                        correct_path = os.path.join(os.path.dirname(os.path.dirname(file_path)), filename)
-                        
-                        # Move the file up one directory
-                        shutil.move(file_path, correct_path)
-                        file_path = correct_path
-                        
-                        # Remove empty antelopev2 directory if it exists
-                        antelopev2_dir = os.path.dirname(file_path)
-                        if os.path.exists(antelopev2_dir) and not os.listdir(antelopev2_dir):
-                            os.rmdir(antelopev2_dir)
+                    # Set up headers for HF download
+                    headers = {
+                        'Authorization': f'Bearer {token}',
+                        'User-Agent': 'FluxComfyUI-Downloader/1.0'
+                    }
                     
-                    # Log actual transfer method and file info
-                    if "hf_transfer" in sys.modules:
-                        logger.info(f"Download completed using HF Transfer (high-speed) to: {file_path}")
-                        size_mb = os.path.getsize(file_path) / (1024 * 1024)
-                        logger.info(f"Downloaded file size: {size_mb:.2f} MB")
-                    else:
-                        logger.warning("Download completed using standard method (slower)")
+                    # First make a HEAD request to get file size
+                    response = requests.head(url, headers=headers, allow_redirects=True)
+                    total_size = int(response.headers.get('content-length', 0))
+                    
+                    # Download with progress tracking
+                    response = requests.get(url, headers=headers, stream=True)
+                    response.raise_for_status()
+                    
+                    downloaded_size = 0
+                    chunk_size = 8 * 1024 * 1024  # 8MB chunks
+                    
+                    with open(output_path, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=chunk_size):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded_size += len(chunk)
+                                if self.progress_callback and total_size > 0:
+                                    progress = (downloaded_size / total_size) * 100
+                                    speed = self.calculate_smooth_speed(downloaded_size)
+                                    status = f"Downloading {file_info['filename']}: {downloaded_size/(1024*1024):.1f}MB / {total_size/(1024*1024):.1f}MB ({speed/(1024*1024):.1f} MB/s)"
+                                    self.progress_callback(progress, status)
+                                    
+                                # Flush to disk periodically
+                                if downloaded_size % (64 * 1024 * 1024) == 0:  # Every 64MB
+                                    f.flush()
+                                    os.fsync(f.fileno())
+                    
+                    logger.info(f"Successfully downloaded file to: {output_path}")
+                    size_mb = os.path.getsize(output_path) / (1024 * 1024)
+                    logger.info(f"Downloaded file size: {size_mb:.2f} MB")
                         
                 except Exception as e:
                     logger.error(f"Download error: {str(e)}")
+                    if os.path.exists(output_path):
+                        os.remove(output_path)
                     raise
+                    
             elif source == 'civitai':
                 if not token:
                     raise ValueError("CivitAI token is required")
@@ -633,62 +705,35 @@ class SetupManager:
                 if not download_url:
                     raise ValueError("Failed to get download URL from CivitAI")
 
-                # Download the file using aiohttp
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(download_url) as response:
-                        if response.status != 200:
-                            raise ValueError(f"Failed to download file: HTTP {response.status}")
-                        
-                        total_size = int(response.headers.get('content-length', 0))
-                        downloaded = 0
-                        
-                        with open(output_path, 'wb') as f:
-                            async for chunk in response.content.iter_chunked(1024 * 1024):  # 1MB chunks
-                                if chunk:
-                                    f.write(chunk)
-                                    downloaded += len(chunk)
-                                    
-                                    # Calculate progress and speed
-                                    if total_size > 0:
-                                        progress = (downloaded / total_size) * 100
-                                        downloaded_mb = downloaded / (1024 * 1024)
-                                        total_mb = total_size / (1024 * 1024)
-                                        
-                                        # Calculate speed
-                                        current_time = time.time()
-                                        time_diff = current_time - self.last_update_time
-                                        if time_diff >= self.min_update_interval:
-                                            bytes_since_last = downloaded - self.last_downloaded
-                                            speed = (bytes_since_last / time_diff) / (1024 * 1024)  # MB/s
-                                            
-                                            # Calculate remaining time
-                                            remaining_bytes = total_size - downloaded
-                                            time_left = remaining_bytes / (speed * 1024 * 1024) if speed > 0 else 0
-                                            
-                                            # Format time
-                                            if time_left < 60:
-                                                time_str = f"{time_left:.0f}s"
-                                            elif time_left < 3600:
-                                                time_str = f"{time_left/60:.1f}m"
-                                            else:
-                                                time_str = f"{time_left/3600:.1f}h"
-                                            
-                                            # Update status
-                                            status = f"Downloaded: {int(downloaded_mb)}/{int(total_mb)} MB Speed: {speed:.2f} MB/s Remaining: {time_str}"
-                                            if self.progress_callback:
-                                                self.progress_callback(progress, status)
-                                            
-                                            # Update tracking variables
-                                            self.last_downloaded = downloaded
-                                            self.last_update_time = current_time
-                
+                # Set up headers for CivitAI
+                headers = {
+                    'Authorization': f'Bearer {token}',
+                    'User-Agent': 'FluxComfyUI-Downloader/1.0'
+                }
+
+                # Define progress callback wrapper
+                def progress_wrapper(progress, status):
+                    if self.progress_callback:
+                        status = f"Downloading {file_info['filename']}: {status}"
+                        self.progress_callback(progress, status)
+
+                # Use our improved download_file_with_progress for CivitAI downloads
+                success = self.download_manager.download_file_with_progress(
+                    url=download_url,
+                    destination_path=output_path,
+                    headers=headers,
+                    timeout=7200,
+                    progress_callback=progress_wrapper
+                )
+
+                if not success:
+                    raise Exception("Download failed")
+                    
                 logger.info(f"Successfully downloaded file from CivitAI to: {output_path}")
-                size_mb = os.path.getsize(output_path) / (1024 * 1024)
-                logger.info(f"Downloaded file size: {size_mb:.2f} MB")
-            
+                
             else:
-                raise ValueError(f"Unsupported download source: {source}")
+                raise ValueError(f"Unsupported source: {source}")
                 
         except Exception as e:
-            logger.error(f"Download error: {str(e)}")
+            logger.error(f"Download failed: {str(e)}")
             raise

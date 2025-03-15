@@ -9,6 +9,10 @@
 
 3. Ensure you have Python 3.10.7+ installed on your system. You can download it from [python.org](https://www.python.org/downloads/).
 
+4. if any packages are missing please install them using comfyui python_embed python, do not install in system it wont read them, Open up python_embed folder, open cmd window run python.exe -m pip install "whateverModuleHere"
+
+5. Before running the bot, make sure you launch comfyui and open each workflow and install all missing nodes, these workflows are in the required_files folder, Pulid24GB, Redux, ReduxPrompt, Video, Workflow.   once all nodes are installed you can run the bot.
+
 ## 📦 Required Files
 
    - Flux Dev requires you to approve the license agreement on huggingface before the setup tool can download the models, please do this before running the setup tool.
@@ -22,7 +26,9 @@
 
    - Pulid should be downloaded automatically no need to open a repo
    - when installing missing nodes for pulid, make sure you select the correct version
-    - ComfyUI-PuLID-Flux-Enhanced (node 1518) (DO NOT INSTALL any other versions)
+    - ComfyUI-PuLID-Flux-Enhanced (DO NOT INSTALL any other versions)
+
+
 
 ## 🔧 Installation Steps
 
@@ -34,6 +40,7 @@
    C:/Comfyui_windows_portable/ComfyUI/
    ```
 
+
 ### 2️⃣ Bot Installation
 
 1. **Clone the Repository**
@@ -41,7 +48,7 @@
    git clone https://github.com/nvmax/FluxComfyDiscordbot
    ```
 2.  Launch Comfyui and load workflow.json from required_files and install missing nodes, do the same for redux.json, reduxprompt.json and Pulid24GB.json.
-  - note when installing missing nodes for pulid, make sure you select the correct version - ComfyUI-PuLID-Flux-Enhanced (node 1518) (DO NOT INSTALL any other versions)
+  - note when installing missing nodes for pulid, make sure you select the correct version - ComfyUI-PuLID-Flux-Enhanced (DO NOT INSTALL any other versions)
 
 3. Install the required dependencies using the requirements.txt file: 
  ```pip install -r requirements.txt```
@@ -56,8 +63,8 @@
    - download all files from huggingface and place them in the required folders
    
 
-5. To get Redux working properly you will need to open Redux.json and Reduxprompt.json and install the missing nodes.
-   - depending on your setup you may need to edit the json files to select the version of dev flux you are using. 
+
+- depending on your setup you may need to edit the json files to select the version of dev flux you are using. 
 - you can open these in comfyui and change the checkpoint in the gui, then click workflow and export api and replace the redux.json and reduxprompt.json files with the new json files. !!! DO NOT CHANGE THE STRUCTURE OF THE WORKFLOWS IN COMFYUI !!!
 - manually editing them open the .json files and change the name of the unet_name to the name of the checkpoint you want to use, the checkpoint you use must be in the models/unet folder.
 

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import threading
 import sys  # Added sys import
+from ttkthemes import ThemedTk  # Add ttkthemes import
 
 # Import our modular components
 from dialogs.entry_dialog import EntryDialog
@@ -22,11 +23,19 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class LoraEditor:
-    def __init__(self, root: tk.Tk):
+    def __init__(self, root: ThemedTk):
         # Initialize environment and configuration
         self.root = root
         self.root.title("LoRA Configuration Editor")
         self.root.geometry("1400x925")
+        
+        # Configure style for dark theme
+        style = ttk.Style()
+        style.configure("Treeview", background="#2e2e2e", foreground="white", fieldbackground="#2e2e2e")
+        style.configure("Treeview.Heading", background="#2e2e2e", foreground="white")
+        style.configure("TLabelframe.Label", foreground="white")  # For frame labels
+        style.configure("TLabel", foreground="white")  # For regular labels
+        style.configure("TCheckbutton", foreground="white")  # For checkbuttons
         
         # Load environment variables
         if getattr(sys, 'frozen', False):
@@ -83,6 +92,16 @@ class LoraEditor:
         title_frame = ttk.Frame(self.container)
         title_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         ttk.Label(title_frame, text="LoRA Configuration Editor", font=('Helvetica', 16, 'bold')).pack(side=tk.LEFT)
+        
+        # Show inactive checkbox
+        self.show_inactive_var = tk.BooleanVar(value=True)  # Set default to True to show all entries
+        self.show_inactive_var.trace('w', lambda *args: self.refresh_tree())
+        show_inactive_check = ttk.Checkbutton(
+            title_frame,
+            text="Show Inactive",
+            variable=self.show_inactive_var
+        )
+        show_inactive_check.pack(side=tk.RIGHT)
         
         # File Locations section
         locations_frame = ttk.LabelFrame(self.container, text="Comfyui LoRA Folder", padding=10)
@@ -158,6 +177,7 @@ class LoraEditor:
             ("Add Entry", self.add_entry, "⊕"),
             ("Edit Entry", self.edit_entry, "✎"),
             ("Delete Entry", self.delete_entry, "✖"),
+            ("De / Active", self.toggle_active, "⚡"),
             ("Save", self.save_config, "💾"),
             ("Refresh Files", self.refresh_lora_files, "🔄"),
             ("Reset LoRA", self.reset_lora, "⚠")
@@ -237,8 +257,6 @@ class LoraEditor:
         # Variables for UI state
         self.search_var = tk.StringVar()
         self.search_var.trace('w', self.filter_treeview)
-        self.show_inactive_var = tk.BooleanVar(value=False)
-        self.show_inactive_var.trace('w', lambda *args: self.refresh_tree())
         self.default_var = tk.StringVar(value=self.config.get("default", ""))
         self.default_var.trace('w', self.update_default_lora)
         
@@ -339,22 +357,24 @@ class LoraEditor:
             self.tree.delete(*self.tree.get_children())
             
             # Get entries from database and sort by ID
-            entries = self.db.get_lora_history(include_inactive=self.show_inactive_var.get())
+            entries = self.db.get_lora_history(include_inactive=True)  # Always get all entries
             entries.sort(key=lambda x: x.id)  # Sort by ID to maintain order
             
             # Update tree with entries
             for entry in entries:
-                status = "Active" if entry.is_active else "Inactive"
-                # Store all values including ID in the values list
-                self.tree.insert('', 'end', values=(
-                    entry.id,
-                    status, 
-                    entry.display_name, 
-                    entry.file_name, 
-                    entry.weight, 
-                    entry.trigger_words, 
-                    entry.url or ""
-                ))
+                # Only show the entry if it's active or if show_inactive is True
+                if entry.is_active or self.show_inactive_var.get():
+                    status = "Active" if entry.is_active else "Inactive"
+                    # Store all values including ID in the values list
+                    self.tree.insert('', 'end', values=(
+                        entry.id,
+                        status, 
+                        entry.display_name, 
+                        entry.file_name, 
+                        entry.weight, 
+                        entry.trigger_words, 
+                        entry.url or ""
+                    ))
                 
             self.status_bar.set_status(f"Loaded {len(entries)} entries")
         except Exception as e:
@@ -570,17 +590,19 @@ class LoraEditor:
             json_entries = []
             for item in self.tree.get_children():
                 values = self.tree.item(item)['values']
-                entry = {
-                    "file": values[3],  # File
-                    "name": values[2],  # Name
-                    "weight": values[4],  # Weight
-                    "add_prompt": values[5],  # Trigger Words
-                    "url": values[6],  # URL
-                    "is_active": values[1] == "Active"  # Status
-                }
-                json_entries.append(entry)
+                # Only include active entries in the JSON file
+                if values[1] == "Active":  # Check status column
+                    entry = {
+                        "file": values[3],  # File
+                        "name": values[2],  # Name
+                        "weight": values[4],  # Weight
+                        "add_prompt": values[5],  # Trigger Words
+                        "url": values[6],  # URL
+                        "is_active": True  # Only active entries are included
+                    }
+                    json_entries.append(entry)
             
-            # Update config with entries in current treeview order
+            # Update config with only active entries
             self.config['available_loras'] = json_entries
             
             # Save to file with proper formatting
@@ -847,8 +869,36 @@ class LoraEditor:
             logger.error(f"Error resetting configuration: {e}")
             messagebox.showerror("Error", f"Failed to reset configuration: {str(e)}")
 
+    def toggle_active(self):
+        """Toggle active status of selected LoRA entries"""
+        try:
+            selected = self.tree.selection()
+            if not selected:
+                messagebox.showwarning("Warning", "Please select entries to toggle")
+                return
+
+            for item in selected:
+                values = self.tree.item(item)["values"]
+                file_name = values[3]  # file_name is in the 4th column
+                current_status = values[1]  # status is in the 2nd column
+                
+                # Toggle the status
+                if current_status == "Active":
+                    self.db.deactivate_lora(file_name)
+                else:
+                    self.db.reactivate_lora(file_name)
+            
+            self.save_config()
+            self.refresh_tree()
+            self.status_bar.set_status(f"Toggled status for {len(selected)} entries")
+            
+        except Exception as e:
+            logger.error(f"Error toggling active status: {e}")
+            messagebox.showerror("Error", f"Failed to toggle status: {str(e)}")
+
 def main():
-    root = tk.Tk()
+    root = ThemedTk(theme="equilux")  # Change theme to equilux
+    root.title("LoRA Configuration Editor")
     app = LoraEditor(root)
     root.mainloop()
 

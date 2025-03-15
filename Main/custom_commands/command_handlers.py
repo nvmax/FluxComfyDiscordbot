@@ -542,6 +542,76 @@ async def setup_commands(bot: commands.Bot):
                 ephemeral=True
             )
 
+    @bot.tree.command(name="video", description="Generate a video based on a prompt")
+    @check_channel()
+    @app_commands.describe(
+        prompt="Enter your prompt for the video generation"
+    )
+    async def video(interaction: discord.Interaction, prompt: str):
+        try:
+            # Check for banned words first
+            is_banned, message = check_banned(str(interaction.user.id), prompt)
+            if message:
+                await interaction.response.send_message(message, ephemeral=True)
+                return
+
+            # Send initial response
+            await interaction.response.defer()
+            original_message = await interaction.followup.send(
+                "🎬 Starting video generation process...\n"
+                f"Prompt: {prompt}\n"
+                "This may take several minutes.",
+                wait=True
+            )
+
+            # Generate a unique workflow filename
+            request_uuid = str(uuid.uuid4())
+            workflow_filename = f'Video_{request_uuid}.json'
+
+            # Load and modify the video workflow
+            workflow = load_json('Video.json')
+            
+            # Generate random seed
+            seed = generate_random_seed()
+            
+            # Update workflow nodes
+            workflow['3']['inputs']['seed'] = seed  # Update seed
+            workflow['44']['inputs']['text'] = prompt  # Update prompt
+            
+            # Save the modified workflow
+            save_json(workflow_filename, workflow)
+
+            # Create request item - matching the existing structure
+            request_item = RequestItem(
+                id=str(interaction.id),
+                user_id=str(interaction.user.id),
+                channel_id=str(interaction.channel.id),
+                interaction_id=str(interaction.id),
+                original_message_id=str(original_message.id),
+                prompt=prompt,
+                resolution="video",  # Using "video" as resolution identifier
+                loras=[],  # Empty list as videos don't use LoRAs
+                upscale_factor=1,  # Default value
+                workflow_filename=workflow_filename,
+                seed=seed
+            )
+
+            # Add to processing queue
+            await interaction.client.subprocess_queue.put(request_item)
+
+        except Exception as e:
+            logger.error(f"Error in video command: {str(e)}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    f"❌ An error occurred: {str(e)}",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    f"❌ An error occurred: {str(e)}",
+                    ephemeral=True
+                )
+
     class CreativityModal(discord.ui.Modal, title='Select Creativity Level'):
         def __init__(self, bot, resolution, prompt, upscale_factor, seed):
             super().__init__()

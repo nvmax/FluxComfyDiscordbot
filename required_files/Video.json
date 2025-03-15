@@ -461,42 +461,6 @@
       ]
     },
     {
-      "id": 40,
-      "type": "EmptyHunyuanLatentVideo",
-      "pos": [
-        100,
-        742
-      ],
-      "size": [
-        315,
-        130
-      ],
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            15
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.3.26",
-        "Node name for S&R": "EmptyHunyuanLatentVideo"
-      },
-      "widgets_values": [
-        640,
-        480,
-        141,
-        1
-      ]
-    },
-    {
       "id": 37,
       "type": "UNETLoader",
       "pos": [
@@ -508,7 +472,7 @@
         82
       ],
       "flags": {},
-      "order": 5,
+      "order": 4,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -572,6 +536,42 @@
         "wan2.1_t2v_14B",
         0.4,
         3
+      ]
+    },
+    {
+      "id": 40,
+      "type": "EmptyHunyuanLatentVideo",
+      "pos": [
+        100,
+        742
+      ],
+      "size": [
+        315,
+        130
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            15
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "EmptyHunyuanLatentVideo"
+      },
+      "widgets_values": [
+        640,
+        480,
+        77,
+        1
       ]
     }
   ],
@@ -679,8 +679,8 @@
     "ds": {
       "scale": 1,
       "offset": [
-        73.33314514160156,
-        131.33319091796875
+        -41.33360290527344,
+        196.66668701171875
       ]
     },
     "VHS_latentpreview": false,

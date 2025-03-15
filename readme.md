@@ -64,7 +64,8 @@ Transform your Discord server into an AI art studio! bring the power of AI-gener
 ### March 3, 2025
 - **Video Wan2.1 **
   - Now supports T2V thanks to wan2.1 checkpoints
-  - Creates 4 sec clips using text to video.
+  - Creates 5 sec clips using text to video.
+  - Now supporting Teacache for video generations increasing speed of video generations.
   - Command in discord /video
   - As features come available and new loras, I will introduce them to the video option.
   - Image2video is coming, working on it. 

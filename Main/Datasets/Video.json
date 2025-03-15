@@ -1,14 +1,14 @@
 {
   "3": {
     "inputs": {
-      "seed": 575531426676742,
+      "seed": 194422148172786,
       "steps": 30,
       "cfg": 6,
       "sampler_name": "euler",
       "scheduler": "simple",
       "denoise": 1,
       "model": [
-        "37",
+        "46",
         0
       ],
       "positive": [
@@ -79,7 +79,7 @@
   },
   "37": {
     "inputs": {
-      "unet_name": "wan2.1_t2v_1.3B_bf16.safetensors",
+      "unet_name": "wan2.1_t2v_14B_bf16.safetensors",
       "weight_dtype": "default"
     },
     "class_type": "UNETLoader",
@@ -111,7 +111,7 @@
     "inputs": {
       "width": 640,
       "height": 480,
-      "length": 61,
+      "length": 141,
       "batch_size": 1
     },
     "class_type": "EmptyHunyuanLatentVideo",
@@ -143,12 +143,12 @@
   },
   "44": {
     "inputs": {
-      "from_translate": "english",
+      "from_translate": "auto",
       "to_translate": "english",
       "add_proxies": false,
       "proxies": "",
       "auth_data": "",
-      "service": "MyMemoryTranslator [free]",
+      "service": "GoogleTranslator",
       "text": "a fox running in a wintery scene, sunset, camera following shot",
       "Show proxy": "proxy_hide",
       "Show authorization": "authorization_hide"
@@ -160,12 +160,12 @@
   },
   "45": {
     "inputs": {
-      "from_translate": "english",
+      "from_translate": "auto",
       "to_translate": "english",
       "add_proxies": false,
       "proxies": "",
       "auth_data": "",
-      "service": "MyMemoryTranslator [free]",
+      "service": "GoogleTranslator",
       "text": "Bright tones, overexposed, static, blurry details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards",
       "Show proxy": "proxy_hide",
       "Show authorization": "authorization_hide"
@@ -173,6 +173,21 @@
     "class_type": "DeepTranslatorTextNode",
     "_meta": {
       "title": "Deep Translator Text Node"
+    }
+  },
+  "46": {
+    "inputs": {
+      "model_type": "wan2.1_t2v_14B",
+      "rel_l1_thresh": 0.4,
+      "max_skip_steps": 3,
+      "model": [
+        "37",
+        0
+      ]
+    },
+    "class_type": "TeaCache",
+    "_meta": {
+      "title": "TeaCache"
     }
   }
 }

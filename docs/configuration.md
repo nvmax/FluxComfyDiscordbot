@@ -59,12 +59,13 @@
 <div align="center">
   <img src="../docs/setuptool.jpg" width="500" alt="Setup Tool Interface">
   <img src="../docs/setuptool2.jpg" width="500" alt="Setup Tool Interface">
+  <img src="../docs/setuptool3.jpg" width="500" alt="Setup Tool Interface">
 </div>
 
 #### 📝 Configuration Details
 
 1. **Path Configuration**
-   - Browse to ComfyUI models folder
+   - Browse to ComfyUI installation location
    - Example: `C:/Comfyui_windows_portable/` or your path
 
 2. **API Tokens**
@@ -105,31 +106,10 @@
 - Model changes require bot restart
 
 
-### Docker Setup Steps
+### Docker Support
 
-1. Initial Build and Start
-   ```bash
-   docker-compose up --build
-   ```
+- Coming soon
 
-2. Subsequent Starts
-   After the initial build, you can start the container with:
-   ```bash
-   docker-compose up
-   ```
-
-### Troubleshooting Connection
-If the bot doesn't connect to your ComfyUI instance, you may need to adjust the server address in the Dockerfile:
-
-1. Locate Line 33 in the Dockerfile:
-   ```dockerfile
-   ENV server_address=0.0.0.0
-   ```
-
-2. Try one of these alternatives:
-   - Local connection: `127.0.0.1`
-   - Your network IP: `LOCAL NETWORK IP ADDRESS`
-   - ComfyUI host IP (if running on different machine)
 
 ## 🎨 LoRA Models Configuration
 
@@ -155,7 +135,7 @@ python lora_editor.py
 ```
 
 <div align="center">
-  <img src="./loraeditor.png" width="600" alt="LoRA Editor Interface">
+  <img src="./Loraeditor.jpg" width="600" alt="LoRA Editor Interface">
 </div>
 
 #### ✨ Latest Updates

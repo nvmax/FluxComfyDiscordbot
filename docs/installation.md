@@ -5,13 +5,11 @@
 1. [Comfyui](https://github.com/comfyanonymous/ComfyUI) please install and configure for use.
     - Please enable --listen on your comfyui server. 
     - example: ``.\python_embeded\python.exe -s ComfyUI\main.py --windows-standalone-build --listen``
-2.  If you are new or new installation please download and install in comfyui, [comfyui manager](https://github.com/ltdrdata/ComfyUI-Manager) before continuing.
+2.  You can also choose to use the link provided in the setup tool to download and install comfyui.   
 
 3. Ensure you have Python 3.10.7+ installed on your system. You can download it from [python.org](https://www.python.org/downloads/).
 
-4. if any packages are missing please install them using comfyui python_embed python, do not install in system it wont read them, Open up python_embed folder, open cmd window run python.exe -m pip install "whateverModuleHere"
-
-5. Before running the bot, make sure you launch comfyui and open each workflow and install all missing nodes, these workflows are in the required_files folder, Pulid24GB, Redux, ReduxPrompt, Video, Workflow.   once all nodes are installed you can run the bot.
+4. Custom Nodes are automatically installed via the setup tool, no longer need to try to hunt down and install them.
 
 ## 📦 Required Files
 
@@ -47,13 +45,11 @@
    ```bash
    git clone https://github.com/nvmax/FluxComfyDiscordbot
    ```
-2.  Launch Comfyui and load workflow.json from required_files and install missing nodes, do the same for redux.json, reduxprompt.json and Pulid24GB.json.
-  - note when installing missing nodes for pulid, make sure you select the correct version - ComfyUI-PuLID-Flux-Enhanced (DO NOT INSTALL any other versions)
 
-3. Install the required dependencies using the requirements.txt file: 
+2. Install the required dependencies using the requirements.txt file: 
  ```pip install -r requirements.txt```
 
-4. **Run Setup Tool**
+3. **Run Setup Tool**
    ```bash
    python setup.py
    ```
@@ -61,10 +57,11 @@
    - Copy required files needed to run
    - Setup your .env file with variables specified
    - download all files from huggingface and place them in the required folders
+   - install custom nodes needed for the bot
    
 
 
-- depending on your setup you may need to edit the json files to select the version of dev flux you are using. 
+- depending on your setup you may need to edit the json files to select the version of dev flux you are using for pulid and redux. 
 - you can open these in comfyui and change the checkpoint in the gui, then click workflow and export api and replace the redux.json and reduxprompt.json files with the new json files. !!! DO NOT CHANGE THE STRUCTURE OF THE WORKFLOWS IN COMFYUI !!!
 - manually editing them open the .json files and change the name of the unet_name to the name of the checkpoint you want to use, the checkpoint you use must be in the models/unet folder.
 
@@ -163,8 +160,7 @@ After installation, verify:
 - Check [Troubleshooting Guide](troubleshooting.md) for common problems
 - Verify file permissions
 - Confirm Python version compatibility
-- Cant get Pulid working?, it wont install ( lots of people have this problem), seems like its not straight foward to get it working, I have even had issues luckily I have a solution, here is a complete comfyui clone with pulid and all nodes insalled, it has all nodes installed and pulid working, no models no loras, so you must still run the setup tool. 
-- [Comfyui Google Drive link](https://drive.google.com/file/d/1kYirYLe8aYKxgFSAl3KNZW8_wiH1BXg3/view?usp=drive_link) 4.6GB
+- if you recieve HTTP Error 400: Bad Request, you need to run the setup tool again. more likely missing a node, a checkpoint or files were not copied over correctly.
 
 ## 📚 Next Steps
 

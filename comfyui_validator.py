@@ -326,72 +326,61 @@ class ComfyUIValidator:
                 print(f"DEBUG: Error reading .env file: {e}")
                 return False
 
-            env_vars = {}
+            # Use COMFYUI_DIR directly instead of deriving from MODELS_PATH
+            comfyui_path = None
             for line in env_content.splitlines():
-                if '=' in line:
-                    key, value = line.strip().split('=', 1)
-                    env_vars[key.strip()] = value.strip().strip('"')  # Remove quotes if present
-            
-            models_path = env_vars.get('COMFYUI_MODELS_PATH')
-            if not models_path:
-                print("DEBUG: COMFYUI_MODELS_PATH not found in .env file")
-                print(f"DEBUG: Available environment variables: {env_vars}")
+                if line.startswith('COMFYUI_DIR='):
+                    comfyui_path = line.split('=', 1)[1].strip().strip('"')
+                    break
+
+            if not comfyui_path:
+                print("DEBUG: COMFYUI_DIR not found in .env file")
                 return False
 
-            print(f"DEBUG: Models path from .env: {models_path}")
-            
-            # Get base ComfyUI path by going up one level from models path
-            comfyui_path = str(Path(models_path).parent)
             print(f"DEBUG: ComfyUI path: {comfyui_path}")
             
-            # Define source and destination paths
-            source_path = Path(source_dir) / "required_files" / "ratios.json"
-            dest_path = Path(comfyui_path) / "custom_nodes" / "mikey_nodes" / "ratios.json"
+            # Define source and destination paths using consistent separators
+            source_path = os.path.join(source_dir, "required_files", "ratios.json")
+            dest_path = os.path.join(comfyui_path, "ComfyUI", "custom_nodes", "mikey_nodes", "ratios.json")
 
-            # Convert to absolute paths and resolve any .. or .
-            source_path = source_path.resolve()
-            dest_path = dest_path.resolve()
+            # Convert to absolute paths
+            source_path = os.path.abspath(source_path)
+            dest_path = os.path.abspath(dest_path)
 
             print(f"DEBUG: Source path: {source_path}")
-            print(f"DEBUG: Source exists: {source_path.exists()}")
+            print(f"DEBUG: Source exists: {os.path.exists(source_path)}")
             print(f"DEBUG: Destination path: {dest_path}")
 
             # Create destination directory if it doesn't exist
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
-            print(f"DEBUG: Created/verified destination directory: {dest_path.parent}")
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            print(f"DEBUG: Created/verified destination directory: {os.path.dirname(dest_path)}")
 
             # Remove existing file if it exists
-            if dest_path.exists():
+            if os.path.exists(dest_path):
                 print(f"DEBUG: Removing existing file at: {dest_path}")
                 try:
-                    dest_path.unlink()
+                    os.remove(dest_path)
                     print("DEBUG: Successfully removed existing file")
                 except Exception as e:
                     print(f"DEBUG: Error removing existing file: {e}")
                     return False
 
             # Verify source exists
-            if not source_path.is_file():
+            if not os.path.isfile(source_path):
                 print(f"DEBUG: Source file not found at: {source_path}")
                 return False
 
-            # Copy file
+            # Copy file using shutil.copy2
             try:
                 print("DEBUG: Attempting to copy file...")
-                print(f"DEBUG: Source path type: {type(source_path)}, Destination path type: {type(dest_path)}")
-                print(f"DEBUG: Source path exists: {source_path.exists()}")
-                print(f"DEBUG: Source path is file: {source_path.is_file()}")
-                print(f"DEBUG: Destination directory exists: {dest_path.parent.exists()}")
-                print(f"DEBUG: Destination directory is writable: {os.access(str(dest_path.parent), os.W_OK)}")
-                shutil.copy2(str(source_path), str(dest_path))
+                shutil.copy2(source_path, dest_path)
                 print("DEBUG: Copy operation completed")
             except Exception as e:
                 print(f"DEBUG: Error during copy operation: {e}")
-                print(f"DEBUG: Full error details:", exc_info=True)
                 return False
             
             # Verify copy was successful
-            if dest_path.is_file():
+            if os.path.isfile(dest_path):
                 print(f"DEBUG: Successfully copied ratios.json to: {dest_path}")
                 return True
             else:

@@ -7,7 +7,10 @@
         0
       ]
     },
-    "class_type": "CLIPTextEncode"
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
   },
   "8": {
     "inputs": {
@@ -20,21 +23,31 @@
         0
       ]
     },
-    "class_type": "VAEDecode"
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
   },
   "10": {
     "inputs": {
       "vae_name": "ae.safetensors"
     },
-    "class_type": "VAELoader"
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
   },
   "11": {
     "inputs": {
       "clip_name1": "t5xxl_fp16.safetensors",
       "clip_name2": "clip_l.safetensors",
-      "type": "flux"
+      "type": "flux",
+      "device": "default"
     },
-    "class_type": "DualCLIPLoader"
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "DualCLIPLoader"
+    }
   },
   "13": {
     "inputs": {
@@ -59,13 +72,19 @@
         0
       ]
     },
-    "class_type": "SamplerCustomAdvanced"
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
   },
   "16": {
     "inputs": {
       "sampler_name": "euler"
     },
-    "class_type": "KSamplerSelect"
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
   },
   "17": {
     "inputs": {
@@ -77,7 +96,10 @@
         0
       ]
     },
-    "class_type": "BasicScheduler"
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
   },
   "22": {
     "inputs": {
@@ -86,17 +108,23 @@
         0
       ],
       "conditioning": [
-        "54",
+        "68",
         0
       ]
     },
-    "class_type": "BasicGuider"
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "BasicGuider"
+    }
   },
   "25": {
     "inputs": {
-      "noise_seed": 8572415163179
+      "noise_seed": 448847868592149
     },
-    "class_type": "RandomNoise"
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
   },
   "26": {
     "inputs": {
@@ -106,13 +134,19 @@
         0
       ]
     },
-    "class_type": "FluxGuidance"
+    "class_type": "FluxGuidance",
+    "_meta": {
+      "title": "FluxGuidance"
+    }
   },
   "38": {
     "inputs": {
       "clip_name": "sigclip_vision_patch14_384.safetensors"
     },
-    "class_type": "CLIPVisionLoader"
+    "class_type": "CLIPVisionLoader",
+    "_meta": {
+      "title": "Load CLIP Vision"
+    }
   },
   "39": {
     "inputs": {
@@ -126,14 +160,19 @@
         0
       ]
     },
-    "class_type": "CLIPVisionEncode"
+    "class_type": "CLIPVisionEncode",
+    "_meta": {
+      "title": "CLIP Vision Encode"
+    }
   },
   "40": {
     "inputs": {
-      "image": "Flux_gen_90499.webp",
-      "upload": "image"
+      "image": "taylor-swift-variety-cover-5-16x9-1000.webp"
     },
-    "class_type": "LoadImage"
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
   },
   "41": {
     "inputs": {
@@ -152,13 +191,19 @@
         0
       ]
     },
-    "class_type": "StyleModelApply"
+    "class_type": "StyleModelApply",
+    "_meta": {
+      "title": "Apply Style Model"
+    }
   },
   "42": {
     "inputs": {
       "style_model_name": "flux1-redux-dev.safetensors"
     },
-    "class_type": "StyleModelLoader"
+    "class_type": "StyleModelLoader",
+    "_meta": {
+      "title": "Load Style Model"
+    }
   },
   "44": {
     "inputs": {
@@ -172,7 +217,10 @@
         0
       ]
     },
-    "class_type": "ConditioningAverage"
+    "class_type": "ConditioningAverage",
+    "_meta": {
+      "title": "ConditioningAverage"
+    }
   },
   "45": {
     "inputs": {
@@ -186,14 +234,19 @@
         0
       ]
     },
-    "class_type": "CLIPVisionEncode"
+    "class_type": "CLIPVisionEncode",
+    "_meta": {
+      "title": "CLIP Vision Encode"
+    }
   },
   "46": {
     "inputs": {
-      "image": "Flux_gen_90506.webp",
-      "upload": "image"
+      "image": "GettyImages-2196821706-aa97853f99f74c228c42e6ff7bfc1c97.jpeg"
     },
-    "class_type": "LoadImage"
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
   },
   "48": {
     "inputs": {
@@ -212,14 +265,20 @@
         0
       ]
     },
-    "class_type": "StyleModelApply"
+    "class_type": "StyleModelApply",
+    "_meta": {
+      "title": "Apply Style Model"
+    }
   },
   "49": {
     "inputs": {
       "ratio_selected": "5:8 [768x1216 portrait]",
       "batch_size": 1
     },
-    "class_type": "Empty Latent Ratio Select SDXL"
+    "class_type": "Empty Latent Ratio Select SDXL",
+    "_meta": {
+      "title": "Empty Latent Ratio Select SDXL (Mikey)"
+    }
   },
   "51": {
     "inputs": {
@@ -232,27 +291,16 @@
         0
       ]
     },
-    "class_type": "ConditioningConcat"
-  },
-  "52": {
-    "inputs": {
-      "Input": 2,
-      "input1": [
-        "44",
-        0
-      ],
-      "input2": [
-        "51",
-        0
-      ]
-    },
-    "class_type": "Conditioning Switch // RvTools"
+    "class_type": "ConditioningConcat",
+    "_meta": {
+      "title": "Conditioning (Concat)"
+    }
   },
   "53": {
     "inputs": {
       "conditioning_to_strength": 1,
       "conditioning_to": [
-        "52",
+        "67",
         0
       ],
       "conditioning_from": [
@@ -260,26 +308,15 @@
         0
       ]
     },
-    "class_type": "ConditioningAverage"
-  },
-  "54": {
-    "inputs": {
-      "Input": 1,
-      "input1": [
-        "53",
-        0
-      ],
-      "input2": [
-        "55",
-        0
-      ]
-    },
-    "class_type": "Conditioning Switch // RvTools"
+    "class_type": "ConditioningAverage",
+    "_meta": {
+      "title": "ConditioningAverage"
+    }
   },
   "55": {
     "inputs": {
       "conditioning_to": [
-        "52",
+        "67",
         0
       ],
       "conditioning_from": [
@@ -287,37 +324,66 @@
         0
       ]
     },
-    "class_type": "ConditioningConcat"
+    "class_type": "ConditioningConcat",
+    "_meta": {
+      "title": "Conditioning (Concat)"
+    }
   },
   "61": {
     "inputs": {
       "unet_name": "fluxFusionV24StepsGGUFNF4_V2Fp16.safetensors",
       "weight_dtype": "fp8_e4m3fn"
     },
-    "class_type": "UNETLoader"
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
   },
-  "65": {
+  "67": {
     "inputs": {
-      "output_path": "FLUX_Output\\Basic\\Flux_gen",
-      "filename_prefix": "redux",
-      "filename_delimiter": "_",
-      "filename_number_padding": 4,
-      "filename_number_start": false,
-      "extension": "png",
-      "dpi": 300,
-      "quality": 100,
-      "optimize_image": true,
-      "lossless_webp": false,
-      "embed_workflow": true,
-      "save_generation_data": true,
-      "remove_prompts": false,
-      "save_workflow_as_json": false,
-      "show_previews": true,
+      "boolean": true,
+      "on_true": [
+        "44",
+        0
+      ],
+      "on_false": [
+        "51",
+        0
+      ]
+    },
+    "class_type": "Switch conditioning [Crystools]",
+    "_meta": {
+      "title": "🪛 Switch conditioning"
+    }
+  },
+  "68": {
+    "inputs": {
+      "boolean": true,
+      "on_true": [
+        "53",
+        0
+      ],
+      "on_false": [
+        "55",
+        0
+      ]
+    },
+    "class_type": "Switch conditioning [Crystools]",
+    "_meta": {
+      "title": "🪛 Switch conditioning"
+    }
+  },
+  "69": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
       "images": [
         "8",
         0
       ]
     },
-    "class_type": "Save Images // RvTools"
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
   }
 }

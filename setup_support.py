@@ -22,6 +22,7 @@ import multiprocessing
 import queue
 import threading
 from functools import partial
+import zipfile
 
 # Configure root logger
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -246,6 +247,118 @@ CHECKPOINTS = {
     }
 }
 
+# Custom Nodes Repositories
+CUSTOM_NODES = {
+    'comfyui-manager': {
+        'repo_url': 'https://github.com/ltdrdata/ComfyUI-Manager',
+        'destination': 'comfyui-manager',
+        'has_requirements': True,
+        'skip_requirements': False,
+    },
+    'comfyui-gguf': {
+        'repo_url': 'https://github.com/city96/ComfyUI-GGUF.git',
+        'destination': 'ComfyUI-GGUF',
+        'has_requirements': True,
+        'skip_requirements': False,  # Skip requirements that need complex build tools
+    },
+    'rgthree-comfy': {
+        'repo_url': 'https://github.com/rgthree/rgthree-comfy.git',
+        'destination': 'rgthree-comfy',
+        'has_requirements': True,
+        'skip_requirements': False,
+    },
+    'was-node-suite': {
+        'repo_url': 'https://github.com/WASasquatch/was-node-suite-comfyui.git',
+        'destination': 'was-node-suite-comfyui',
+        'has_requirements': True,
+        'skip_requirements': False,
+    },
+    'video-helper-suite': {
+        'repo_url': 'https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git',
+        'destination': 'ComfyUI-VideoHelperSuite',
+        'has_requirements': True,
+        'skip_requirements': False,
+    },
+    'tea-cache': {
+        'repo_url': 'https://github.com/welltop-cn/ComfyUI-TeaCache.git',
+        'destination': 'ComfyUI-TeaCache',
+        'has_requirements': True,
+        'skip_requirements': False,
+    },
+    'pulid-flux': {
+        'repo_url': 'https://github.com/lldacing/ComfyUI_PuLID_Flux_ll.git',
+        'destination': 'ComfyUI_PuLID_Flux_ll',
+        'has_requirements': True,
+        'skip_requirements': False,
+    },
+    'patches-ll': {
+        'repo_url': 'https://github.com/lldacing/ComfyUI_Patches_ll.git',
+        'destination': 'ComfyUI_Patches_ll',
+        'has_requirements': True,
+        'skip_requirements': False,
+    },
+    'neural-media': {
+        'repo_url': 'https://github.com/YarvixPA/ComfyUI-NeuralMedia.git',
+        'destination': 'ComfyUI-NeuralMedia',
+        'has_requirements': True,
+        'skip_requirements': False,
+    },
+    'crystools': {
+        'repo_url': 'https://github.com/crystian/ComfyUI-Crystools.git',
+        'destination': 'ComfyUI-Crystools',
+        'has_requirements': True,
+        'skip_requirements': False,
+    },
+    'ppm': {
+        'repo_url': 'https://github.com/pamparamm/ComfyUI-ppm.git',
+        'destination': 'ComfyUI-ppm',
+        'has_requirements': False,
+        'skip_requirements': False,
+    },
+    'mikey-nodes': {
+        'repo_url': 'https://github.com/bash-j/mikey_nodes.git',
+        'destination': 'mikey_nodes',
+        'has_requirements': False,
+        'skip_requirements': False,
+    },
+    'advanced-reflux-control': {
+        'repo_url': 'https://github.com/kaibioinfo/ComfyUI_AdvancedRefluxControl.git',
+        'destination': 'ComfyUI_AdvancedRefluxControl',
+        'has_requirements': False,
+        'skip_requirements': False,
+    },
+    'comfyroll-custom-nodes': {
+        'repo_url': 'https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes.git',
+        'destination': 'ComfyUI_Comfyroll_CustomNodes',
+        'has_requirements': False,
+        'skip_requirements': False,
+    },
+    'alekpet-custom-nodes': {
+        'repo_url': 'https://github.com/AlekPet/ComfyUI_Custom_Nodes_AlekPet.git',
+        'destination': 'ComfyUI_Custom_Nodes_AlekPet',
+        'has_requirements': False,
+        'skip_requirements': False,
+    },
+    'mx-toolkit': {
+        'repo_url': 'https://github.com/Smirnov75/ComfyUI-mxToolkit',
+        'destination': 'ComfyUI-mxToolkit',
+        'has_requirements': False,
+        'skip_requirements': True,
+    },
+    'ultimate-sd-upscale': {
+        'repo_url': 'https://github.com/ssitu/ComfyUI_UltimateSDUpscale',
+        'destination': 'ComfyUI_UltimateSDUpscale',
+        'has_requirements': False,
+        'skip_requirements': True,
+    },
+    'various-utils': {
+        'repo_url': 'https://github.com/jamesWalker55/comfyui-various',
+        'destination': 'comfyui-various',
+        'has_requirements': False,
+        'skip_requirements': True,
+    },
+}
+
 @dataclass
 class DownloadConfig:
     chunk_size: int = 1024 * 1024  # 1MB chunks for progress tracking
@@ -381,7 +494,7 @@ class AdvancedDownloadManager:
                     f.write(chunk)
                     downloaded_size += chunk_size
                     
-                    # Flush every 256MB
+                    # Flush to disk periodically
                     if downloaded_size - last_flush_size >= 256 * 1024 * 1024:
                         logger.debug(f"Forcing file flush at {downloaded_size / (1024*1024):.2f} MB")
                         f.flush()
@@ -474,6 +587,456 @@ class AdvancedDownloadManager:
                 os.remove(output_path)
             raise
 
+class PreSetupManager:
+    def __init__(self):
+        self.status_callback = None
+        self.progress_callback = None
+        self.comfyui_dir = None
+        self.python_exe = None  # Will be determined when needed
+        
+        # Set default paths - these will be updated when comfyui_dir is set
+        self.embedded_python_exe_paths = []
+        self.embedded_python_exe = None
+        self.custom_nodes_path = None
+        
+    def set_comfyui_dir(self, comfyui_dir):
+        """Set the ComfyUI base directory"""
+        if not comfyui_dir:
+            raise ValueError("ComfyUI directory must be specified")
+            
+        # This is the base directory selected by the user
+        base_dir = Path(comfyui_dir)
+        
+        # Set the correct path structure: base_dir/ComfyUI/custom_nodes
+        self.comfyui_dir = base_dir / "ComfyUI"
+        self.custom_nodes_path = self.comfyui_dir / "custom_nodes"
+        
+        # Create directories if they don't exist
+        os.makedirs(self.comfyui_dir, exist_ok=True)
+        os.makedirs(self.custom_nodes_path, exist_ok=True)
+        
+        # Set embedded Python paths based on user directory
+        self.embedded_python_exe_paths = [
+            os.path.join(str(base_dir), "python_embeded", "python.exe"),  # User directory/python_embeded
+            os.path.join(os.getcwd(), "python_embeded", "python.exe"),    # Current dir/python_embeded
+            "./python_embeded/python.exe",                                # Relative path
+            os.path.join(os.getcwd(), "required_files", "Comfyui files", "python_embeded", "python.exe")  # Original path
+        ]
+        
+        # Find the embedded Python
+        for path in self.embedded_python_exe_paths:
+            if os.path.exists(path):
+                self.embedded_python_exe = path
+                self.update_status(f"Found embedded Python at: {path}")
+                break
+                
+        if not self.embedded_python_exe:
+            self.update_status("WARNING: Could not find embedded Python, trying fallback approach")
+        
+        self.update_status(f"Using base directory: {base_dir}")
+        self.update_status(f"ComfyUI directory set to: {self.comfyui_dir}")
+        self.update_status(f"Custom nodes will be installed to: {self.custom_nodes_path}")
+        return True
+        
+    def update_status(self, message):
+        """Update status message"""
+        if self.status_callback:
+            self.status_callback(message)
+        logger.info(message)
+            
+    def update_progress(self, value):
+        """Update progress bar"""
+        if self.progress_callback:
+            self.progress_callback(value)
+            
+    def clone_repository(self, repo_url, destination):
+        """Clone a git repository to the specified destination"""
+        try:
+            import git
+            self.update_status(f"Cloning {repo_url} to {destination}...")
+            
+            # Check if the directory already exists
+            if os.path.exists(destination):
+                self.update_status(f"Repository already exists at {destination}, updating...")
+                repo = git.Repo(destination)
+                origin = repo.remotes.origin
+                origin.pull()
+                return True
+                
+            # Clone the repository
+            git.Repo.clone_from(repo_url, destination)
+            self.update_status(f"Successfully cloned {repo_url}")
+            return True
+        except Exception as e:
+            self.update_status(f"Error cloning repository {repo_url}: {str(e)}")
+            return False
+            
+    def install_requirements(self, requirements_path, node_name=None):
+        """Install requirements from a requirements.txt file"""
+        try:
+            import subprocess
+            import sys
+            
+            if not os.path.exists(requirements_path):
+                self.update_status(f"Requirements file not found at {requirements_path}")
+                return False
+            
+            # Special handling for ComfyUI-GGUF - directly use the command that works
+            if node_name == 'comfyui-gguf' or 'ComfyUI-GGUF' in requirements_path:
+                self.update_status(f"Attempting direct installation for ComfyUI-GGUF...")
+                
+                base_dir = os.path.dirname(os.path.dirname(self.custom_nodes_path))
+                direct_python_path = os.path.join(str(base_dir), "python_embeded", "python.exe")
+                
+                self.update_status(f"Checking for user path Python at: {direct_python_path}")
+                if os.path.exists(direct_python_path):
+                    cmd = [direct_python_path, "-s", "-m", "pip", "install", "-r", requirements_path]
+                    self.update_status(f"Running: {' '.join(cmd)}")
+                    
+                    try:
+                        process = subprocess.Popen(
+                            cmd, 
+                            stdout=subprocess.PIPE, 
+                            stderr=subprocess.PIPE,
+                            text=True
+                        )
+                        
+                        stdout, stderr = process.communicate()
+                        
+                        if process.returncode == 0:
+                            self.update_status("Successfully installed ComfyUI-GGUF requirements")
+                            return True
+                        else:
+                            self.update_status(f"Warning: Error installing GGUF requirements: {stderr}")
+                    except Exception as e:
+                        self.update_status(f"Error with user path Python: {str(e)}")
+                else:
+                    self.update_status(f"User path Python not found at: {direct_python_path}")
+                
+                # Try all other python paths
+                for python_path in self.embedded_python_exe_paths:
+                    if os.path.exists(python_path):
+                        cmd = [python_path, "-s", "-m", "pip", "install", "-r", requirements_path]
+                        self.update_status(f"Trying with alternate path: {' '.join(cmd)}")
+                        
+                        try:
+                            process = subprocess.Popen(
+                                cmd, 
+                                stdout=subprocess.PIPE, 
+                                stderr=subprocess.PIPE,
+                                text=True
+                            )
+                            
+                            stdout, stderr = process.communicate()
+                            
+                            if process.returncode == 0:
+                                self.update_status("Successfully installed ComfyUI-GGUF requirements")
+                                return True
+                        except Exception as e:
+                            self.update_status(f"Error with alternate path: {str(e)}")
+                
+                # For ComfyUI-GGUF, continue even if installation fails
+                self.update_status("GGUF dependencies installation had issues - ComfyUI Manager will handle them later")
+                return True
+                
+            # For other packages, try to use embedded Python if available
+            if self.embedded_python_exe:
+                # First check and install Cython if needed
+                self.update_status("Checking for Cython in embedded Python...")
+                try:
+                    check_cmd = [self.embedded_python_exe, "-c", "import Cython; print('Cython already installed')"]
+                    process = subprocess.Popen(
+                        check_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True
+                    )
+                    stdout, stderr = process.communicate()
+                    
+                    if process.returncode != 0:
+                        self.update_status("Cython not found, installing it first...")
+                        install_cython_cmd = [self.embedded_python_exe, "-s", "-m", "pip", "install", "Cython"]
+                        self.update_status(f"Running: {' '.join(install_cython_cmd)}")
+                        
+                        process = subprocess.Popen(
+                            install_cython_cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True
+                        )
+                        stdout, stderr = process.communicate()
+                        
+                        if process.returncode == 0:
+                            self.update_status("Successfully installed Cython")
+                        else:
+                            self.update_status(f"Warning: Failed to install Cython: {stderr}")
+                    else:
+                        self.update_status("Cython is already installed")
+                except Exception as e:
+                    self.update_status(f"Error checking/installing Cython: {str(e)}")
+                
+                # Check and install wheel if needed
+                self.update_status("Checking for wheel in embedded Python...")
+                try:
+                    check_cmd = [self.embedded_python_exe, "-c", "import wheel; print('wheel already installed')"]
+                    process = subprocess.Popen(
+                        check_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True
+                    )
+                    stdout, stderr = process.communicate()
+                    
+                    if process.returncode != 0:
+                        self.update_status("wheel not found, installing it first...")
+                        install_wheel_cmd = [self.embedded_python_exe, "-s", "-m", "pip", "install", "wheel"]
+                        self.update_status(f"Running: {' '.join(install_wheel_cmd)}")
+                        
+                        process = subprocess.Popen(
+                            install_wheel_cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True
+                        )
+                        stdout, stderr = process.communicate()
+                        
+                        if process.returncode == 0:
+                            self.update_status("Successfully installed wheel")
+                        else:
+                            self.update_status(f"Warning: Failed to install wheel: {stderr}")
+                    else:
+                        self.update_status("wheel is already installed")
+                except Exception as e:
+                    self.update_status(f"Error checking/installing wheel: {str(e)}")
+                
+                # Check and install filterpy if needed - it has a circular dependency issue
+                self.update_status("Checking for filterpy...")
+                try:
+                    check_cmd = [self.embedded_python_exe, "-c", "import filterpy; print('filterpy already installed')"]
+                    process = subprocess.Popen(
+                        check_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True
+                    )
+                    stdout, stderr = process.communicate()
+                    
+                    if process.returncode != 0:
+                        self.update_status("Installing filterpy...")
+                        
+                        # Use the command that works - install directly from GitHub
+                        install_cmd = [self.embedded_python_exe, "-m", "pip", "install", "git+https://github.com/rodjjo/filterpy.git"]
+                        
+                        result = subprocess.run(
+                            install_cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True
+                        )
+                        
+                        if result.returncode == 0:
+                            self.update_status("Successfully installed filterpy")
+                        else:
+                            self.update_status("Warning: Could not install filterpy")
+                            self.update_status("Continuing with setup, but some nodes may not work correctly")
+                    else:
+                        self.update_status("filterpy is already installed")
+                except Exception as e:
+                    self.update_status(f"Error checking/installing filterpy: {str(e)}")
+                
+                # Now install requirements
+                node_folder = os.path.basename(os.path.dirname(requirements_path))
+                self.update_status(f"Installing requirements for {node_folder}...")
+                
+                process = subprocess.Popen(
+                    [self.embedded_python_exe, "-s", "-m", "pip", "install", "-r", requirements_path], 
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                
+                stdout, stderr = process.communicate()
+                
+                if process.returncode != 0:
+                    self.update_status("Warning: Error installing requirements")
+                    self.update_status("Falling back to system Python...")
+                else:
+                    self.update_status("Requirements installed successfully with embedded Python")
+                    return True
+            else:
+                self.update_status("Embedded Python not found, using system Python instead")
+            
+            # Fall back to system Python if embedded Python failed or doesn't exist
+            # Get Python executable if not set yet
+            if not self.python_exe:
+                # Use system Python executable
+                self.python_exe = sys.executable
+                
+                if not self.python_exe:
+                    # As a fallback, try common commands
+                    python_commands = ["python", "py"]
+                    for cmd in python_commands:
+                        try:
+                            # Check if the command exists
+                            result = subprocess.run([cmd, "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                            if result.returncode == 0:
+                                self.python_exe = cmd
+                                break
+                        except:
+                            continue
+            
+            if not self.python_exe:
+                self.update_status("Error: Could not find Python executable")
+                return False
+                
+            self.update_status(f"Installing requirements from {requirements_path} using {self.python_exe}...")
+            
+            # Try first with prefer-binary flag to use wheels when possible
+            process = subprocess.Popen(
+                [self.python_exe, "-m", "pip", "install", "-r", requirements_path, "--prefer-binary"], 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            stdout, stderr = process.communicate()
+            
+            if process.returncode != 0:
+                self.update_status(f"Warning: Error during standard installation: {stderr}")
+                self.update_status("Attempting to install packages individually...")
+                
+                # Read requirements file and install packages one by one
+                with open(requirements_path, 'r') as f:
+                    requirements = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                
+                install_success = True
+                for req in requirements:
+                    try:
+                        # Skip problematic packages we already tried to install
+                        if 'sentencepiece' in req.lower():
+                            continue
+                            
+                        self.update_status(f"Installing {req}...")
+                        process = subprocess.Popen(
+                            [self.python_exe, "-m", "pip", "install", req, "--prefer-binary"], 
+                            stdout=subprocess.PIPE, 
+                            stderr=subprocess.PIPE,
+                            text=True
+                        )
+                        stdout, stderr = process.communicate()
+                        
+                        if process.returncode != 0:
+                            self.update_status(f"Warning: Could not install {req}: {stderr}")
+                            install_success = False
+                    except Exception as e:
+                        self.update_status(f"Warning: Error installing {req}: {str(e)}")
+                        install_success = False
+                
+                if not install_success:
+                    self.update_status("Some packages could not be installed, but continuing with setup")
+                return True  # Continue even with some failures
+                
+            self.update_status("Requirements installed successfully")
+            return True
+        except Exception as e:
+            self.update_status(f"Error installing requirements: {str(e)}")
+            return False
+            
+    def run_presetup(self):
+        """Run the pre-setup process to install all custom nodes"""
+        if not self.comfyui_dir:
+            self.update_status("ComfyUI directory not set. Please specify a valid directory.")
+            return False
+            
+        if not os.path.exists(self.comfyui_dir):
+            self.update_status(f"ComfyUI directory not found at {self.comfyui_dir}")
+            return False
+            
+        # Extract libs-include.zip first
+        self.update_status("Extracting required libraries...")
+        if not extract_libs_include(os.path.dirname(self.comfyui_dir)):
+            self.update_status("Failed to extract required libraries. Setup cannot continue.")
+            return False
+        self.update_status("Successfully extracted required libraries")
+        
+        # Ensure GitPython is installed
+        self.update_status("Checking if GitPython is installed...")
+        try:
+            import git
+            self.update_status("GitPython is installed, continuing with setup")
+        except ImportError:
+            self.update_status("GitPython is not installed. Please install it first.")
+            return False
+            
+        # Check for embedded Python
+        for path in self.embedded_python_exe_paths:
+            self.update_status(f"Checking for embedded Python at: {path}")
+            if os.path.exists(path):
+                self.embedded_python_exe = path
+                self.update_status(f"Found embedded Python at: {path}")
+                break
+                
+        if not self.embedded_python_exe:
+            self.update_status(" WARNING: Embedded Python not found at any of these locations:")
+            for path in self.embedded_python_exe_paths:
+                self.update_status(f"  - {path}")
+            self.update_status("Some extensions like GGUF may not install correctly without embedded Python")
+            
+        total_nodes = len(CUSTOM_NODES)
+        completed = 0
+        
+        # Clone ComfyUI Manager first
+        manager_info = CUSTOM_NODES['comfyui-manager']
+        manager_dest = os.path.join(self.custom_nodes_path, manager_info['destination'])
+        
+        self.update_status("Installing ComfyUI Manager (required for other extensions)...")
+        success = self.clone_repository(manager_info['repo_url'], manager_dest)
+        
+        if success and manager_info['has_requirements'] and not manager_info['skip_requirements']:
+            requirements_path = os.path.join(manager_dest, "requirements.txt")
+            self.install_requirements(requirements_path, 'comfyui-manager')
+            
+        completed += 1
+        self.update_progress(completed / total_nodes * 100)
+            
+        # Install other custom nodes
+        for name, node_info in CUSTOM_NODES.items():
+            if name == 'comfyui-manager':  # Skip the manager as it's already installed
+                continue
+                
+            repo_url = node_info['repo_url']
+            destination = os.path.join(self.custom_nodes_path, node_info['destination'])
+            
+            self.update_status(f"Installing {name}...")
+            success = self.clone_repository(repo_url, destination)
+            
+            if success and node_info['has_requirements']:
+                if name == 'comfyui-gguf':
+                    # For ComfyUI-GGUF, always try to install requirements using the embedded Python
+                    requirements_path = os.path.join(destination, "requirements.txt")
+                    self.install_requirements(requirements_path, name)
+                elif node_info['skip_requirements']:
+                    self.update_status(f"Skipping requirements for {name} due to build dependencies")
+                    self.update_status(f"Note: You may need to manually install requirements for {name} later")
+                else:
+                    requirements_path = os.path.join(destination, "requirements.txt")
+                    self.install_requirements(requirements_path, name)
+                
+            completed += 1
+            self.update_progress(completed / total_nodes * 100)
+            
+        self.update_status("Pre-setup completed. Please start ComfyUI to complete the installation.")
+        self.update_status("Note: ComfyUI Manager will handle additional dependencies on first startup.")
+        
+        # Added note about GGUF
+        if 'comfyui-gguf' in CUSTOM_NODES:
+            self.update_status("")
+            self.update_status(" NOTE: If there were issues with GGUF extension installation, you may need to:")
+            self.update_status("1. Install CMake manually if prompted by ComfyUI Manager")
+            self.update_status("2. Or try: pip install cmake sentencepiece protobuf")
+            
+        return True
+
 class SetupManager:
     def __init__(self):
         self.models_path = None
@@ -481,7 +1044,8 @@ class SetupManager:
         self.hf_token = None
         self.civitai_token = None
         self.progress_callback = None
-        self.env_file = '.env'
+        self.env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+        self.env_vars = {}  # Initialize empty dictionary for env vars
         self.validator = ComfyUIValidator()
         
         # Configure download settings
@@ -502,6 +1066,9 @@ class SetupManager:
         self.min_update_interval = 0.5  # Minimum time between updates in seconds
         
         self.download_manager = AdvancedDownloadManager()
+        
+        # Load environment variables on initialization
+        self.load_env()
 
     def format_time(self, seconds):
         """Format time in seconds to a human-readable string"""
@@ -538,58 +1105,97 @@ class SetupManager:
         """Verify that all required files are in their correct locations"""
         pass
 
-    def load_env(self) -> Dict[str, str]:
+    def load_env(self):
         """Load environment variables from .env file"""
         env_vars = {}
         try:
             if os.path.exists(self.env_file):
+                logger.info(f"Loading environment variables from {self.env_file}")
                 with open(self.env_file, 'r', encoding='utf-8') as f:
                     for line in f:
                         line = line.strip()
                         if line and not line.startswith('#'):
-                            key, value = line.split('=', 1)
-                            env_vars[key.strip()] = value.strip().strip('"').strip("'")
+                            if '=' in line:
+                                key, value = line.split('=', 1)
+                                key = key.strip()
+                                value = value.strip()
+                                # Remove quotes if present
+                                if value.startswith('"') and value.endswith('"'):
+                                    value = value[1:-1]
+                                elif value.startswith("'") and value.endswith("'"):
+                                    value = value[1:-1]
+                                
+                                # Store variables with original names
+                                env_vars[key] = value
+                                logger.debug(f"Loaded env var: {key}={value}")
+                            
+                # Store environment variables
+                self.env_vars = env_vars
+                logger.info(f"Loaded {len(env_vars)} environment variables")
+                            
+                # Load key variables into instance attributes
+                self.hf_token = env_vars.get('HUGGINGFACE_TOKEN')
+                self.civitai_token = env_vars.get('CIVITAI_API_TOKEN')
+                self.base_dir = env_vars.get('COMFYUI_MODELS_PATH')
+                
+                return self.env_vars
             else:
-                # If .env doesn't exist, try to copy from .env_example
-                if os.path.exists('.env_example'):
-                    shutil.copy('.env_example', self.env_file)
-                    logger.info("Created .env file from .env_example")
-                    return self.load_env()  # Recursively load the newly created .env
-                else:
-                    logger.warning("No .env or .env_example file found")
+                logger.warning(f"Environment file {self.env_file} not found")
         except Exception as e:
-            logger.error(f"Error loading .env file: {str(e)}")
-        return env_vars
+            logger.error(f"Error loading .env file: {str(e)}", exc_info=True)
+        
+        # Return empty dict if file doesn't exist or error occurred
+        self.env_vars = env_vars
+        return self.env_vars
 
     def save_env(self, env_vars: Dict[str, str]) -> bool:
         """Save environment variables to .env file"""
         try:
-            # Add default values if not present
-            defaults = {
-                'COMMAND_PREFIX': '/'
-            }
-            
-            for key, default_value in defaults.items():
-                if key not in env_vars or not env_vars[key]:
-                    env_vars[key] = default_value
-
             # Variables that should be quoted
             always_quote = {'fluxversion', 'BOT_SERVER', 'server_address', 'workflow', 'PULIDWORKFLOW'}
 
             # Write the .env file
             with open(self.env_file, 'w', encoding='utf-8') as f:
-                # Write COMMAND_PREFIX first
-                f.write(f"COMMAND_PREFIX={env_vars.pop('COMMAND_PREFIX', '/')}\n")
+                # Write variables in a specific order
+                order = [
+                    'COMMAND_PREFIX',
+                    'HUGGINGFACE_TOKEN',
+                    'CIVITAI_API_TOKEN',
+                    'DISCORD_TOKEN',
+                    'COMFYUI_MODELS_PATH',
+                    'BOT_SERVER',
+                    'server_address',
+                    'ALLOWED_SERVERS',
+                    'CHANNEL_IDS',
+                    'BOT_MANAGER_ROLE_ID',
+                    'fluxversion',
+                    'LORA_FOLDER_PATH',
+                    'ENABLE_PROMPT_ENHANCEMENT',
+                    'AI_PROVIDER',
+                    'LMSTUDIO_HOST',
+                    'LMSTUDIO_PORT',
+                    'XAI_MODEL',
+                    'OPENAI_MODEL',
+                    'EMBEDDING_MODEL',
+                    'GEMINI_API_KEY',
+                    'PULIDWORKFLOW'
+                ]
                 
-                # Write remaining variables
-                for key, value in env_vars.items():
-                    # Skip empty values
-                    if value:
-                        # Quote if in always_quote list
-                        if key in always_quote:
-                            if not value.startswith('"'):
-                                value = f'"{value}"'
+                # Write ordered variables first
+                for key in order:
+                    if key in env_vars and env_vars[key]:
+                        value = env_vars[key]
+                        if key in always_quote and not (value.startswith('"') and value.endswith('"')):
+                            value = f'"{value}"'
                         f.write(f"{key}={value}\n")
+                        
+                # Write any remaining variables that weren't in the order list
+                for key, value in env_vars.items():
+                    if key not in order and value:
+                        if key in always_quote and not (value.startswith('"') and value.endswith('"')):
+                            value = f'"{value}"'
+                        f.write(f"{key}={value}\n")
+                        
             logger.info("Successfully saved .env file")
             return True
         except Exception as e:
@@ -606,6 +1212,22 @@ class SetupManager:
             return True
         except Exception as e:
             logger.error(f"Error updating {key} in .env file: {str(e)}")
+            return False
+
+    def validate_civitai_token(self, token: str) -> bool:
+        """Validate CivitAI token by making a test API call"""
+        try:
+            response = requests.get(
+                'https://civitai.com/api/v1/models?limit=1',
+                headers={'Authorization': f'Bearer {token}'},
+                verify=False
+            )
+            if response.status_code == 200:
+                return True
+            logger.error(f"Failed to validate CivitAI token: {response.status_code}")
+            return False
+        except Exception as e:
+            logger.error(f"Error validating CivitAI token: {str(e)}")
             return False
 
     async def get_civitai_download_url(self, model_id: str, version_id: str, token: str) -> str:
@@ -737,3 +1359,61 @@ class SetupManager:
         except Exception as e:
             logger.error(f"Download failed: {str(e)}")
             raise
+
+def extract_libs_include(base_dir):
+    """
+    Extracts libs-include.zip into the python_embeded directory.
+
+    Args:
+        base_dir (str): The base directory of the project.
+    """
+    zip_filename = "libs-include.zip"
+    # Source zip is in the project's required_files directory
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    source_zip_path = os.path.join(project_dir, "required_files", zip_filename)
+    target_extract_path = os.path.join(base_dir, "python_embeded")
+
+    logging.info(f"Attempting to extract '{zip_filename}'...")
+    logging.info(f"Source: {source_zip_path}")
+    logging.info(f"Target: {target_extract_path}")
+
+    if not os.path.exists(source_zip_path):
+        logging.error(f"Error: Source zip file not found at {source_zip_path}")
+        return False
+
+    os.makedirs(target_extract_path, exist_ok=True)
+
+    try:
+        with zipfile.ZipFile(source_zip_path, 'r') as zip_ref:
+            # Log the contents of the zip file
+            contents = zip_ref.namelist()
+            logging.info(f"Zip file contains {len(contents)} files")
+            for item in contents:
+                logging.info(f"Extracting: {item}")
+            
+            # Extract all files
+            zip_ref.extractall(target_extract_path)
+
+            # Verify extraction
+            extracted_files = []
+            for root, dirs, files in os.walk(target_extract_path):
+                for file in files:
+                    rel_path = os.path.relpath(os.path.join(root, file), target_extract_path)
+                    extracted_files.append(rel_path)
+            
+            logging.info(f"Found {len(extracted_files)} files in target directory")
+            for file in extracted_files:
+                logging.info(f"Extracted file: {file}")
+
+            if len(extracted_files) == 0:
+                logging.error("No files were extracted!")
+                return False
+
+        logging.info(f"Successfully extracted '{zip_filename}' to {target_extract_path}")
+        return True
+    except zipfile.BadZipFile:
+        logging.error(f"Error: Failed to extract '{zip_filename}'. The file might be corrupted.")
+        return False
+    except Exception as e:
+        logging.error(f"An unexpected error occurred during extraction: {e}")
+        return False

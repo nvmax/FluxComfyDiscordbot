@@ -1,14 +1,18 @@
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, Text, WORD, DISABLED, NORMAL, END
 from ttkthemes import ThemedTk
 import threading
-from setup_support import SetupManager, BASE_MODELS, CHECKPOINTS
+from setup_support import SetupManager, PreSetupManager, BASE_MODELS, CHECKPOINTS
 import os
+import json
+import shutil
 import logging
 from pathlib import Path
 import asyncio
+import aiohttp
 import requests
-import shutil
+from huggingface_hub import HfApi
+import webbrowser
 
 # Create logs directory if it doesn't exist
 os.makedirs('logs', exist_ok=True)
@@ -42,10 +46,13 @@ class SetupUI:
         # Create main UI
         self.create_ui()
         
-        # Load existing values
+        # Load existing values AFTER UI is created
         self.load_existing_values()
         
     def create_variables(self):
+        # Pre-Setup Variables
+        self.comfyui_dir = tk.StringVar()
+        
         # Bot Setup Variables
         self.base_dir = tk.StringVar()
         self.hf_token = tk.StringVar()
@@ -76,6 +83,11 @@ class SetupUI:
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill='both', expand=True, padx=10, pady=5)
         
+        # Create Pre-Setup tab (first tab)
+        self.presetup_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.presetup_tab, text='Pre-Setup')
+        self.create_presetup_tab()
+        
         # Create Bot Setup tab
         self.bot_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.bot_tab, text='Bot Setup')
@@ -86,17 +98,116 @@ class SetupUI:
         self.notebook.add(self.ai_tab, text='AI Setup')
         self.create_ai_tab()
         
-    def create_bot_tab(self):
-        # Initialize StringVars if not already done
-        if not hasattr(self, 'allowed_servers'):
-            self.allowed_servers = tk.StringVar()
-        if not hasattr(self, 'channel_ids'):
-            self.channel_ids = tk.StringVar()
-            
-        # Load existing values before creating UI
-        self.load_existing_values()
+    def create_presetup_tab(self):
+        """Create the Pre-Setup tab UI elements"""
+        # Initialize PreSetupManager
+        self.presetup_manager = PreSetupManager()
         
-        # Create main container with grid
+        # Create main container frame
+        main_frame = ttk.Frame(self.presetup_tab, padding="10")
+        main_frame.pack(fill='both', expand=True)
+        
+        # Configure column weights
+        main_frame.grid_columnconfigure(0, weight=1, minsize=160)  # Label column
+        main_frame.grid_columnconfigure(1, weight=4, minsize=480)  # Entry column
+        main_frame.grid_columnconfigure(2, weight=1, minsize=160)  # Button column
+        
+        current_row = 0
+        
+        # Title and description
+        title_label = ttk.Label(main_frame, text="ComfyUI Custom Nodes Installation", font=("TkDefaultFont", 12, "bold"))
+        title_label.grid(row=current_row, column=0, columnspan=3, padx=5, pady=10, sticky="nw")
+        current_row += 1
+        
+        description_text = "This will install essential custom nodes for ComfyUI used by FluxComfy Bot. Make sure to specify your ComfyUI installation directory before proceeding, Where run_nvidia_gpu.bat is located. "
+        description_label = ttk.Label(main_frame, text=description_text, wraplength=700)
+        description_label.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nw")
+        current_row += 1
+        
+        # ComfyUI Directory Section
+        dir_frame = ttk.LabelFrame(main_frame, text="ComfyUI Location", padding=10)
+        dir_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        dir_frame.grid_columnconfigure(1, weight=1)
+        
+        ttk.Label(dir_frame, text="ComfyUI Directory:", anchor="e").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        ttk.Entry(dir_frame, textvariable=self.comfyui_dir).grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        ttk.Button(dir_frame, text="Browse", command=self.select_comfyui_directory).grid(row=0, column=2, padx=5, pady=5, sticky="w")
+        current_row += 1
+        
+        # Progress and Status Section
+        progress_frame = ttk.LabelFrame(main_frame, text="Installation Progress", padding=10)
+        progress_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        progress_frame.grid_columnconfigure(0, weight=1)
+        
+        self.presetup_status_var = tk.StringVar(value="Ready to install custom nodes")
+        ttk.Label(progress_frame, textvariable=self.presetup_status_var).grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        
+        self.presetup_progress_var = tk.DoubleVar()
+        self.presetup_progress_bar = ttk.Progressbar(
+            progress_frame, 
+            orient="horizontal", 
+            length=600, 
+            mode="determinate", 
+            variable=self.presetup_progress_var
+        )
+        self.presetup_progress_bar.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
+        current_row += 1
+        
+        # Action buttons
+        button_frame = ttk.Frame(main_frame, padding=5)
+        button_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        button_frame.grid_columnconfigure(0, weight=1)
+        button_frame.grid_columnconfigure(1, weight=1)
+        
+        self.install_git_button = ttk.Button(
+            button_frame,
+            text="Install GitPython",
+            command=self.install_gitpython
+        )
+        self.install_git_button.grid(row=0, column=0, padx=10, pady=5, sticky="e")
+        
+        self.presetup_button = ttk.Button(
+            button_frame,
+            text="Install Custom Nodes",
+            command=self.run_presetup
+        )
+        self.presetup_button.grid(row=0, column=1, padx=10, pady=5, sticky="w")
+        
+        ttk.Separator(main_frame, orient='horizontal').grid(row=current_row + 1, column=0, columnspan=3, sticky='ew', pady=5)
+        current_row += 2
+
+        # ComfyUI Installation Instructions
+        comfyui_frame = ttk.LabelFrame(main_frame, text="ComfyUI Installation Instructions (40xx/50xx GPUs)", padding=5)
+        comfyui_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        
+        ttk.Label(comfyui_frame, text="For best performance with 40xx and 50xx series GPUs:", justify="left").pack(anchor="w", padx=5, pady=2)
+        ttk.Label(comfyui_frame, text="1. Download latest ComfyUI optimized build:", justify="left").pack(anchor="w", padx=5, pady=2)
+        
+        url = "https://github.com/comfyanonymous/ComfyUI/releases/download/latest/ComfyUI_cu128_50XX.7z"
+        link_label = ttk.Label(comfyui_frame, text=url, style="Hyperlink.TLabel", cursor="hand2")
+        link_label.pack(anchor="w", padx=25, pady=2)
+        link_label.bind("<Button-1>", lambda e: self.open_url(url))
+        
+        style = ttk.Style()
+        style.configure("Hyperlink.TLabel", foreground="#008B8B", font=("TkDefaultFont", 10, "underline"))
+        
+        ttk.Label(comfyui_frame, text="2. Open update folder and run:\n   update_comfyui_and_python_dependencies.bat", justify="left").pack(anchor="w", padx=5, pady=2)
+        ttk.Label(comfyui_frame, text="3. From required_files folder, copy 'For ComfyUI portable.bat' to your\n   main ComfyUI directory and run it to install Triton and Sage attention", justify="left").pack(anchor="w", padx=5, pady=2)
+        ttk.Label(comfyui_frame, text="4. Edit run_nvidia_gpu.bat and add:\n   --use-sage-attention\n   to the end for greatly improved performance", justify="left").pack(anchor="w", padx=5, pady=2)
+        
+        current_row += 1
+        
+        # Instructions section
+        instructions_frame = ttk.LabelFrame(main_frame, text="Next Steps", padding=5)
+        instructions_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        
+        instructions_text = "After installing custom nodes:\n\n1. Start ComfyUI to complete the installation,\n2. When ComfyUI starts, allow ComfyUI Manager to update dependencies\n3. Return to this setup and proceed to the 'Bot Setup' tab"
+        instructions_label = ttk.Label(instructions_frame, text=instructions_text, justify="left")
+        instructions_label.pack(anchor="w", padx=5, pady=5)
+        
+    def create_bot_tab(self):
+        """Create the Bot Setup tab UI elements"""
+        # Create main container frame
         main_frame = ttk.Frame(self.bot_tab, padding="10")
         main_frame.pack(fill='both', expand=True)
         
@@ -134,7 +245,7 @@ class SetupUI:
         
         # Discord Token
         ttk.Label(token_frame, text="Discord Token:", anchor="e").grid(row=2, column=0, padx=5, pady=5, sticky="e")
-        ttk.Entry(token_frame, textvariable=self.discord_token, show="*").grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        ttk.Entry(token_frame, textvariable=self.discord_token, show="*").grid(row=2, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
         current_row += 1
         
         # Server Configuration Section
@@ -154,24 +265,17 @@ class SetupUI:
         discord_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
         discord_frame.grid_columnconfigure(1, weight=1)
         
+        # Allowed Server IDs
         ttk.Label(discord_frame, text="Allowed Server IDs:", anchor="e").grid(row=0, column=0, padx=5, pady=5, sticky="ne")
-        server_ids_entry = tk.Text(discord_frame, height=3)
-        server_ids_entry.grid(row=0, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
-        if self.allowed_servers.get():
-            server_ids_entry.insert("1.0", self.allowed_servers.get())
-        def update_allowed_servers(*args):
-            self.allowed_servers.set(server_ids_entry.get("1.0", "end-1c"))
-        server_ids_entry.bind('<KeyRelease>', update_allowed_servers)
+        self.server_ids_text = tk.Text(discord_frame, height=3)
+        self.server_ids_text.grid(row=0, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
         
+        # Channel IDs
         ttk.Label(discord_frame, text="Channel IDs:", anchor="e").grid(row=1, column=0, padx=5, pady=5, sticky="ne")
-        channel_ids_entry = tk.Text(discord_frame, height=3)
-        channel_ids_entry.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
-        if self.channel_ids.get():
-            channel_ids_entry.insert("1.0", self.channel_ids.get())
-        def update_channel_ids(*args):
-            self.channel_ids.set(channel_ids_entry.get("1.0", "end-1c"))
-        channel_ids_entry.bind('<KeyRelease>', update_channel_ids)
+        self.channel_ids_text = tk.Text(discord_frame, height=3)
+        self.channel_ids_text.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
         
+        # Bot Manager Role ID
         ttk.Label(discord_frame, text="Bot Manager Role ID:", anchor="e").grid(row=2, column=0, padx=5, pady=5, sticky="e")
         ttk.Entry(discord_frame, textvariable=self.bot_manager_role_id).grid(row=2, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
         current_row += 1
@@ -283,6 +387,140 @@ class SetupUI:
                                command=self.save_ai_configuration, width=20)  # Set fixed width
         save_button.grid(row=0, column=0)
         
+    def select_comfyui_directory(self):
+        """Open file dialog to select ComfyUI directory"""
+        directory = filedialog.askdirectory(title="Select ComfyUI Directory")
+        if directory:
+            # Update comfyui_dir in pre-setup tab
+            self.comfyui_dir.set(directory)
+            
+            # Also update base_dir in bot setup tab
+            self.base_dir.set(directory)
+            self.setup_manager.base_dir = directory
+            
+            # Update COMFYUI_DIR in .env
+            self.setup_manager.update_env_file('COMFYUI_DIR', f'"{directory}"')
+            
+            # Construct and save the models path to .env
+            models_path = os.path.join(directory, "ComfyUI", "models")
+            self.setup_manager.update_env_file('COMFYUI_MODELS_PATH', f'"{models_path}"')
+            
+            # Update the status label
+            self.presetup_status_var.set(f"ComfyUI directory set to: {directory}")
+            
+    def install_gitpython(self):
+        """Install GitPython package"""
+        self.presetup_status_var.set("Installing GitPython package...")
+        self.install_git_button.config(state="disabled")
+        
+        def install_thread():
+            try:
+                import subprocess
+                import sys
+                
+                # Use system Python executable
+                python_exe = sys.executable
+                
+                if not python_exe:
+                    # As a fallback, try common commands
+                    python_commands = ["python", "py"]
+                    for cmd in python_commands:
+                        try:
+                            # Check if the command exists
+                            result = subprocess.run([cmd, "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                            if result.returncode == 0:
+                                python_exe = cmd
+                                break
+                        except:
+                            continue
+                
+                if not python_exe:
+                    self.presetup_status_var.set("Error: Could not find Python executable")
+                    self.install_git_button.config(state="normal")
+                    return
+                
+                self.presetup_status_var.set(f"Using Python: {python_exe}")
+                
+                # Run pip install command
+                cmd = [python_exe, "-m", "pip", "install", "gitpython"]
+                self.presetup_status_var.set(f"Running: {' '.join(cmd)}")
+                
+                process = subprocess.Popen(
+                    cmd, 
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                
+                stdout, stderr = process.communicate()
+                
+                if process.returncode != 0:
+                    self.presetup_status_var.set(f"Error installing GitPython: {stderr}")
+                    self.install_git_button.config(state="normal")
+                else:
+                    self.presetup_status_var.set("GitPython installed successfully")
+                    self.root.after(2000, lambda: self.presetup_status_var.set("Ready to install custom nodes"))
+            except Exception as e:
+                self.presetup_status_var.set(f"Error: {str(e)}")
+                self.install_git_button.config(state="normal")
+        
+        # Run in a separate thread to avoid freezing the UI
+        threading.Thread(target=install_thread, daemon=True).start()
+            
+    def run_presetup(self):
+        """Run the pre-setup process to install custom nodes"""
+        comfyui_dir = self.comfyui_dir.get()
+        if not comfyui_dir:
+            messagebox.showerror("Error", "Please specify ComfyUI directory")
+            return
+            
+        # Disable the button to prevent multiple clicks
+        self.presetup_button.config(state="disabled")
+        
+        # Update UI
+        self.presetup_status_var.set("Initializing pre-setup...")
+        self.presetup_progress_var.set(0)
+        
+        # Connect callbacks to the PreSetupManager
+        self.presetup_manager.status_callback = self.update_presetup_status
+        self.presetup_manager.progress_callback = self.update_presetup_progress
+        
+        def presetup_thread():
+            try:
+                # Set the ComfyUI directory
+                self.presetup_manager.set_comfyui_dir(comfyui_dir)
+                
+                # Run the pre-setup
+                result = self.presetup_manager.run_presetup()
+                
+                if result:
+                    # On success, update base_dir in bot setup tab if not already set
+                    if not self.base_dir.get():
+                        self.root.after(0, lambda: self.base_dir.set(comfyui_dir))
+                        self.setup_manager.base_dir = comfyui_dir
+                    
+                    self.root.after(0, lambda: self.presetup_status_var.set("Pre-setup completed successfully"))
+                    self.root.after(0, lambda: messagebox.showinfo("Success", "Custom nodes installed successfully. Please start ComfyUI to complete the installation."))
+                else:
+                    self.root.after(0, lambda: messagebox.showerror("Error", "Pre-setup failed. Check the logs for details."))
+            except Exception as e:
+                error_msg = str(e)
+                self.root.after(0, lambda: self.presetup_status_var.set(f"Error: {error_msg}"))
+                self.root.after(0, lambda: messagebox.showerror("Error", f"Pre-setup failed: {error_msg}"))
+            finally:
+                self.root.after(0, lambda: self.presetup_button.config(state="normal"))
+        
+        # Run in a separate thread to keep the UI responsive
+        threading.Thread(target=presetup_thread, daemon=True).start()
+        
+    def update_presetup_status(self, message):
+        """Update the pre-setup status message in the UI"""
+        self.root.after(0, lambda: self.presetup_status_var.set(message))
+        
+    def update_presetup_progress(self, value):
+        """Update the pre-setup progress bar in the UI"""
+        self.root.after(0, lambda: self.presetup_progress_var.set(value))
+        
     def select_base_directory(self):
         directory = filedialog.askdirectory(title="Select ComfyUI Base Directory")
         if directory:
@@ -370,17 +608,26 @@ class SetupUI:
                 if value:
                     env_vars[key] = value
             
-            # Update other configuration
+            # Update bot configuration
+            bot_config = {
+                'BOT_SERVER': self.bot_server.get(),
+                'SERVER_ADDRESS': self.server_address.get(),
+                'ALLOWED_SERVERS': self.allowed_servers.get(),
+                'CHANNEL_IDS': self.channel_ids.get(),
+                'BOT_MANAGER_ROLE_ID': self.bot_manager_role_id.get()
+            }
+            
+            # Update bot config values that have values
+            for key, value in bot_config.items():
+                if value:
+                    env_vars[key] = value
+            
+            # Update AI configuration
             env_vars.update({
                 'AI_PROVIDER': self.ai_provider.get(),
                 'ENABLE_PROMPT_ENHANCEMENT': str(self.enable_prompt_enhancement.get()),
                 'LMSTUDIO_HOST': self.lmstudio_host.get(),
                 'LMSTUDIO_PORT': self.lmstudio_port.get(),
-                'BOT_SERVER': self.bot_server.get(),
-                'server_address': self.server_address.get(),
-                'ALLOWED_SERVERS': self.allowed_servers.get(),
-                'CHANNEL_IDS': self.channel_ids.get(),
-                'BOT_MANAGER_ROLE_ID': self.bot_manager_role_id.get(),
                 'XAI_MODEL': 'grok-beta',
                 'OPENAI_MODEL': 'gpt-3.5-turbo',
                 'EMBEDDING_MODEL': 'text-embedding-ada-002'
@@ -389,66 +636,81 @@ class SetupUI:
             # Save the configuration
             if self.setup_manager.save_env(env_vars):
                 messagebox.showinfo("Success", "Configuration saved successfully!")
-            else:
-                messagebox.showerror("Error", "Failed to save configuration")
                 
         except Exception as e:
+            logger.error(f"Error saving configuration: {str(e)}")
             messagebox.showerror("Error", f"Failed to save configuration: {str(e)}")
+            return False
+            
+        return True
             
     def load_existing_values(self):
+        """Load existing values from .env file"""
         try:
+            # Load environment variables
             env_vars = self.setup_manager.load_env()
             
-            # Load API tokens
+            # Set values in UI if they exist in .env
+            if 'COMFYUI_DIR' in env_vars:
+                comfyui_dir = env_vars['COMFYUI_DIR'].strip('"')
+                self.comfyui_dir.set(comfyui_dir)
+                self.base_dir.set(comfyui_dir)  # Sync with bot setup tab
+                self.setup_manager.base_dir = comfyui_dir
+                
             if 'HUGGINGFACE_TOKEN' in env_vars:
                 self.hf_token.set(env_vars['HUGGINGFACE_TOKEN'])
+                
             if 'CIVITAI_API_TOKEN' in env_vars:
                 self.civitai_token.set(env_vars['CIVITAI_API_TOKEN'])
+                
             if 'DISCORD_TOKEN' in env_vars:
                 self.discord_token.set(env_vars['DISCORD_TOKEN'])
-            if 'GEMINI_API_KEY' in env_vars:
-                self.gemini_api_key.set(env_vars['GEMINI_API_KEY'])
-            if 'XAI_API_KEY' in env_vars:
-                self.xai_api_key.set(env_vars['XAI_API_KEY'])
-            if 'OPENAI_API_KEY' in env_vars:
-                self.openai_api_key.set(env_vars['OPENAI_API_KEY'])
                 
-            # Load paths
-            if 'COMFYUI_MODELS_PATH' in env_vars:
-                base_path = Path(env_vars['COMFYUI_MODELS_PATH']).parent.parent
-                self.base_dir.set(str(base_path))
-                self.setup_manager.base_dir = str(base_path)
-            
-            # Load addresses
             if 'BOT_SERVER' in env_vars:
-                self.bot_server.set(env_vars['BOT_SERVER'].strip('"'))
-            if 'server_address' in env_vars:
-                self.server_address.set(env_vars['server_address'].strip('"'))
-            
-            # Load Discord configuration
+                self.bot_server.set(env_vars['BOT_SERVER'])
+                
+            if 'SERVER_ADDRESS' in env_vars:
+                self.server_address.set(env_vars['SERVER_ADDRESS'])
+                
             if 'ALLOWED_SERVERS' in env_vars:
                 self.allowed_servers.set(env_vars['ALLOWED_SERVERS'])
+                if hasattr(self, 'server_ids_text'):
+                    self.server_ids_text.delete('1.0', tk.END)
+                    self.server_ids_text.insert('1.0', env_vars['ALLOWED_SERVERS'])
+                
             if 'CHANNEL_IDS' in env_vars:
                 self.channel_ids.set(env_vars['CHANNEL_IDS'])
+                if hasattr(self, 'channel_ids_text'):
+                    self.channel_ids_text.delete('1.0', tk.END)
+                    self.channel_ids_text.insert('1.0', env_vars['CHANNEL_IDS'])
+                
             if 'BOT_MANAGER_ROLE_ID' in env_vars:
                 self.bot_manager_role_id.set(env_vars['BOT_MANAGER_ROLE_ID'])
                 
-            # Load AI configuration
+            # AI Configuration
             if 'AI_PROVIDER' in env_vars:
                 self.ai_provider.set(env_vars['AI_PROVIDER'])
+                
             if 'ENABLE_PROMPT_ENHANCEMENT' in env_vars:
-                self.enable_prompt_enhancement.set(env_vars['ENABLE_PROMPT_ENHANCEMENT'] == 'True')
+                self.enable_prompt_enhancement.set(env_vars['ENABLE_PROMPT_ENHANCEMENT'].lower() == 'true')
+                
             if 'LMSTUDIO_HOST' in env_vars:
                 self.lmstudio_host.set(env_vars['LMSTUDIO_HOST'])
+                
             if 'LMSTUDIO_PORT' in env_vars:
                 self.lmstudio_port.set(env_vars['LMSTUDIO_PORT'])
+                
             if 'XAI_API_KEY' in env_vars:
                 self.xai_api_key.set(env_vars['XAI_API_KEY'])
+                
+            if 'GEMINI_API_KEY' in env_vars:
+                self.gemini_api_key.set(env_vars['GEMINI_API_KEY'])
+                
             if 'OPENAI_API_KEY' in env_vars:
                 self.openai_api_key.set(env_vars['OPENAI_API_KEY'])
                 
         except Exception as e:
-            logger.error(f"Error loading existing values: {str(e)}")
+            messagebox.showerror("Error", f"Failed to load existing values: {str(e)}")
             
     def save_ai_configuration(self):
         try:
@@ -704,6 +966,10 @@ class SetupUI:
         # Start the async process
         threading.Thread(target=run_async, daemon=True).start()
         
+    def open_url(self, url):
+        """Open URL in default browser"""
+        webbrowser.open(url)
+
 def main():
     root = ThemedTk(theme="arc")  # Create themed root window
     root.title("FluxComfy Setup")

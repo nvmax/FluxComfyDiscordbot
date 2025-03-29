@@ -1013,23 +1013,25 @@ class ReduxProcessingView(View):
             if '49' in workflow:
                 workflow['49']['inputs']['ratio_selected'] = self.resolution
             
-            # Update strength values
-            if '53' in workflow:
-                workflow['53']['inputs']['conditioning_to_strength'] = self.strength1
-            if '44' in workflow:
-                workflow['44']['inputs']['conditioning_to_strength'] = self.strength2
+            # Update strength values for the switching conditioning nodes
+            if '68' in workflow:  # First switch conditioning node
+                if '53' in workflow:
+                    workflow['53']['inputs']['conditioning_to_strength'] = self.strength1
+            if '67' in workflow:  # Second switch conditioning node
+                if '44' in workflow:
+                    workflow['44']['inputs']['conditioning_to_strength'] = self.strength2
             
             # Generate workflow filename with request ID
             workflow_filename = f'redux_{self.request_id}.json'
             save_json(workflow_filename, workflow)
 
-            # Save images in the DataSets directory (not temp)
-            datasets_dir = os.path.join('Main', 'DataSets')
-            os.makedirs(datasets_dir, exist_ok=True)
+            # Save images in the temp directory
+            temp_dir = os.path.join('Main', 'temp')
+            os.makedirs(temp_dir, exist_ok=True)
             
             # Save images with request ID in filenames
-            image1_path = os.path.join(datasets_dir, self.image1_filename)
-            image2_path = os.path.join(datasets_dir, self.image2_filename)
+            image1_path = os.path.join(temp_dir, self.image1_filename)
+            image2_path = os.path.join(temp_dir, self.image2_filename)
             
             with open(image1_path, 'wb') as f:
                 f.write(self.image1)
@@ -1066,7 +1068,7 @@ class ReduxProcessingView(View):
                 workflow_filename=workflow_filename,
                 image1=self.image1,
                 image2=self.image2,
-                image1_filename=self.image1_filename,  # Pass the filenames with request ID
+                image1_filename=self.image1_filename,
                 image2_filename=self.image2_filename
             )
 
@@ -1076,6 +1078,26 @@ class ReduxProcessingView(View):
             for child in self.children:
                 child.disabled = True
             await interaction.edit_original_response(view=self)
+
+            # Clean up temporary files after a short delay to ensure they're fully processed
+            async def cleanup_files():
+                import asyncio
+                await asyncio.sleep(30)  # Wait 30 seconds
+                try:
+                    if os.path.exists(image1_path):
+                        os.remove(image1_path)
+                        logger.debug(f"Cleaned up {image1_path}")
+                    if os.path.exists(image2_path):
+                        os.remove(image2_path)
+                        logger.debug(f"Cleaned up {image2_path}")
+                    if os.path.exists(workflow_filename):
+                        os.remove(workflow_filename)
+                        logger.debug(f"Cleaned up {workflow_filename}")
+                except Exception as e:
+                    logger.error(f"Error cleaning up temporary files: {str(e)}")
+
+            # Start cleanup task
+            asyncio.create_task(cleanup_files())
             
         except Exception as e:
             logger.error(f"Error processing redux images: {str(e)}")
@@ -1651,7 +1673,7 @@ class PulidModal(discord.ui.Modal, title='PuLID Image Generation'):
                 except Exception as e:
                     logger.error(f"Error deleting LoRA selection message: {str(e)}")
 
-                # Load and update workflow using environment variable
+                # Load and update the workflow using environment variable
                 workflow_path = os.path.join('Main', 'Datasets', PULIDWORKFLOW)
                 workflow = load_json(workflow_path)
                 workflow = update_pulid_workflow(

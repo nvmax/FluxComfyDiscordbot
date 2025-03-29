@@ -61,8 +61,16 @@ Transform your Discord server into an AI art studio! bring the power of AI-gener
 [➡️ Full Installation Guide](docs/installation.md)
 
 ## 🆕 Latest Updates
+### March 29, 2025
+- **Updated Setup**
+  - Updated Setup tool, now automatically installs all required nodes for the bot to run.
+  - Removed old workflow files no longer needed due to automated setup.
+  - Please read and follow setup instructions on the setup screen.
+  - If you have 40xx or 50xx Gpu's please download the Comfyui version that is listed in setup it can greatly increase performance.
+  - Removed RvTools from workflows due to it being banned by Github, using crystaltools instead.
+  
 ### March 3, 2025
-- **Video Wan2.1 **
+- **Video Wan2.1**
   - Now supports T2V thanks to wan2.1 checkpoints
   - Creates 5 sec clips using text to video.
   - Now supporting Teacache for video generations increasing speed of video generations.

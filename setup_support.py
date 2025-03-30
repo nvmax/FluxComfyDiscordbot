@@ -1151,6 +1151,15 @@ class SetupManager:
     def save_env(self, env_vars: Dict[str, str]) -> bool:
         """Save environment variables to .env file"""
         try:
+            # Load existing variables first
+            existing_vars = self.load_env()
+            
+            # Merge new variables with existing ones, preserving existing values
+            # unless they are explicitly being updated
+            for key, value in env_vars.items():
+                if value is not None and value.strip():
+                    existing_vars[key] = value
+
             # Variables that should be quoted
             always_quote = {'fluxversion', 'BOT_SERVER', 'server_address', 'workflow', 'PULIDWORKFLOW'}
 
@@ -1158,7 +1167,7 @@ class SetupManager:
             with open(self.env_file, 'w', encoding='utf-8') as f:
                 # Write variables in a specific order
                 order = [
-                    'COMMAND_PREFIX',
+                    'COMMAND_PREFIX',  # Always first
                     'HUGGINGFACE_TOKEN',
                     'CIVITAI_API_TOKEN',
                     'DISCORD_TOKEN',
@@ -1183,15 +1192,15 @@ class SetupManager:
                 
                 # Write ordered variables first
                 for key in order:
-                    if key in env_vars and env_vars[key]:
-                        value = env_vars[key]
+                    if key in existing_vars:
+                        value = existing_vars[key]
                         if key in always_quote and not (value.startswith('"') and value.endswith('"')):
                             value = f'"{value}"'
                         f.write(f"{key}={value}\n")
                         
                 # Write any remaining variables that weren't in the order list
-                for key, value in env_vars.items():
-                    if key not in order and value:
+                for key, value in existing_vars.items():
+                    if key not in order:
                         if key in always_quote and not (value.startswith('"') and value.endswith('"')):
                             value = f'"{value}"'
                         f.write(f"{key}={value}\n")

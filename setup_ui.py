@@ -590,10 +590,14 @@ class SetupUI:
     def save_configuration(self):
         """Save configuration with better error handling"""
         try:
-            # Load existing environment variables
-            env_vars = self.setup_manager.load_env()
+            # Load existing environment variables first
+            env_vars = self.setup_manager.load_env() or {}
             
-            # Update with new values, only if they are not empty
+            # Ensure COMMAND_PREFIX is set
+            if 'COMMAND_PREFIX' not in env_vars:
+                env_vars['COMMAND_PREFIX'] = '/'
+            
+            # Update API tokens - only if they have values
             tokens = {
                 'HUGGINGFACE_TOKEN': self.hf_token.get(),
                 'CIVITAI_API_TOKEN': self.civitai_token.get(),
@@ -608,22 +612,22 @@ class SetupUI:
                 if value:
                     env_vars[key] = value
             
-            # Update bot configuration
+            # Update bot configuration - only if they have values
             bot_config = {
                 'BOT_SERVER': self.bot_server.get(),
                 'SERVER_ADDRESS': self.server_address.get(),
-                'ALLOWED_SERVERS': self.server_ids_text.get('1.0', 'end-1c'),  # Get text from Text widget
-                'CHANNEL_IDS': self.channel_ids_text.get('1.0', 'end-1c'),  # Get text from Text widget
+                'ALLOWED_SERVERS': self.server_ids_text.get('1.0', 'end-1c'),
+                'CHANNEL_IDS': self.channel_ids_text.get('1.0', 'end-1c'),
                 'BOT_MANAGER_ROLE_ID': self.bot_manager_role_id.get()
             }
             
-            # Update bot config values that have values
+            # Only update bot config values that have values
             for key, value in bot_config.items():
-                if value:
+                if value and value.strip():  # Check for non-empty strings
                     env_vars[key] = value
             
-            # Update AI configuration
-            env_vars.update({
+            # Update AI configuration - only if changed from existing
+            ai_config = {
                 'AI_PROVIDER': self.ai_provider.get(),
                 'ENABLE_PROMPT_ENHANCEMENT': str(self.enable_prompt_enhancement.get()),
                 'LMSTUDIO_HOST': self.lmstudio_host.get(),
@@ -631,8 +635,12 @@ class SetupUI:
                 'XAI_MODEL': 'grok-beta',
                 'OPENAI_MODEL': 'gpt-3.5-turbo',
                 'EMBEDDING_MODEL': 'text-embedding-ada-002'
-            })
+            }
             
+            # Only update AI config if values are different from existing
+            for key, value in ai_config.items():
+                if value and value != env_vars.get(key, ''):
+                    env_vars[key] = value
             # Save the configuration
             if self.setup_manager.save_env(env_vars):
                 messagebox.showinfo("Success", "Configuration saved successfully!")
@@ -936,9 +944,8 @@ class SetupUI:
                 # Save configuration
                 self.save_configuration()
 
-                # Complete
+                # Complete - update status but don't show popup
                 self.update_progress(100, "Installation completed successfully!")
-                messagebox.showinfo("Success", "Installation completed successfully!")
                 
             except Exception as e:
                 logger.error(f"Installation failed: {str(e)}")

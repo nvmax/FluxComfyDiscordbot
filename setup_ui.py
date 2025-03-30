@@ -114,7 +114,37 @@ class SetupUI:
         
         current_row = 0
         
-        # Title and description
+        # Title and description for Instructions
+        title_label = ttk.Label(main_frame, text="ComfyUI Installation Instructions (40xx/50xx GPUs)", font=("TkDefaultFont", 12, "bold"))
+        title_label.grid(row=current_row, column=0, columnspan=3, padx=5, pady=10, sticky="nw")
+        current_row += 1
+
+        # ComfyUI Installation Instructions
+        comfyui_frame = ttk.LabelFrame(main_frame, text="Installation Steps", padding=5)
+        comfyui_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        
+        ttk.Label(comfyui_frame, text="For best performance with 40xx and 50xx series GPUs:", justify="left").pack(anchor="w", padx=5, pady=2)
+        ttk.Label(comfyui_frame, text="1. Download latest ComfyUI optimized build:", justify="left").pack(anchor="w", padx=5, pady=2)
+        
+        url = "https://github.com/comfyanonymous/ComfyUI/releases/download/latest/ComfyUI_cu128_50XX.7z"
+        link_label = ttk.Label(comfyui_frame, text=url, style="Hyperlink.TLabel", cursor="hand2")
+        link_label.pack(anchor="w", padx=25, pady=2)
+        link_label.bind("<Button-1>", lambda e: self.open_url(url))
+        
+        style = ttk.Style()
+        style.configure("Hyperlink.TLabel", foreground="#008B8B", font=("TkDefaultFont", 10, "underline"))
+        
+        ttk.Label(comfyui_frame, text="2. Open update folder and run:\n   update_comfyui_and_python_dependencies.bat", justify="left").pack(anchor="w", padx=5, pady=2)
+        ttk.Label(comfyui_frame, text="3. From required_files folder (Bot folder), copy 'For ComfyUI portable.bat' to your\n   main ComfyUI directory and run it to install Triton and Sage attention", justify="left").pack(anchor="w", padx=5, pady=2)
+        ttk.Label(comfyui_frame, text="4. Edit run_nvidia_gpu.bat and add:\n   --use-sage-attention\n   to the end for greatly improved performance", justify="left").pack(anchor="w", padx=5, pady=2)
+        ttk.Label(comfyui_frame, text="5. Continue installing custom nodes below, make sure to click Install GitPython button first", justify="left").pack(anchor="w", padx=5, pady=2)
+        
+        current_row += 1
+
+        ttk.Separator(main_frame, orient='horizontal').grid(row=current_row, column=0, columnspan=3, sticky='ew', pady=5)
+        current_row += 1
+
+        # Custom Nodes Installation Section
         title_label = ttk.Label(main_frame, text="ComfyUI Custom Nodes Installation", font=("TkDefaultFont", 12, "bold"))
         title_label.grid(row=current_row, column=0, columnspan=3, padx=5, pady=10, sticky="nw")
         current_row += 1
@@ -172,38 +202,6 @@ class SetupUI:
             command=self.run_presetup
         )
         self.presetup_button.grid(row=0, column=1, padx=10, pady=5, sticky="w")
-        
-        ttk.Separator(main_frame, orient='horizontal').grid(row=current_row + 1, column=0, columnspan=3, sticky='ew', pady=5)
-        current_row += 2
-
-        # ComfyUI Installation Instructions
-        comfyui_frame = ttk.LabelFrame(main_frame, text="ComfyUI Installation Instructions (40xx/50xx GPUs)", padding=5)
-        comfyui_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
-        
-        ttk.Label(comfyui_frame, text="For best performance with 40xx and 50xx series GPUs:", justify="left").pack(anchor="w", padx=5, pady=2)
-        ttk.Label(comfyui_frame, text="1. Download latest ComfyUI optimized build:", justify="left").pack(anchor="w", padx=5, pady=2)
-        
-        url = "https://github.com/comfyanonymous/ComfyUI/releases/download/latest/ComfyUI_cu128_50XX.7z"
-        link_label = ttk.Label(comfyui_frame, text=url, style="Hyperlink.TLabel", cursor="hand2")
-        link_label.pack(anchor="w", padx=25, pady=2)
-        link_label.bind("<Button-1>", lambda e: self.open_url(url))
-        
-        style = ttk.Style()
-        style.configure("Hyperlink.TLabel", foreground="#008B8B", font=("TkDefaultFont", 10, "underline"))
-        
-        ttk.Label(comfyui_frame, text="2. Open update folder and run:\n   update_comfyui_and_python_dependencies.bat", justify="left").pack(anchor="w", padx=5, pady=2)
-        ttk.Label(comfyui_frame, text="3. From required_files folder, copy 'For ComfyUI portable.bat' to your\n   main ComfyUI directory and run it to install Triton and Sage attention", justify="left").pack(anchor="w", padx=5, pady=2)
-        ttk.Label(comfyui_frame, text="4. Edit run_nvidia_gpu.bat and add:\n   --use-sage-attention\n   to the end for greatly improved performance", justify="left").pack(anchor="w", padx=5, pady=2)
-        
-        current_row += 1
-        
-        # Instructions section
-        instructions_frame = ttk.LabelFrame(main_frame, text="Next Steps", padding=5)
-        instructions_frame.grid(row=current_row, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
-        
-        instructions_text = "After installing custom nodes:\n\n1. Start ComfyUI to complete the installation,\n2. When ComfyUI starts, allow ComfyUI Manager to update dependencies\n3. Return to this setup and proceed to the 'Bot Setup' tab"
-        instructions_label = ttk.Label(instructions_frame, text=instructions_text, justify="left")
-        instructions_label.pack(anchor="w", padx=5, pady=5)
         
     def create_bot_tab(self):
         """Create the Bot Setup tab UI elements"""

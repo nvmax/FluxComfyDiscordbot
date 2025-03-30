@@ -612,8 +612,8 @@ class SetupUI:
             bot_config = {
                 'BOT_SERVER': self.bot_server.get(),
                 'SERVER_ADDRESS': self.server_address.get(),
-                'ALLOWED_SERVERS': self.allowed_servers.get(),
-                'CHANNEL_IDS': self.channel_ids.get(),
+                'ALLOWED_SERVERS': self.server_ids_text.get('1.0', 'end-1c'),  # Get text from Text widget
+                'CHANNEL_IDS': self.channel_ids_text.get('1.0', 'end-1c'),  # Get text from Text widget
                 'BOT_MANAGER_ROLE_ID': self.bot_manager_role_id.get()
             }
             
@@ -673,16 +673,12 @@ class SetupUI:
                 self.server_address.set(env_vars['SERVER_ADDRESS'])
                 
             if 'ALLOWED_SERVERS' in env_vars:
-                self.allowed_servers.set(env_vars['ALLOWED_SERVERS'])
-                if hasattr(self, 'server_ids_text'):
-                    self.server_ids_text.delete('1.0', tk.END)
-                    self.server_ids_text.insert('1.0', env_vars['ALLOWED_SERVERS'])
+                self.server_ids_text.delete('1.0', 'end')  # Clear existing text
+                self.server_ids_text.insert('1.0', env_vars['ALLOWED_SERVERS'])
                 
             if 'CHANNEL_IDS' in env_vars:
-                self.channel_ids.set(env_vars['CHANNEL_IDS'])
-                if hasattr(self, 'channel_ids_text'):
-                    self.channel_ids_text.delete('1.0', tk.END)
-                    self.channel_ids_text.insert('1.0', env_vars['CHANNEL_IDS'])
+                self.channel_ids_text.delete('1.0', 'end')  # Clear existing text
+                self.channel_ids_text.insert('1.0', env_vars['CHANNEL_IDS'])
                 
             if 'BOT_MANAGER_ROLE_ID' in env_vars:
                 self.bot_manager_role_id.set(env_vars['BOT_MANAGER_ROLE_ID'])

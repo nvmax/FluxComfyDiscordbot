@@ -1,0 +1,26 @@
+[
+    {
+        "name": "Email Pattern",
+        "pattern": "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}",
+        "description": "Matches email addresses",
+        "severity": "medium"
+    },
+    {
+        "name": "URL Pattern",
+        "pattern": "https?://[^\\s]+",
+        "description": "Matches URLs",
+        "severity": "low"
+    },
+    {
+        "name": "Age Pattern",
+        "pattern": "\\b(1[0-7]|[0-9])\\s*(?:years?|yrs?|y/o)\\s*(?:old|young|age)",
+        "description": "Matches references to underage individuals",
+        "severity": "high"
+    },
+    {
+        "name": "Obfuscated Slurs",
+        "pattern": "\\bn+[^a-zA-Z]*i+[^a-zA-Z]*g+[^a-zA-Z]*g+[^a-zA-Z]*[aeiou]+[^a-zA-Z]*r+\\b",
+        "description": "Matches obfuscated racial slurs",
+        "severity": "high"
+    }
+]

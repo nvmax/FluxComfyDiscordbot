@@ -1,0 +1,47 @@
+[
+    {
+        "trigger_word": "young",
+        "allowed_contexts": [
+            "young adult",
+            "young woman",
+            "young man",
+            "young professional"
+        ],
+        "disallowed_contexts": [
+            "young girl",
+            "young boy",
+            "very young",
+            "too young"
+        ],
+        "description": "Context rules for the word 'young'"
+    },
+    {
+        "trigger_word": "teen",
+        "allowed_contexts": [
+            "nineteen",
+            "eighteen"
+        ],
+        "disallowed_contexts": [
+            "thirteen",
+            "fourteen",
+            "fifteen",
+            "sixteen",
+            "seventeen"
+        ],
+        "description": "Context rules for the word 'teen'"
+    },
+    {
+        "trigger_word": "small",
+        "allowed_contexts": [
+            "small details",
+            "small features",
+            "small objects"
+        ],
+        "disallowed_contexts": [
+            "small girl",
+            "small boy",
+            "small child"
+        ],
+        "description": "Context rules for the word 'small'"
+    }
+]

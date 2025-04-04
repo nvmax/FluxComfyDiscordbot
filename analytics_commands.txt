@@ -1,0 +1,108 @@
+# Analytics Commands Documentation
+
+This document provides information about the analytics and statistics features available in the bot.
+
+## Overview
+
+The bot includes a comprehensive analytics system that tracks:
+- Command usage
+- Image generation statistics
+- User activity
+- Queue performance
+
+## Available Commands
+
+### Basic Statistics
+
+#### `/stats`
+- **Description**: View overall bot statistics
+- **Permissions**: Available to all users
+- **Output**: Shows total images, total users, average generation times (for all, images, and videos), content types (images vs videos), top resolutions, and uptime
+
+### Detailed Analytics (Admin Only)
+
+#### `/command_stats [days]`
+- **Description**: View detailed command usage statistics with charts
+- **Parameters**:
+  - `days`: Number of days to include in the statistics (default: 7)
+- **Permissions**: Requires bot manager role or administrator permissions
+- **Output**: Shows command usage trends, most used commands, and a chart of command usage over time
+
+#### `/image_stats [days]`
+- **Description**: View detailed image generation statistics with charts
+- **Parameters**:
+  - `days`: Number of days to include in the statistics (default: 7)
+- **Permissions**: Requires bot manager role or administrator permissions
+- **Output**: Shows image generation trends, popular resolutions, average generation time, and a chart of image generation over time
+
+#### `/user_stats [days]`
+- **Description**: View user activity statistics with charts
+- **Parameters**:
+  - `days`: Number of days to include in the statistics (default: 7)
+- **Permissions**: Requires bot manager role or administrator permissions
+- **Output**: Shows user activity trends, most active users, and a chart of unique users over time
+
+### Queue Statistics
+
+#### `/queue_status`
+- **Description**: Check the current status of the image generation queue
+- **Permissions**: Available to all users
+- **Output**: Shows queue size, processing count, max concurrent, and your pending requests
+
+#### `/my_requests`
+- **Description**: View your pending and recent image generation requests
+- **Permissions**: Available to all users
+- **Output**: Shows your pending, processing, and recently completed requests with options to cancel pending requests
+
+#### `/queue_stats [days]`
+- **Description**: View queue statistics for admins
+- **Parameters**:
+  - `days`: Number of days to include in the statistics (default: 7)
+- **Permissions**: Requires bot manager role or administrator permissions
+- **Output**: Shows queue performance statistics including success rates and average processing times
+
+### Admin Commands
+
+#### `/reset_stats [confirm]`
+- **Description**: Reset all analytics statistics
+- **Parameters**:
+  - `confirm`: Set to True to confirm the reset (default: False)
+- **Permissions**: Requires bot manager role or administrator permissions
+- **Output**: Confirmation message
+- **Note**: This will delete ALL analytics data and cannot be undone
+
+## Understanding Analytics Data
+
+### Image Generation Time
+The image generation time shown in statistics represents the time taken by ComfyUI to process and generate the image, from when the request is sent to ComfyUI until the result is received.
+
+### Video Generation Statistics
+The analytics system tracks both image and video generations separately. You can see statistics about how many videos vs. images have been generated in the `/stats` and `/image_stats` commands. This helps you understand how users are utilizing the different generation capabilities of the bot.
+
+### Generation Types
+The analytics system tracks different types of image generation:
+- **standard**: Regular image generation using the /comfy command
+- **video**: Video generation using the /video command
+- **redux**: Image generation using the /redux command
+- **reduxprompt**: Image generation using the /reduxprompt command
+- **pulid**: Image generation using the /pulid command
+
+### Command Usage
+Command usage statistics track which commands are used most frequently and by whom, helping to understand user behavior and bot usage patterns.
+
+### Queue Performance
+Queue statistics help monitor the performance of the image generation queue, including success rates, failure rates, and average processing times.
+
+## Troubleshooting
+
+If analytics data appears incorrect or missing:
+
+1. Check that the bot has the necessary permissions to write to the database
+2. Ensure the bot is properly configured to track analytics
+3. If necessary, use the `/reset_stats` command to reset the analytics database and start fresh
+
+## Notes
+
+- Analytics data is stored in a SQLite database file named `analytics.db`
+- The database is automatically created when the bot starts for the first time
+- Statistics are updated in real-time as commands are used and images are generated

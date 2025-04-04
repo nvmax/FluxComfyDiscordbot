@@ -1,0 +1,126 @@
+# Analytics System Technical Documentation
+
+This document provides technical details about the analytics system implementation for developers.
+
+## System Architecture
+
+The analytics system consists of several components:
+
+1. **AnalyticsManager** (`Main/analytics.py`): Core class that handles tracking and analyzing data
+2. **Analytics Commands** (`Main/custom_commands/analytics_commands.py`): Discord commands for viewing statistics
+3. **Database** (`analytics.db`): SQLite database for storing analytics data
+4. **Web Handlers** (`Main/custom_commands/web_handlers.py`): Handlers that track image generation statistics
+
+## Database Schema
+
+The analytics system uses a SQLite database with the following tables:
+
+### command_usage
+- `id`: INTEGER PRIMARY KEY AUTOINCREMENT
+- `command_name`: TEXT NOT NULL
+- `user_id`: TEXT NOT NULL
+- `guild_id`: TEXT
+- `channel_id`: TEXT
+- `timestamp`: REAL NOT NULL
+- `execution_time`: REAL
+- `success`: INTEGER NOT NULL
+
+### image_stats
+- `id`: INTEGER PRIMARY KEY AUTOINCREMENT
+- `user_id`: TEXT NOT NULL
+- `prompt`: TEXT
+- `resolution`: TEXT
+- `loras`: TEXT (JSON string)
+- `upscale_factor`: INTEGER
+- `generation_time`: REAL
+- `timestamp`: REAL NOT NULL
+
+### user_activity
+- `id`: INTEGER PRIMARY KEY AUTOINCREMENT
+- `user_id`: TEXT NOT NULL
+- `guild_id`: TEXT
+- `action_type`: TEXT NOT NULL
+- `timestamp`: REAL NOT NULL
+- `details`: TEXT
+
+### daily_stats
+- `date`: TEXT PRIMARY KEY
+- `total_commands`: INTEGER NOT NULL
+- `total_images`: INTEGER NOT NULL
+- `unique_users`: INTEGER NOT NULL
+- `avg_generation_time`: REAL
+- `popular_commands`: TEXT (JSON string)
+- `popular_resolutions`: TEXT (JSON string)
+
+## Key Functions
+
+### Tracking Functions
+
+- `track_command(command_name, user_id, guild_id, channel_id, execution_time, success)`: Tracks command usage
+- `track_image_generation(user_id, prompt, resolution, loras, upscale_factor, generation_time)`: Tracks image generation
+- `track_user_activity(user_id, action_type, guild_id, details)`: Tracks user activity
+
+### Analysis Functions
+
+- `get_command_stats(days)`: Get command usage statistics for the last N days
+- `get_image_stats(days)`: Get image generation statistics for the last N days
+- `get_user_stats(days)`: Get user activity statistics for the last N days
+- `get_summary_stats()`: Get summary statistics for the bot
+- `reset_stats()`: Reset all analytics statistics
+
+### Visualization Functions
+
+- `generate_command_chart(days)`: Generate a chart of command usage over time
+- `generate_image_chart(days)`: Generate a chart of image generation over time
+- `generate_user_chart(days)`: Generate a chart of user activity over time
+- `create_stats_embed(bot_name)`: Create a Discord embed with bot statistics
+
+## Image Generation Time Tracking
+
+The system tracks image generation time from when the request is sent to ComfyUI until the result is received:
+
+1. In `comfygen.py`, the `get_images` function records the start time when the request is sent to ComfyUI
+2. When the generation is complete, the function calculates the generation time
+3. This time is passed to the `send_final_image` function
+4. The web handler receives this time and passes it to the analytics system
+5. The analytics system stores this time in the database
+
+## Daily Statistics Generation
+
+The system automatically generates daily statistics:
+
+1. The `track_command` function checks if it's time to generate daily stats
+2. If it is, it calls the `generate_daily_stats` function
+3. This function calculates statistics for the current day and stores them in the database
+
+## Extending the System
+
+### Adding New Tracking Metrics
+
+To add new tracking metrics:
+
+1. Add a new table to the database schema in `init_db` function
+2. Create a new tracking function in the `AnalyticsManager` class
+3. Call this function from the appropriate places in the code
+
+### Adding New Commands
+
+To add new analytics commands:
+
+1. Add a new command function in `analytics_commands.py`
+2. Use the `@track_command_usage` decorator to track usage of the command
+3. Use the `@has_analytics_permission()` decorator if the command should be admin-only
+
+## Troubleshooting
+
+### Common Issues
+
+- **Missing Data**: Check that the tracking functions are being called correctly
+- **Incorrect Statistics**: Verify that the database queries are correct
+- **Performance Issues**: Consider optimizing database queries or adding indexes
+
+### Debugging
+
+- Enable debug logging to see more detailed information about the analytics system
+- Use the `reset_stats` function to reset the analytics database if needed
+- Check the database directly using SQLite tools to verify data integrity

@@ -20,10 +20,10 @@ from config import (
     CHANNEL_IDS,
     ALLOWED_SERVERS,
     BOT_MANAGER_ROLE_ID,
-    ENABLE_PROMPT_ENHANCEMENT,  
-    AI_PROVIDER,               
+    ENABLE_PROMPT_ENHANCEMENT,
+    AI_PROVIDER,
     LMSTUDIO_HOST,
-    LMSTUDIO_PORT             
+    LMSTUDIO_PORT
 )
 from Main.custom_commands import (
     RequestItem, ReduxRequestItem, ReduxPromptRequestItem,
@@ -31,9 +31,14 @@ from Main.custom_commands import (
 )
 from Main.database import init_db, get_all_image_info
 from Main.custom_commands.web_handlers import handle_generated_image
-from Main.utils import load_json
+from Main.utils import load_json, get_user_priority
 from web_server import start_web_server
 from Main.lora_monitor import setup_lora_monitor, cleanup_lora_monitor
+from Main.queue_system import ImageGenerationQueue, QueuePriority, QueueItem
+from Main.custom_commands.queue_commands import setup_queue_commands
+from Main.custom_commands.analytics_commands import setup_analytics_commands
+from Main.custom_commands.filter_commands import setup_filter_commands
+from Main.analytics import analytics_manager
 try:
     from Main.LMstudio_bot.ai_providers import AIProviderFactory
 except ImportError:
@@ -71,14 +76,18 @@ discord_logger.setLevel(logging.INFO)
 class MyBot(discord_commands.Bot):
     def __init__(self):
         super().__init__(command_prefix=COMMAND_PREFIX, intents=intents)
-        self.subprocess_queue = asyncio.Queue()
-        self.pending_requests = {}
+        self.subprocess_queue = asyncio.Queue()  # Keep for backward compatibility
+        self.pending_requests = {}  # Keep for backward compatibility
         self.ai_provider = None
         self.allowed_channels = set(CHANNEL_IDS)
         self.resolution_options = []
         self.lora_options = []
         self.tree.on_error = self.on_tree_error
         setup_lora_monitor(self)
+
+        # Initialize the enhanced queue system
+        self.image_queue = ImageGenerationQueue(max_concurrent=3, rate_limit=10)
+        self.user_priorities = {}  # User ID -> priority level
 
     def get_python_command(self):
         """Get the appropriate Python command based on the platform"""
@@ -92,11 +101,11 @@ class MyBot(discord_commands.Bot):
             # Create temp directory with absolute path
             temp_dir = os.path.abspath(os.path.join('Main', 'DataSets', 'temp'))
             os.makedirs(temp_dir, exist_ok=True)
-            
+
             # Use the filenames from the request item
             image1_path = os.path.join(temp_dir, request_item.image1_filename)
             image2_path = os.path.join(temp_dir, request_item.image2_filename)
-            
+
             # Save images with request ID in filenames
             with open(image1_path, 'wb') as f:
                 f.write(request_item.image1)
@@ -110,7 +119,7 @@ class MyBot(discord_commands.Bot):
             logger.debug(f"Saved images at: {image1_path}, {image2_path}")
 
             python_cmd = self.get_python_command()
-            
+
             subprocess.Popen([
                 python_cmd,
                 'comfygen.py',
@@ -127,9 +136,9 @@ class MyBot(discord_commands.Bot):
                 image1_path,
                 image2_path
             ])
-            
+
             logger.debug(f"Started redux processing for request {request_id}")
-            
+
         except Exception as e:
             logger.error(f"Error in process_redux_request: {e}", exc_info=True)
             if request_id in self.pending_requests:
@@ -139,62 +148,90 @@ class MyBot(discord_commands.Bot):
     async def process_subprocess_queue(self):
         while True:
             try:
+                # Get request from old queue for backward compatibility
                 request_item = await self.subprocess_queue.get()
-                request_id = str(uuid.uuid4())
-                self.pending_requests[request_id] = request_item
 
-                if isinstance(request_item, ReduxRequestItem):
-                    await self.process_redux_request(request_id, request_item)
-                elif isinstance(request_item, ReduxPromptRequestItem):
-                    # Image is already saved, use the path directly
-                    python_cmd = self.get_python_command()
-                    subprocess.Popen([
-                        python_cmd,
-                        'comfygen.py',
-                        request_id,
-                        request_item.user_id,
-                        request_item.channel_id,
-                        request_item.interaction_id,
-                        request_item.original_message_id,
-                        'reduxprompt',
-                        request_item.prompt,
-                        request_item.resolution,
-                        str(request_item.strength),
-                        request_item.workflow_filename,
-                        request_item.image_path  # Use the already saved image path
-                    ])
+                # Add to new queue system with appropriate priority
+                priority = get_user_priority(self, str(request_item.user_id), QueuePriority.NORMAL)
+                success, request_id, message = await self.image_queue.add_request(request_item, priority)
+
+                if success:
+                    # Store in pending_requests for backward compatibility
+                    self.pending_requests[request_id] = request_item
+                    logger.info(f"Added request to queue: {request_id} - {message}")
                 else:
-                    # Standard request processing
-                    python_cmd = self.get_python_command()
-                    subprocess.Popen([
-                        python_cmd,
-                        'comfygen.py',
-                        request_id,
-                        request_item.user_id,
-                        request_item.channel_id,
-                        request_item.interaction_id,
-                        request_item.original_message_id,
-                        'standard',  # Indicate this is a standard request
-                        request_item.prompt,
-                        request_item.resolution,
-                        json.dumps(request_item.loras),
-                        str(request_item.upscale_factor),
-                        request_item.workflow_filename,  # Pass the workflow filename
-                        str(request_item.seed) if request_item.seed is not None else "None",
-                        str(request_item.is_pulid).lower()  # Pass is_pulid flag
-                    ])
+                    logger.warning(f"Failed to add request to queue: {message}")
 
+                # Mark task as done in old queue
                 self.subprocess_queue.task_done()
-                
+
             except Exception as e:
                 logger.error(f"Error in process_subprocess_queue: {e}")
+
+    async def process_queue_item(self, queue_item):
+        """Process a queue item from the enhanced queue system"""
+        try:
+            request_id = queue_item.request_id
+            request_item = queue_item.request_item
+
+            # Store in pending_requests for backward compatibility
+            self.pending_requests[request_id] = request_item
+
+            if isinstance(request_item, ReduxRequestItem):
+                # Process Redux request
+                await self.process_redux_request(request_id, request_item)
+                return True
+            elif isinstance(request_item, ReduxPromptRequestItem):
+                # Process ReduxPrompt request
+                python_cmd = self.get_python_command()
+                subprocess.Popen([
+                    python_cmd,
+                    'comfygen.py',
+                    request_id,
+                    request_item.user_id,
+                    request_item.channel_id,
+                    request_item.interaction_id,
+                    request_item.original_message_id,
+                    'reduxprompt',
+                    request_item.prompt,
+                    request_item.resolution,
+                    str(request_item.strength),
+                    request_item.workflow_filename,
+                    request_item.image_path  # Use the already saved image path
+                ])
+                return True
+            else:
+                # Standard request processing
+                python_cmd = self.get_python_command()
+                subprocess.Popen([
+                    python_cmd,
+                    'comfygen.py',
+                    request_id,
+                    request_item.user_id,
+                    request_item.channel_id,
+                    request_item.interaction_id,
+                    request_item.original_message_id,
+                    'standard',  # Indicate this is a standard request
+                    request_item.prompt,
+                    request_item.resolution,
+                    json.dumps(request_item.loras),
+                    str(request_item.upscale_factor),
+                    request_item.workflow_filename,  # Pass the workflow filename
+                    str(request_item.seed) if request_item.seed is not None else "None",
+                    str(request_item.is_pulid).lower()  # Pass is_pulid flag
+                ])
+                return True
+
+        except Exception as e:
+            logger.error(f"Error processing queue item: {e}")
+            return False
 
     async def setup_hook(self):
         """Setup hook that runs before the bot starts."""
         logger.info("=== Starting Bot Setup ===")
         logger.info("Initializing database...")
         init_db()
-        
+
         logger.info("Setting up AI provider...")
         try:
             if ENABLE_PROMPT_ENHANCEMENT and AIProviderFactory:
@@ -225,10 +262,10 @@ class MyBot(discord_commands.Bot):
             lora_data = load_json('lora.json')
             self.lora_options = lora_data['available_loras']
             logger.info(f"Loaded {len(self.lora_options)} LoRA options")
-            
+
             # Register redux command after options are loaded
             logger.info("Registering redux command...")
-            
+
             @self.tree.command(
                 name="redux",
                 description="Generate an image using two reference images"
@@ -245,7 +282,7 @@ class MyBot(discord_commands.Bot):
                     # Check if channel is allowed
                     if interaction.channel_id not in self.allowed_channels:
                         await interaction.response.send_message(
-                            "This command can only be used in specific channels.", 
+                            "This command can only be used in specific channels.",
                             ephemeral=True
                         )
                         return
@@ -260,7 +297,7 @@ class MyBot(discord_commands.Bot):
                         f"An error occurred: {str(e)}",
                         ephemeral=True
                     )
-            
+
         except Exception as e:
             logger.error(f"Failed to load configuration: {e}", exc_info=True)
             raise
@@ -268,18 +305,34 @@ class MyBot(discord_commands.Bot):
         logger.info("Setting up commands and views...")
         # Register commands
         await setup_commands(self)
-        
+
         # Register persistent views
         from Main.custom_commands.views import PuLIDImageView, ReduxImageView, ImageControlView
         PuLIDImageView.register_view(self)
         ReduxImageView.register_view(self)
         ImageControlView.register_view(self)
         logger.info("Views registered successfully")
-        
-        # Start processing subprocess queue
+
+        # Start processing subprocess queue (for backward compatibility)
         logger.info("Starting subprocess queue...")
         self.bg_task = self.loop.create_task(self.process_subprocess_queue())
-        
+
+        # Start enhanced queue processing
+        logger.info("Starting enhanced image queue...")
+        self.queue_task = self.loop.create_task(self.image_queue.process_queue(self.process_queue_item))
+
+        # Setup queue commands
+        logger.info("Setting up queue commands...")
+        await setup_queue_commands(self)
+
+        # Setup analytics commands
+        logger.info("Setting up analytics commands...")
+        await setup_analytics_commands(self)
+
+        # Setup filter commands
+        logger.info("Setting up filter commands...")
+        await setup_filter_commands(self)
+
         logger.info("Starting web server...")
         await start_web_server(self)
 
@@ -335,7 +388,7 @@ class MyBot(discord_commands.Bot):
             lora_data = load_json('lora.json')
             self.lora_options = lora_data['available_loras']
             logger.info("Successfully reloaded options")
-            
+
             # Reinitialize AI provider if enabled
             if ENABLE_PROMPT_ENHANCEMENT:
                 try:
@@ -347,7 +400,7 @@ class MyBot(discord_commands.Bot):
                 except Exception as e:
                     logger.error(f"Failed to reinitialize AI provider: {e}")
                     self.ai_provider = None
-                    
+
         except Exception as e:
             logger.error(f"Error reloading options: {e}")
             raise
@@ -359,7 +412,7 @@ async def main():
     if not DISCORD_TOKEN:
         logger.error("No Discord token found. Please check your .env file")
         return
-        
+
     try:
         async with bot:
             logger.info("Initializing bot connection...")

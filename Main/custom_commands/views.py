@@ -20,12 +20,12 @@ class PaginatedLoRASelect(Select):
     def __init__(self, lora_options: List[dict], page: int = 0, selected_loras: List[str] = None):
         self.all_options = []
         selected_loras = selected_loras or []
-        
+
         # Calculate page slicing
         start_idx = page * 25
         end_idx = min(start_idx + 25, len(lora_options))
         page_options = lora_options[start_idx:end_idx]
-        
+
         # Create options only for current page
         for lora in page_options:
             self.all_options.append(
@@ -35,7 +35,7 @@ class PaginatedLoRASelect(Select):
                     default=bool(lora['file'] in selected_loras)
                 )
             )
-        
+
         total_pages = (len(lora_options) - 1) // 25 + 1
         super().__init__(
             placeholder=f"Select LoRAs (Page {page + 1}/{total_pages})",
@@ -49,44 +49,44 @@ class PaginatedLoRASelect(Select):
         try:
             # Get current page options
             current_page_values = {option.value for option in self.options}
-            
+
             # Determine which selections set to use
-            selections = (view.all_selections if hasattr(view, 'all_selections') 
-                        else view.all_selected_loras if hasattr(view, 'all_selected_loras') 
+            selections = (view.all_selections if hasattr(view, 'all_selections')
+                        else view.all_selected_loras if hasattr(view, 'all_selected_loras')
                         else set())
-            
+
             # Remove all options from current page from selections
             selections = {
-                selection for selection in selections 
+                selection for selection in selections
                 if selection not in current_page_values
             }
-            
+
             # Add only currently selected values
             selections.update(self.values)
-            
+
             # Update the view's selection set
             if hasattr(view, 'all_selections'):
                 view.all_selections = selections
             else:
                 view.all_selected_loras = selections
-            
+
             # Update page selections tracking
             if hasattr(view, '_page_selections'):
                 view._page_selections[view.page] = set(self.values)
-            
+
             # Update confirm button
             for child in view.children:
                 if isinstance(child, Button) and "confirm" in str(child.custom_id):
                     child.label = f"Confirm Selection ({len(selections)} LoRAs)"
                     break
-                    
+
             # Recreate the select with updated defaults
             new_select = PaginatedLoRASelect(
                 view.bot.lora_options,
                 view.page,
                 list(selections)
             )
-            
+
             # Replace the old select with the new one
             for i, child in enumerate(view.children):
                 if isinstance(child, PaginatedLoRASelect):
@@ -94,13 +94,13 @@ class PaginatedLoRASelect(Select):
                     view.remove_item(child)
                     view.add_item(new_select)
                     break
-            
+
             # Update the view
             await interaction.response.edit_message(view=view)
-            
+
             logger.debug(f"Updated selections: {selections}")
             logger.debug(f"Current page values: {self.values}")
-            
+
         except Exception as e:
             logger.error(f"Error in LoRA select callback: {str(e)}", exc_info=True)
             await interaction.response.defer()
@@ -120,7 +120,7 @@ class LoRAView(View):
     def update_view(self):
         """Update view with current selections"""
         self.clear_items()
-        
+
         # Create new select menu with current selections
         self.lora_select = PaginatedLoRASelect(
             self.bot.lora_options,
@@ -128,10 +128,10 @@ class LoRAView(View):
             list(self.all_selections)  # Pass all selections to show defaults
         )
         self.add_item(self.lora_select)
-        
+
         # Add navigation buttons
         total_pages = (len(self.bot.lora_options) - 1) // 25 + 1
-        
+
         if self.page > 0:
             previous_button = Button(
                 custom_id=f"previous_page_{self.page}",
@@ -141,7 +141,7 @@ class LoRAView(View):
             )
             previous_button.callback = self.previous_page_callback
             self.add_item(previous_button)
-        
+
         if self.page < total_pages - 1:
             next_button = Button(
                 custom_id=f"next_page_{self.page}",
@@ -151,7 +151,7 @@ class LoRAView(View):
             )
             next_button.callback = self.next_page_callback
             self.add_item(next_button)
-        
+
         # Always show selection count
         confirm_button = Button(
             custom_id=f"confirm_{self.page}",
@@ -178,17 +178,17 @@ class LoRAView(View):
             start_idx = self.page * 25
             end_idx = min(start_idx + 25, len(self.bot.lora_options))
             current_page_files = {option.value for option in self.lora_select.options}
-            
+
             # Update selections for current page
             self.all_selections = {
-                selection for selection in self.all_selections 
+                selection for selection in self.all_selections
                 if selection not in current_page_files
             }
             if self.lora_select.values:
                 self.all_selections.update(self.lora_select.values)
-            
+
             self._page_selections[self.page] = set(self.lora_select.values)
-        
+
         self.page = max(0, self.page - 1)
         self.update_view()
         await interaction.response.edit_message(view=self)
@@ -200,17 +200,17 @@ class LoRAView(View):
             start_idx = self.page * 25
             end_idx = min(start_idx + 25, len(self.bot.lora_options))
             current_page_files = {option.value for option in self.lora_select.options}
-            
+
             # Update selections for current page
             self.all_selections = {
-                selection for selection in self.all_selections 
+                selection for selection in self.all_selections
                 if selection not in current_page_files
             }
             if self.lora_select.values:
                 self.all_selections.update(self.lora_select.values)
-            
+
             self._page_selections[self.page] = set(self.lora_select.values)
-        
+
         total_pages = (len(self.bot.lora_options) - 1) // 25 + 1
         self.page = min(self.page + 1, total_pages - 1)
         self.update_view()
@@ -223,17 +223,17 @@ class LoRAView(View):
             start_idx = self.page * 25
             end_idx = min(start_idx + 25, len(self.bot.lora_options))
             current_page_files = {option.value for option in self.lora_select.options}
-            
+
             # Update selections for current page
             self.all_selections = {
-                selection for selection in self.all_selections 
+                selection for selection in self.all_selections
                 if selection not in current_page_files
             }
             if self.lora_select.values:
                 self.all_selections.update(self.lora_select.values)
-            
+
             self._page_selections[self.page] = set(self.lora_select.values)
-            
+
         self.selected_loras = list(self.all_selections)
         logger.debug(f"Final LoRA selection: {self.selected_loras}")
         logger.debug(f"Page selections at confirm: {self._page_selections}")
@@ -262,17 +262,17 @@ class LoRAView(View):
         """Check if the interaction is valid"""
         if not await super().interaction_check(interaction):
             return False
-            
+
         if not hasattr(self, 'user_id'):
             self.user_id = interaction.user.id
-            
+
         if interaction.user.id != self.user_id:
             await interaction.response.send_message(
-                "You cannot use these controls.", 
+                "You cannot use these controls.",
                 ephemeral=True
             )
             return False
-            
+
         return True
 
 class ResolutionSelect(Select):
@@ -286,7 +286,7 @@ class ResolutionSelect(Select):
             )
             for res in bot.resolution_options
         ]
-        
+
         super().__init__(
             placeholder="Choose resolution",
             min_values=1,
@@ -307,10 +307,10 @@ class ResolutionSelect(Select):
             # Update the resolution in the parent view
             if hasattr(self.view, 'selected_resolution'):
                 self.view.selected_resolution = self.values[0]
-            
+
             # Acknowledge the interaction
             await interaction.response.defer(ephemeral=True)
-            
+
         except Exception as e:
             logger.error(f"Error in resolution select callback: {str(e)}", exc_info=True)
             if not interaction.response.is_done():
@@ -343,7 +343,7 @@ class OptionsView(View):
         self.selected_seed = original_seed
         self.original_upscale_factor = original_upscale_factor
         self.page = 0
-        
+
         logger.debug(f"Initializing OptionsView with original LoRAs: {self.all_selected_loras}")
         self.setup_view()
 
@@ -360,7 +360,7 @@ class OptionsView(View):
         start_idx = self.page * 25
         end_idx = min(start_idx + 25, len(self.bot.lora_options))
         current_page_loras = [lora['file'] for lora in self.bot.lora_options[start_idx:end_idx]]
-        
+
         # Update current page selections
         self.current_page_selections = {lora for lora in self.all_selected_loras if lora in current_page_loras}
 
@@ -374,7 +374,7 @@ class OptionsView(View):
 
         # Navigation buttons (Row 2)
         total_pages = (len(self.bot.lora_options) - 1) // 25 + 1
-        
+
         if total_pages > 1:
             if self.page > 0:
                 prev_button = Button(
@@ -415,14 +415,14 @@ class OptionsView(View):
         start_idx = self.page * 25
         end_idx = min(start_idx + 25, len(self.bot.lora_options))
         current_page_loras = {lora['file'] for lora in self.bot.lora_options[start_idx:end_idx]}
-        
+
         # Remove current page LoRAs from all selections
         self.all_selected_loras = {lora for lora in self.all_selected_loras if lora not in current_page_loras}
-        
+
         # Add new selections from current page
         if self.lora_select.values:
             self.all_selected_loras.update(self.lora_select.values)
-        
+
         logger.debug(f"Updated selections: {self.all_selected_loras}")
 
     async def resolution_select_callback(self, interaction: discord.Interaction):
@@ -460,22 +460,22 @@ class OptionsView(View):
         try:
             # Update selections one final time
             await self.update_current_page_selections()
-            
+
             logger.debug(f"Final LoRA selections at confirmation: {self.all_selected_loras}")
-            
+
             # Process the prompt with LoRA trigger words
             lora_config = load_json('lora.json')
             base_prompt = re.sub(r'\s*\(Timestamp:.*?\)', '', self.original_prompt)
-            
+
             # First remove ALL existing trigger words from the base prompt
             for lora in lora_config['available_loras']:
                 if lora.get('add_prompt'):
                     trigger_word = lora['add_prompt'].strip()
                     base_prompt = re.sub(fr',?\s*{re.escape(trigger_word)},?\s*', '', base_prompt, flags=re.IGNORECASE)
-            
+
             # Clean up any duplicate commas and whitespace
             base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
-            
+
             # Add trigger words from currently selected LoRAs
             additional_prompts = []
             for lora_file in self.all_selected_loras:
@@ -487,16 +487,16 @@ class OptionsView(View):
                     trigger_word = lora_info['add_prompt'].strip()
                     if trigger_word:
                         additional_prompts.append(trigger_word)
-            
+
             # Combine base prompt with new trigger words
             updated_prompt = base_prompt
             if additional_prompts:
                 if not updated_prompt.endswith(','):
                     updated_prompt += ','
                 updated_prompt += ' ' + ', '.join(additional_prompts)
-            
+
             updated_prompt = updated_prompt.strip(' ,')
-            
+
             try:
                 if self.original_interaction:
                     await self.original_interaction.delete_original_response()
@@ -510,7 +510,7 @@ class OptionsView(View):
                 f"Updated: {updated_prompt}\n\n"
                 f"LoRAs: {', '.join(self.all_selected_loras) if self.all_selected_loras else 'None'}"
             )
-            
+
             await interaction.response.send_modal(PromptModal(
                 self.bot,
                 updated_prompt,
@@ -521,17 +521,17 @@ class OptionsView(View):
                 self.original_interaction,
                 self.selected_seed
             ))
-            
+
             # Send changes as a follow-up message
             await interaction.followup.send(changes_message, ephemeral=True)
-                
+
         except Exception as e:
             logger.error(f"Error in confirm callback: {e}", exc_info=True)
             await interaction.response.send_message(
-                f"An error occurred while processing your selection: {str(e)}", 
+                f"An error occurred while processing your selection: {str(e)}",
                 ephemeral=True
             )
-            
+
 def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls.resolution_select.callback = cls.resolution_select_callback
@@ -569,26 +569,26 @@ class PromptModal(Modal, title="Edit Prompt"):
         try:
             lora_config = load_json('lora.json')
             base_prompt = re.sub(r'\s*\(Timestamp:.*?\)', '', self.prompt.value)
-            
+
             # Clean base prompt of any existing LoRA trigger words
             for lora in lora_config['available_loras']:
                 if lora.get('prompt'):
                     base_prompt = base_prompt.replace(lora['prompt'], '').strip()
-            
+
             # Clean up multiple commas and whitespace
             base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
-            
+
             # Get LoRA trigger words
             additional_prompts = []
             for lora in self.loras:
                 lora_info = next((l for l in lora_config['available_loras'] if l['file'] == lora), None)
                 if lora_info and lora_info.get('prompt') and lora_info['prompt'].strip():
                     additional_prompts.append(lora_info['prompt'].strip())
-            
+
             # Join trigger words with commas and append to prompt
             trigger_words = ", ".join(additional_prompts) if additional_prompts else ""
             full_prompt = f"{base_prompt}, {trigger_words}" if trigger_words else base_prompt
-            
+
             try:
                 seed = int(self.seed.value) if self.seed.value else None
             except ValueError:
@@ -596,11 +596,11 @@ class PromptModal(Modal, title="Edit Prompt"):
 
             workflow = load_json(fluxversion)
             request_uuid = str(uuid.uuid4())
-            
-            workflow = update_workflow(workflow, 
+
+            workflow = update_workflow(workflow,
                                   full_prompt,
-                                  self.resolution, 
-                                  self.loras, 
+                                  self.resolution,
+                                  self.loras,
                                   self.upscale_factor,
                                   seed)
 
@@ -624,7 +624,7 @@ class PromptModal(Modal, title="Edit Prompt"):
                 seed=seed
             )
             await interaction.client.subprocess_queue.put(request_item)
-            
+
         except Exception as e:
             logger.error(f"Error in modal submit: {e}", exc_info=True)
             await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
@@ -634,7 +634,7 @@ class ReduxModal(Modal, title='Redux Image Generator'):
         super().__init__()
         self.bot = bot
         self.resolution = resolution
-        
+
         self.strength1 = TextInput(
             label="Strength for Image 1 (0.1-1.0)",
             placeholder="Enter a number between 0.1 and 1.0",
@@ -642,7 +642,7 @@ class ReduxModal(Modal, title='Redux Image Generator'):
             required=True,
             max_length=4
         )
-        
+
         self.strength2 = TextInput(
             label="Strength for Image 2 (0.1-1.0)",
             placeholder="Enter a number between 0.1 and 1.0",
@@ -650,7 +650,7 @@ class ReduxModal(Modal, title='Redux Image Generator'):
             required=True,
             max_length=4
         )
-        
+
         self.add_item(self.strength1)
         self.add_item(self.strength2)
 
@@ -660,13 +660,13 @@ class ReduxModal(Modal, title='Redux Image Generator'):
             try:
                 strength1 = float(self.strength1.value)
                 strength2 = float(self.strength2.value)
-                
+
                 if not (0.1 <= strength1 <= 1.0 and 0.1 <= strength2 <= 1.0):
                     raise ValueError("Strength values must be between 0.1 and 1.0")
-                    
+
             except ValueError as e:
                 await interaction.response.send_message(
-                    f"Invalid strength values: {str(e)}", 
+                    f"Invalid strength values: {str(e)}",
                     ephemeral=True
                 )
                 return
@@ -682,7 +682,7 @@ class ReduxModal(Modal, title='Redux Image Generator'):
             try:
                 # Get first image
                 first_prompt = await interaction.followup.send(
-                    "Please send your first image", 
+                    "Please send your first image",
                     ephemeral=True,
                     wait=True
                 )
@@ -692,10 +692,10 @@ class ReduxModal(Modal, title='Redux Image Generator'):
                 await msg1.delete()
                 # Delete first prompt after image is received
                 await first_prompt.delete()
-                
+
                 # Get second image
                 second_prompt = await interaction.followup.send(
-                    "Now send your second image", 
+                    "Now send your second image",
                     ephemeral=True,
                     wait=True
                 )
@@ -738,11 +738,11 @@ class ReduxModal(Modal, title='Redux Image Generator'):
 
             except asyncio.TimeoutError:
                 await interaction.followup.send(
-                    "Timed out waiting for image upload", 
+                    "Timed out waiting for image upload",
                     ephemeral=True,
                     wait=True
                 )
-                
+
         except Exception as e:
             logger.error(f"Error in redux modal: {str(e)}", exc_info=True)
             try:
@@ -816,17 +816,17 @@ class ReduxPromptModal(Modal, title='Redux Prompt'):
             )
 
             def check_message(m):
-                return (m.author.id == interaction.user.id and 
-                        m.channel.id == interaction.channel.id and 
+                return (m.author.id == interaction.user.id and
+                        m.channel.id == interaction.channel.id and
                         len(m.attachments) > 0)
 
             try:
                 # Wait for image upload
                 message = await self.bot.wait_for('message', timeout=300.0, check=check_message)
-                
+
                 # Get the first attachment
                 attachment = message.attachments[0]
-                
+
                 # Check if it's an image
                 if not attachment.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                     await interaction.followup.send(
@@ -952,12 +952,12 @@ class ReduxProcessingView(View):
             "Please upload the first image (send it as a message attachment)",
             ephemeral=True
         )
-        
+
         def check(m):
             return (m.author == interaction.user and
                    m.channel == interaction.channel and
                    len(m.attachments) > 0)
-        
+
         try:
             msg = await self.bot.wait_for('message', timeout=60.0, check=check)
             self.image1 = await msg.attachments[0].read()
@@ -968,10 +968,10 @@ class ReduxProcessingView(View):
             button.label = "✓ Image 1 Uploaded"
             await interaction.edit_original_response(view=self)
             await msg.delete()
-            
+
             if self.image1 and self.image2:
                 await self.process_images(interaction)
-                
+
         except TimeoutError:
             await interaction.followup.send("Timed out waiting for image upload", ephemeral=True)
 
@@ -981,12 +981,12 @@ class ReduxProcessingView(View):
             "Please upload the second image (send it as a message attachment)",
             ephemeral=True
         )
-        
+
         def check(m):
             return (m.author == interaction.user and
                    m.channel == interaction.channel and
                    len(m.attachments) > 0)
-        
+
         try:
             msg = await self.bot.wait_for('message', timeout=60.0, check=check)
             self.image2 = await msg.attachments[0].read()
@@ -997,10 +997,10 @@ class ReduxProcessingView(View):
             button.label = "✓ Image 2 Uploaded"
             await interaction.edit_original_response(view=self)
             await msg.delete()
-            
+
             if self.image1 and self.image2:
                 await self.process_images(interaction)
-                
+
         except TimeoutError:
             await interaction.followup.send("Timed out waiting for image upload", ephemeral=True)
 
@@ -1008,11 +1008,11 @@ class ReduxProcessingView(View):
         try:
             # Load and modify the Redux workflow
             workflow = load_json('Redux.json')
-            
+
             # Update resolution
             if '49' in workflow:
                 workflow['49']['inputs']['ratio_selected'] = self.resolution
-            
+
             # Update strength values for the switching conditioning nodes
             if '68' in workflow:  # First switch conditioning node
                 if '53' in workflow:
@@ -1020,7 +1020,7 @@ class ReduxProcessingView(View):
             if '67' in workflow:  # Second switch conditioning node
                 if '44' in workflow:
                     workflow['44']['inputs']['conditioning_to_strength'] = self.strength2
-            
+
             # Generate workflow filename with request ID
             workflow_filename = f'redux_{self.request_id}.json'
             save_json(workflow_filename, workflow)
@@ -1028,11 +1028,11 @@ class ReduxProcessingView(View):
             # Save images in the temp directory
             temp_dir = os.path.join('Main', 'temp')
             os.makedirs(temp_dir, exist_ok=True)
-            
+
             # Save images with request ID in filenames
             image1_path = os.path.join(temp_dir, self.image1_filename)
             image2_path = os.path.join(temp_dir, self.image2_filename)
-            
+
             with open(image1_path, 'wb') as f:
                 f.write(self.image1)
             with open(image2_path, 'wb') as f:
@@ -1043,7 +1043,7 @@ class ReduxProcessingView(View):
                 workflow['40']['inputs']['image'] = self.image1_filename
             if '46' in workflow:
                 workflow['46']['inputs']['image'] = self.image2_filename
-            
+
             # Save updated workflow
             save_json(workflow_filename, workflow)
 
@@ -1098,7 +1098,7 @@ class ReduxProcessingView(View):
 
             # Start cleanup task
             asyncio.create_task(cleanup_files())
-            
+
         except Exception as e:
             logger.error(f"Error processing redux images: {str(e)}")
             await interaction.followup.send(
@@ -1120,11 +1120,11 @@ class ImageControlView(View):
     @discord.ui.button(label="Options", style=discord.ButtonStyle.primary, custom_id="options_button", emoji="📚")
     async def options(self, interaction: discord.Interaction, button: Button):
         options_view = OptionsView(
-            self.bot, 
-            self.original_prompt, 
-            self.image_filename, 
-            self.original_resolution, 
-            self.original_loras, 
+            self.bot,
+            self.original_prompt,
+            self.image_filename,
+            self.original_resolution,
+            self.original_loras,
             self.original_upscale_factor,
             self.original_seed,
             interaction
@@ -1135,15 +1135,15 @@ class ImageControlView(View):
     async def regenerate(self, interaction: discord.Interaction, button: Button):
         try:
             await interaction.response.defer(ephemeral=False)
-            
+
             workflow = load_json(fluxversion)
             request_uuid = str(uuid.uuid4())
             new_seed = generate_random_seed()
-            
-            workflow = update_workflow(workflow, 
-                                    self.original_prompt, 
-                                    self.original_resolution, 
-                                    self.original_loras, 
+
+            workflow = update_workflow(workflow,
+                                    self.original_prompt,
+                                    self.original_resolution,
+                                    self.original_loras,
                                     self.original_upscale_factor,
                                     new_seed)
 
@@ -1224,26 +1224,26 @@ class PromptModal(Modal, title="Edit Prompt"):
         try:
             lora_config = load_json('lora.json')
             base_prompt = re.sub(r'\s*\(Timestamp:.*?\)', '', self.prompt.value)
-            
+
             # Clean base prompt of any existing LoRA trigger words
             for lora in lora_config['available_loras']:
                 if lora.get('prompt'):
                     base_prompt = base_prompt.replace(lora['prompt'], '').strip()
-            
+
             # Clean up multiple commas and whitespace
             base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
-            
+
             # Get LoRA trigger words
             additional_prompts = []
             for lora in self.loras:
                 lora_info = next((l for l in lora_config['available_loras'] if l['file'] == lora), None)
                 if lora_info and lora_info.get('prompt') and lora_info['prompt'].strip():
                     additional_prompts.append(lora_info['prompt'].strip())
-            
+
             # Join trigger words with commas and append to prompt
             trigger_words = ", ".join(additional_prompts) if additional_prompts else ""
             full_prompt = f"{base_prompt}, {trigger_words}" if trigger_words else base_prompt
-            
+
             try:
                 seed = int(self.seed.value) if self.seed.value else None
             except ValueError:
@@ -1251,11 +1251,11 @@ class PromptModal(Modal, title="Edit Prompt"):
 
             workflow = load_json(fluxversion)
             request_uuid = str(uuid.uuid4())
-            
-            workflow = update_workflow(workflow, 
+
+            workflow = update_workflow(workflow,
                                   full_prompt,
-                                  self.resolution, 
-                                  self.loras, 
+                                  self.resolution,
+                                  self.loras,
                                   self.upscale_factor,
                                   seed)
 
@@ -1279,7 +1279,7 @@ class PromptModal(Modal, title="Edit Prompt"):
                 seed=seed
             )
             await interaction.client.subprocess_queue.put(request_item)
-            
+
         except Exception as e:
             logger.error(f"Error in modal submit: {e}", exc_info=True)
             await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
@@ -1295,27 +1295,164 @@ class LoraInfoView(View):
         self.message = None
         self.update_buttons()
 
-    def get_page_content(self) -> str:
-        """Get the content for the current page"""
+    def extract_civitai_model_id(self, url: str) -> str:
+        """Extract the model ID from a Civitai URL"""
+        if not url or 'civitai.com' not in url:
+            return None
+
+        # Try to extract the model ID using regex
+        import re
+        model_id_match = re.search(r'models/([0-9]+)', url)
+        if model_id_match:
+            return model_id_match.group(1)
+        return None
+
+    async def get_preview_image_url(self, url: str) -> str:
+        """Get a preview image URL for a Civitai model"""
+        if not url or 'civitai.com' not in url:
+            logger.warning(f"Not a Civitai URL: {url}")
+            return None
+
+        # Extract the model ID from the URL
+        model_id = self.extract_civitai_model_id(url)
+        logger.info(f"Extracted model ID: {model_id} from URL: {url}")
+        if not model_id:
+            logger.warning(f"Could not extract model ID from URL: {url}")
+            return None
+
+        try:
+            # Use Civitai's official API to get model information
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                api_url = f"https://civitai.com/api/v1/models/{model_id}"
+                logger.info(f"Fetching model info from: {api_url}")
+
+                async with session.get(api_url) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        logger.info(f"Received API response for model {model_id}")
+
+                        # Get a suitable image from the model's images array
+                        if data.get('modelVersions') and len(data['modelVersions']) > 0:
+                            version = data['modelVersions'][0]
+                            if version.get('images') and len(version['images']) > 0:
+                                # First, try to find a non-video image
+                                for image in version['images']:
+                                    if image.get('url') and not image['url'].lower().endswith('.mp4'):
+                                        image_url = image['url']
+                                        logger.info(f"Found static image URL in API response: {image_url}")
+                                        return image_url
+
+                                # If no static image is found, try to use the model's cover image
+                                if data.get('name'):
+                                    model_name = data['name']
+                                    logger.info(f"Using model name for thumbnail: {model_name}")
+                                    # Use a placeholder image service with the model name
+                                    return f"https://placehold.co/600x400/black/white?text={model_name}"
+
+                                # As a last resort, use the first image even if it's a video
+                                image = version['images'][0]
+                                if image.get('url'):
+                                    image_url = image['url']
+                                    logger.info(f"Using first available image (may be video): {image_url}")
+                                    return image_url
+
+                        logger.warning(f"No images found in API response for model {model_id}")
+                    else:
+                        logger.warning(f"API request failed with status {response.status} for model {model_id}")
+        except Exception as e:
+            logger.error(f"Error fetching preview image from Civitai API: {e}")
+
+        # Fallback to a placeholder image if the API fails
+        fallback_url = f"https://placehold.co/600x400/darkblue/white?text=LoRA+{model_id}"
+        logger.info(f"Using fallback URL: {fallback_url}")
+        return fallback_url
+
+    async def create_embed(self) -> discord.Embed:
+        """Create an embed for the current page"""
+        embed = discord.Embed(
+            title=f"LoRA Information (Page {self.current_page + 1} of {self.total_pages})",
+            description="Click on the preview links to see example images for each LoRA.",
+            color=discord.Color.blue()
+        )
+
         start_idx = self.current_page * self.items_per_page
         end_idx = min(start_idx + self.items_per_page, len(self.loras))
         page_loras = self.loras[start_idx:end_idx]
-        
+
+        # Set the first LoRA's image as the main embed image
+        if page_loras and len(page_loras) > 0:
+            first_lora = page_loras[0]
+            if first_lora.get('url'):
+                try:
+                    preview_url = await self.get_preview_image_url(first_lora['url'])
+                    if preview_url:
+                        logger.info(f"Setting main image for embed: {preview_url}")
+                        embed.set_image(url=preview_url)
+                except Exception as e:
+                    logger.error(f"Error getting preview image for main embed: {e}")
+
+        # Process each LoRA
+        for i, lora in enumerate(page_loras):
+            name = lora.get('name', 'Unknown LoRA')
+            url = lora.get('url', '')
+            trigger_words = lora.get('add_prompt', '')
+            weight = lora.get('weight', 1.0)
+
+            # Create field value with LoRA details
+            field_value = ""
+
+            # Try to get a preview image for this LoRA
+            if url:
+                try:
+                    preview_url = await self.get_preview_image_url(url)
+                    if preview_url:
+                        # Make the preview link very prominent
+                        field_value += f"**[🖼️ CLICK HERE FOR PREVIEW IMAGE]({preview_url})**\n\n"
+                except Exception as e:
+                    logger.error(f"Error getting preview image: {e}")
+
+            # Add the rest of the LoRA information
+            if url:
+                field_value += f"[📄 View on Civitai]({url})\n"
+            if trigger_words:
+                field_value += f"🔤 Trigger Words: `{trigger_words}`\n"
+            field_value += f"⚖️ Weight: {weight}"
+
+            # Add a separator before each LoRA except the first one
+            if i > 0:
+                embed.add_field(name="────────────────────", value="", inline=False)
+
+            # Add field to embed
+            embed.add_field(
+                name=f"📦 {name}",
+                value=field_value,
+                inline=False
+            )
+
+        return embed
+
+    def get_page_content(self) -> str:
+        """Get the content for the current page (used as fallback)"""
+        start_idx = self.current_page * self.items_per_page
+        end_idx = min(start_idx + self.items_per_page, len(self.loras))
+        page_loras = self.loras[start_idx:end_idx]
+
         content = [f"Page {self.current_page + 1} of {self.total_pages}\n"]
         for lora in page_loras:
             name = lora.get('name', 'Unnamed')
             url = lora.get('url', '')
-            
+
             entry = [f"**{name}**"]
             if url:
                 entry.append(f"[LoraInfo]({url})")
             else:
                 entry.append("*No info available*")
-            
+
             # Add an empty line between entries
             entry.append("")
             content.append("\n".join(entry))
-        
+
         return "\n".join(content)
 
     def update_buttons(self):
@@ -1327,10 +1464,79 @@ class LoraInfoView(View):
 
     async def update_message(self, interaction: discord.Interaction):
         """Update the message with the current page content"""
-        await interaction.response.edit_message(
-            content=self.get_page_content(),
-            view=self
-        )
+        try:
+            # Create an embed for the current page
+            embed = await self.create_embed()
+
+            # Try to download and attach the preview image for the first LoRA on this page
+            preview_file = None
+            start_idx = self.current_page * self.items_per_page
+            end_idx = min(start_idx + self.items_per_page, len(self.loras))
+            page_loras = self.loras[start_idx:end_idx]
+
+            if page_loras and len(page_loras) > 0:
+                first_lora = page_loras[0]
+                if first_lora.get('url'):
+                    try:
+                        import os
+                        import hashlib
+                        from urllib.parse import urlparse
+
+                        # Get the preview URL
+                        preview_url = await self.get_preview_image_url(first_lora['url'])
+                        if preview_url and not preview_url.lower().endswith('.mp4'):
+                            # Create a unique filename based on the URL to avoid duplicates
+                            url_hash = hashlib.md5(preview_url.encode()).hexdigest()
+                            parsed_url = urlparse(preview_url)
+                            ext = os.path.splitext(parsed_url.path)[1] or '.jpg'
+                            filename = f"preview_{url_hash}{ext}"
+                            preview_image_path = os.path.join('preview_images', filename)
+
+                            # Check if we already have this image downloaded
+                            if os.path.exists(preview_image_path):
+                                logger.info(f"Using cached image file: {preview_image_path}")
+                                preview_file = discord.File(preview_image_path, filename=os.path.basename(preview_image_path))
+                            else:
+                                # Download the image if we don't have it yet
+                                import aiohttp
+                                async with aiohttp.ClientSession() as session:
+                                    async with session.get(preview_url) as resp:
+                                        if resp.status == 200:
+                                            with open(preview_image_path, 'wb') as f:
+                                                f.write(await resp.read())
+                                            logger.info(f"Downloaded preview image to {preview_image_path}")
+
+                                            # Create a file object to attach to the message
+                                            preview_file = discord.File(preview_image_path, filename=os.path.basename(preview_image_path))
+                    except Exception as e:
+                        logger.error(f"Error downloading preview image: {e}")
+
+            # Update the message with the new embed and possibly a new image
+            if preview_file:
+                await interaction.response.edit_message(
+                    content=None,
+                    embed=embed,
+                    view=self,
+                    attachments=[preview_file]
+                )
+            else:
+                await interaction.response.edit_message(
+                    content=None,
+                    embed=embed,
+                    view=self
+                )
+        except Exception as e:
+            logger.error(f"Error updating message: {e}")
+            # Fallback to text content if embed fails
+            try:
+                await interaction.response.edit_message(
+                    content=self.get_page_content(),
+                    view=self
+                )
+            except Exception as inner_e:
+                logger.error(f"Error in fallback: {inner_e}")
+                # If all else fails, just defer the interaction
+                await interaction.response.defer()
 
     @discord.ui.button(label="⏮️", style=discord.ButtonStyle.gray)
     async def first_page(self, interaction: discord.Interaction, button: Button):
@@ -1516,7 +1722,7 @@ class CreativityModal(Modal, title='Creativity Settings'):
                     level_desc = "Maximum enhancement"
 
                 logger.info(f"Enhanced prompt (creativity {creativity} - {level_desc}): {enhanced_prompt}")
-                
+
                 if creativity > 1:
                     await interaction.followup.send(
                         f"Creativity Level {creativity} ({level_desc}):\n"
@@ -1529,7 +1735,7 @@ class CreativityModal(Modal, title='Creativity Settings'):
                         f"Creativity Level 1 (No enhancement): Using original prompt",
                         ephemeral=True
                     )
-                
+
                 await process_image_request(
                     interaction,
                     enhanced_prompt,
@@ -1618,17 +1824,17 @@ class PulidModal(discord.ui.Modal, title='PuLID Image Generation'):
             initial_message = await interaction.original_response()
 
             def check_message(m):
-                return (m.author.id == interaction.user.id and 
-                        m.channel.id == interaction.channel.id and 
+                return (m.author.id == interaction.user.id and
+                        m.channel.id == interaction.channel.id and
                         len(m.attachments) > 0)
 
             try:
                 # Wait for image upload
                 message = await self.bot.wait_for('message', timeout=300.0, check=check_message)
-                
+
                 # Get the first attachment
                 attachment = message.attachments[0]
-                
+
                 # Check if it's an image
                 if not attachment.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                     await interaction.followup.send(

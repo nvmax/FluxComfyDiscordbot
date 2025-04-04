@@ -13,4 +13,6 @@ upx/
 .windsurf
 .gitignore
 .gitmodules
-
+analytics.db
+migrate_analytics_db.py
+queue_data.db

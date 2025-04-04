@@ -13,8 +13,8 @@ import os
 import re
 from Main.utils import load_json, generate_random_seed, save_json
 from Main.database import (
-    is_user_banned, ban_user, get_banned_words, add_user_warning, 
-    get_user_warnings, remove_user_warnings, get_all_warnings, add_banned_word, 
+    is_user_banned, ban_user, get_banned_words, add_user_warning,
+    get_user_warnings, remove_user_warnings, get_all_warnings, add_banned_word,
     remove_banned_word, unban_user, get_ban_info, get_all_banned_users
 )
 from .banned_utils import check_banned
@@ -53,7 +53,7 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 
         # Log the error
         logger.error(f"Command error in {interaction.command.name}: {str(error)}", exc_info=True)
-        
+
         # Send a user-friendly error message
         error_message = "An error occurred while processing your command."
         if interaction.response.is_done():
@@ -79,14 +79,14 @@ def check_channel():
     async def predicate(interaction: discord.Interaction) -> bool:
         if not interaction.client.allowed_channels:  # If no channels are specified, allow all
             return True
-        
+
         if interaction.channel_id not in interaction.client.allowed_channels:
             try:
                 await interaction.response.send_message("This command can only be used in specific channels.", ephemeral=True)
             except discord.InteractionResponded:
                 await interaction.followup.send("This command can only be used in specific channels.", ephemeral=True)
             return False
-            
+
         return True
     return app_commands.check(predicate)
 
@@ -95,21 +95,39 @@ async def setup_commands(bot: commands.Bot):
     # Register the error handler first
     bot.tree.on_error = on_app_command_error
 
-    @bot.tree.command(name="lorainfo", description="View available Loras information")
+    @bot.tree.command(name="lorainfo", description="View available Loras information with preview images")
     @check_channel()
     async def lorainfo(interaction: discord.Interaction):
         try:
+            # Defer the response to give us time to download images
+            await interaction.response.defer(ephemeral=True)
+
             loras_data = load_json('lora.json')
             available_loras = loras_data.get('available_loras', [])
+
+            # Create the view and embed
             view = LoraInfoView(available_loras)
-            await interaction.response.send_message(
-                content=view.get_page_content(),
+            embed = await view.create_embed()
+
+            # Send the response with the embed and view
+            await interaction.followup.send(
+                embed=embed,
                 view=view,
                 ephemeral=True
             )
         except Exception as e:
             logger.error(f"Error in lorainfo command: {str(e)}")
-            await interaction.response.send_message("An error occurred while fetching Lora information.", ephemeral=True)
+            # Fallback to text content if embed fails
+            try:
+                view = LoraInfoView(available_loras)
+                await interaction.followup.send(
+                    content=view.get_page_content(),
+                    view=view,
+                    ephemeral=True
+                )
+            except Exception as inner_e:
+                logger.error(f"Error in fallback: {str(inner_e)}")
+                await interaction.followup.send("An error occurred while fetching Lora information.", ephemeral=True)
 
     @bot.tree.command(name="comfy", description="Generate an image based on a prompt.")
     @check_channel()
@@ -125,17 +143,17 @@ async def setup_commands(bot: commands.Bot):
     @app_commands.choices(upscale_factor=[
         app_commands.Choice(name=str(i), value=i) for i in range(1, 5)
     ])
-    async def comfy(interaction: discord.Interaction, prompt: str, resolution: str, 
+    async def comfy(interaction: discord.Interaction, prompt: str, resolution: str,
                     upscale_factor: int = 1, seed: Optional[int] = None):
         try:
             logger.info(f"Comfy command invoked by {interaction.user.id}")
-            
+
             # Check for banned words first, before any other processing
             is_banned, message = check_banned(str(interaction.user.id), prompt)
             if message:  # If there's a message, either a warning or ban
                 await interaction.response.send_message(message, ephemeral=True)
                 return  # Don't continue with image generation if banned word is detected
-            
+
             # Show creativity modal or process directly based on prompt enhancement setting
             if ENABLE_PROMPT_ENHANCEMENT:
                 # Show creativity modal without initializing AI provider yet
@@ -153,7 +171,7 @@ async def setup_commands(bot: commands.Bot):
                 await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
 
     async def reduxprompt(
-        interaction: discord.Interaction, 
+        interaction: discord.Interaction,
         resolution: str,
         strength: str
     ):
@@ -210,7 +228,7 @@ async def setup_commands(bot: commands.Bot):
         try:
             # Always defer first
             await interaction.response.defer(ephemeral=True)
-            
+
             await interaction.followup.send("Rebooting bot...", ephemeral=True)
             await bot.close()
             import sys
@@ -229,7 +247,7 @@ async def setup_commands(bot: commands.Bot):
         try:
             # Defer the response first since we'll be doing database operations
             await interaction.response.defer(ephemeral=True)
-            
+
             word = word.lower()
             add_banned_word(word)
             await interaction.followup.send(f"Added '{word}' to the banned words list.", ephemeral=True)
@@ -268,7 +286,7 @@ async def setup_commands(bot: commands.Bot):
         try:
             # Defer the response first
             await interaction.response.defer(ephemeral=True)
-            
+
             if unban_user(str(user.id)):
                 await interaction.followup.send(f"Unbanned {user.name} from using the comfy command.", ephemeral=True)
             else:
@@ -287,7 +305,7 @@ async def setup_commands(bot: commands.Bot):
             ban_info = get_ban_info(str(user.id))
             if ban_info:
                 await interaction.response.send_message(
-                    f"{user.name} was banned on {ban_info['banned_at']} for the following reason: {ban_info['reason']}", 
+                    f"{user.name} was banned on {ban_info['banned_at']} for the following reason: {ban_info['reason']}",
                     ephemeral=True
                 )
             else:
@@ -295,7 +313,7 @@ async def setup_commands(bot: commands.Bot):
         except Exception as e:
             logger.error(f"Error in whybanned command: {str(e)}")
             await interaction.response.send_message(
-                f"An error occurred while checking ban information: {str(e)}", 
+                f"An error occurred while checking ban information: {str(e)}",
                 ephemeral=True
             )
 
@@ -327,7 +345,7 @@ async def setup_commands(bot: commands.Bot):
         except Exception as e:
             logger.error(f"Error in list_banned_users command: {str(e)}")
             await interaction.response.send_message(
-                f"An error occurred while fetching banned users: {str(e)}", 
+                f"An error occurred while fetching banned users: {str(e)}",
                 ephemeral=True
             )
 
@@ -340,20 +358,20 @@ async def setup_commands(bot: commands.Bot):
         try:
             # Defer the response first
             await interaction.response.defer(ephemeral=True)
-            
+
             # Get current warnings
             current_warnings = get_user_warnings(str(user.id))
-            
+
             if current_warnings == 0:
                 await interaction.followup.send(
                     f"{user.mention} has no warnings to remove.",
                     ephemeral=True
                 )
                 return
-                
+
             # Remove all warnings
             success, message = remove_user_warnings(str(user.id))
-            
+
             if success:
                 await interaction.followup.send(
                     f"Successfully removed all warnings from {user.mention}. ({message})",
@@ -364,7 +382,7 @@ async def setup_commands(bot: commands.Bot):
                     f"Could not remove warnings from {user.mention}: {message}",
                     ephemeral=True
                 )
-            
+
         except Exception as e:
             logger.error(f"Error in remove_warning command: {str(e)}")
             if not interaction.response.is_done():
@@ -388,28 +406,28 @@ async def setup_commands(bot: commands.Bot):
         try:
             # Defer the response first since we might need time to process
             await interaction.response.defer(ephemeral=True)
-            
+
             success, result = get_all_warnings()
-            
+
             if not success:
                 await interaction.followup.send(result, ephemeral=True)
                 return
-            
+
             embeds = []
-            
+
             for user_id, warnings in result.items():
                 try:
                     user = await interaction.client.fetch_user(int(user_id))
                     user_name = user.name
                 except:
                     user_name = f"Unknown User ({user_id})"
-                
+
                 embed = discord.Embed(
                     title=f"Warnings for {user_name}",
                     color=discord.Color.yellow()
                 )
                 embed.set_footer(text=f"User ID: {user_id}")
-                
+
                 warning_count = len(warnings)
                 if warning_count == 1:
                     status = "🟡 Active - First Warning"
@@ -423,7 +441,7 @@ async def setup_commands(bot: commands.Bot):
                     value=f"{status}\n{warning_count}/2 warnings",
                     inline=False
                 )
-                
+
                 for idx, (prompt, word, warned_at) in enumerate(warnings, 1):
                     embed.add_field(
                         name=f"Warning {idx} - {warned_at}",
@@ -431,11 +449,11 @@ async def setup_commands(bot: commands.Bot):
                         inline=False
                     )
                 embeds.append(embed)
-            
+
             if len(embeds) == 0:
                 await interaction.followup.send("No warnings found in the database.", ephemeral=True)
                 return
-                
+
             # If only one embed, send it without navigation
             if len(embeds) == 1:
                 await interaction.followup.send(embed=embeds[0], ephemeral=True)
@@ -450,11 +468,11 @@ async def setup_commands(bot: commands.Bot):
                     async def previous_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
                         if button_interaction.user.id != interaction.user.id:
                             await button_interaction.response.send_message(
-                                "You cannot use these buttons.", 
+                                "You cannot use these buttons.",
                                 ephemeral=True
                             )
                             return
-                            
+
                         self.current_page = (self.current_page - 1) % len(embeds)
                         embed = embeds[self.current_page]
                         embed.set_footer(text=f"Page {self.current_page + 1}/{len(embeds)}")
@@ -464,11 +482,11 @@ async def setup_commands(bot: commands.Bot):
                     async def next_button(self, button_interaction: discord.Interaction, button: discord.ui.Button):
                         if button_interaction.user.id != interaction.user.id:
                             await button_interaction.response.send_message(
-                                "You cannot use these buttons.", 
+                                "You cannot use these buttons.",
                                 ephemeral=True
                             )
                             return
-                            
+
                         self.current_page = (self.current_page + 1) % len(embeds)
                         embed = embeds[self.current_page]
                         embed.set_footer(text=f"Page {self.current_page + 1}/{len(embeds)}")
@@ -488,17 +506,17 @@ async def setup_commands(bot: commands.Bot):
                 first_embed = embeds[0]
                 first_embed.set_footer(text=f"Page 1/{len(embeds)}")
                 await interaction.followup.send(embed=first_embed, view=view, ephemeral=True)
-                    
+
         except Exception as e:
             logger.error(f"Error in check_warnings command: {str(e)}", exc_info=True)
             if interaction.response.is_done():
                 await interaction.followup.send(
-                    f"An error occurred while checking warnings: {str(e)}", 
+                    f"An error occurred while checking warnings: {str(e)}",
                     ephemeral=True
                 )
             else:
                 await interaction.response.send(
-                    f"An error occurred while checking warnings: {str(e)}", 
+                    f"An error occurred while checking warnings: {str(e)}",
                     ephemeral=True
                 )
 
@@ -512,7 +530,7 @@ async def setup_commands(bot: commands.Bot):
             logger.info(f"Synced {len(synced)} commands")
         except discord.app_commands.errors.CheckFailure as e:
             logger.error(f"Check failure in sync_commands: {str(e)}", exc_info=True)
-            await interaction.followup.send("You don't have permission to use this command.", 
+            await interaction.followup.send("You don't have permission to use this command.",
                                           ephemeral=True)
         except Exception as e:
             logger.error(f"Error in sync_commands: {str(e)}", exc_info=True)
@@ -570,14 +588,14 @@ async def setup_commands(bot: commands.Bot):
 
             # Load and modify the video workflow
             workflow = load_json('Video.json')
-            
+
             # Generate random seed
             seed = generate_random_seed()
-            
+
             # Update workflow nodes
             workflow['3']['inputs']['seed'] = seed  # Update seed
             workflow['44']['inputs']['text'] = prompt  # Update prompt
-            
+
             # Save the modified workflow
             save_json(workflow_filename, workflow)
 
@@ -620,7 +638,7 @@ async def setup_commands(bot: commands.Bot):
             self.prompt = prompt
             self.upscale_factor = upscale_factor
             self.seed = seed  # Store the seed as an instance variable
-            
+
             self.creativity = discord.ui.TextInput(
                 label='Creativity Level (1-10)',
                 style=discord.TextStyle.short,
@@ -629,7 +647,7 @@ async def setup_commands(bot: commands.Bot):
                 min_length=1,
                 max_length=2
             )
-            
+
             self.note = discord.ui.TextInput(
                 label='Note',
                 style=discord.TextStyle.paragraph,
@@ -637,7 +655,7 @@ async def setup_commands(bot: commands.Bot):
                 required=False,
                 custom_id='note_field'
             )
-            
+
             self.add_item(self.creativity)
             self.add_item(self.note)
 
@@ -646,13 +664,13 @@ async def setup_commands(bot: commands.Bot):
                 creativity_level = int(self.creativity.value)
                 if not 1 <= creativity_level <= 10:
                     await interaction.followup.send(
-                        "Creativity level must be between 1 and 10, Default is 1.", 
+                        "Creativity level must be between 1 and 10, Default is 1.",
                         ephemeral=True
                     )
                     return
 
                 await interaction.response.defer(ephemeral=True)
-                
+
                 # Check for banned words first
                 is_banned, message = check_banned(str(interaction.user.id), self.prompt)
                 if message:  # If there's a warning or ban message
@@ -663,22 +681,22 @@ async def setup_commands(bot: commands.Bot):
                 # Clean prompt of any existing LoRA trigger words and timestamps
                 base_prompt = re.sub(r'\s*\(Timestamp:.*?\)', '', self.prompt)
                 lora_config = load_json('lora.json')
-                
+
                 # Remove existing LoRA trigger words from base prompt
                 for lora in lora_config['available_loras']:
                     if lora.get('prompt'):
                         base_prompt = base_prompt.replace(lora['prompt'], '').strip()
-                
+
                 # Clean up multiple commas and whitespace
                 base_prompt = re.sub(r'\s*,\s*,\s*', ', ', base_prompt).strip(' ,')
-                
+
                 if ENABLE_PROMPT_ENHANCEMENT and interaction.client.ai_provider:
                     # Send "Please wait" message before enhancement
                     wait_message = await interaction.followup.send(
                         "Please wait a moment while I process your prompt...",
                         ephemeral=True
                     )
-                    
+
                     try:
                         # Test AI provider connection
                         connection_ok = await interaction.client.ai_provider.test_connection()
@@ -695,7 +713,7 @@ async def setup_commands(bot: commands.Bot):
                                 base_prompt,
                                 temperature=float(creativity_level) / 10.0  # Convert 1-10 to 0.1-1.0
                             )
-                            
+
                             if not enhanced_prompt:
                                 enhanced_prompt = base_prompt
                                 logger.warning("No enhanced prompt generated, using original")
@@ -731,16 +749,16 @@ async def setup_commands(bot: commands.Bot):
                     f"Original prompt: {self.prompt}",
                     ephemeral=True
                 )
-                
+
                 # Only show enhanced prompt if creativity level is higher than 1
                 if creativity_level > 1:
                     await interaction.followup.send(
                         f"Enhanced prompt: {enhanced_prompt}",
                         ephemeral=True
                     )
-                
+
                 logger.debug(f"Final prompt before LoRA selection: {enhanced_prompt}")
-                
+
                 # Show LoRA selection view
                 lora_view = LoRAView(interaction.client)
                 lora_message = await interaction.followup.send(
@@ -748,22 +766,22 @@ async def setup_commands(bot: commands.Bot):
                     view=lora_view,
                     ephemeral=True
                 )
-                
+
                 # Wait for LoRA selection
                 await lora_view.wait()
-                
+
                 if not hasattr(lora_view, 'has_confirmed') or not lora_view.has_confirmed:
                     await lora_message.edit(content="Selection cancelled or timed out.", view=None)
                     return
-                    
+
                 selected_loras = lora_view.selected_loras
                 logger.debug(f"Selected LoRAs: {selected_loras}")
-                
+
                 try:
                     await lora_message.delete()
                 except discord.NotFound:
                     pass
-                
+
                 # Get LoRA trigger words for currently selected LoRAs
                 additional_prompts = []
                 for lora_file in selected_loras:
@@ -773,23 +791,23 @@ async def setup_commands(bot: commands.Bot):
                     )
                     if lora_info and lora_info.get('add_prompt') and lora_info['add_prompt'].strip():
                         additional_prompts.append(lora_info['add_prompt'].strip())
-                
+
                 # Construct final prompt with new trigger words
                 full_prompt = enhanced_prompt
                 if additional_prompts:
                     if not full_prompt.endswith(','):
                         full_prompt += ','
                     full_prompt += ' ' + ', '.join(additional_prompts)
-                
+
                 full_prompt = full_prompt.strip(' ,')
                 logger.debug(f"Final prompt with LoRA triggers: {full_prompt}")
-                
+
                 # Use the seed from instance variable, or generate new one if None
                 current_seed = self.seed if self.seed is not None else generate_random_seed()
-                
+
                 workflow = load_json(f'{fluxversion}')
                 request_uuid = str(uuid.uuid4())
-                
+
                 workflow = update_workflow(
                     workflow,
                     full_prompt,
@@ -821,7 +839,7 @@ async def setup_commands(bot: commands.Bot):
                     seed=current_seed
                 )
                 await interaction.client.subprocess_queue.put(request_item)
-                
+
             except ValueError:
                 await interaction.followup.send(
                     "Please enter a valid number between 1 and 10 for creativity level.",

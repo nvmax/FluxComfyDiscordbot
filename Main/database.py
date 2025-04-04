@@ -41,26 +41,51 @@ def init_db():
                   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                   loras JSON,
                   upscale_factor INTEGER)''')
-    
+
     c.execute('''CREATE TABLE IF NOT EXISTS banned_users
                  (user_id TEXT PRIMARY KEY,
                   reason TEXT,
                   banned_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
-    
-    # New tables for banned words and warnings
+
+    # Tables for content filtering
     c.execute('''CREATE TABLE IF NOT EXISTS banned_words
                  (word TEXT PRIMARY KEY,
                   added_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
-                  
+
     c.execute('''CREATE TABLE IF NOT EXISTS user_warnings
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   user_id TEXT,
                   prompt TEXT,
                   word TEXT,
                   warned_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
-    
+
+    # New tables for enhanced content filtering
+    c.execute('''CREATE TABLE IF NOT EXISTS regex_patterns
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  name TEXT UNIQUE,
+                  pattern TEXT,
+                  description TEXT,
+                  severity TEXT,
+                  added_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS context_rules
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  trigger_word TEXT UNIQUE,
+                  allowed_contexts TEXT,
+                  disallowed_contexts TEXT,
+                  description TEXT,
+                  added_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS filter_violations
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  user_id TEXT,
+                  prompt TEXT,
+                  violation_type TEXT,
+                  violation_details TEXT,
+                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+
     conn.commit()
-    
+
     # Load banned words from JSON and sync with database
     banned_words = load_banned_words_from_json()
     for word in banned_words:
@@ -75,27 +100,27 @@ def add_to_history(user_id, prompt, workflow, image_filename, resolution, loras,
 
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    
+
     c.execute("""
-        SELECT id FROM image_history 
-        WHERE user_id = ? AND prompt = ? AND 
+        SELECT id FROM image_history
+        WHERE user_id = ? AND prompt = ? AND
         datetime(timestamp, 'unixepoch') = datetime(?, 'unixepoch')
     """, (user_id, prompt, int(time.time())))
-    
+
     existing_entry = c.fetchone()
-    
+
     if existing_entry:
         logger.debug(f"Skipping duplicate entry for user_id={user_id}, prompt={prompt}")
     else:
         # Ensure loras is a list of up to 25 items
         loras_list = loras[:25] if isinstance(loras, list) else [loras]
         loras_json = json.dumps(loras_list)
-        
+
         c.execute("INSERT INTO image_history (user_id, prompt, workflow, image_filename, resolution, loras, upscale_factor) VALUES (?, ?, ?, ?, ?, ?, ?)",
                   (user_id, prompt, json.dumps(workflow), image_filename, resolution, loras_json, upscale_factor))
         conn.commit()
         logger.debug(f"Added to history: user_id={user_id}, prompt={prompt}, image_filename={image_filename}, resolution={resolution}, loras={loras_json}, upscale_factor={upscale_factor}")
-    
+
     conn.close()
 
 def get_user_history(user_id, limit=10):
@@ -146,38 +171,38 @@ def get_all_image_info():
 def update_image_info(image_filename, new_prompt=None, new_resolution=None, new_loras=None, new_upscale_factor=None):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    
+
     update_fields = []
     update_values = []
-    
+
     if new_prompt is not None:
         update_fields.append("prompt = ?")
         update_values.append(new_prompt)
-    
+
     if new_resolution is not None:
         update_fields.append("resolution = ?")
         update_values.append(new_resolution)
-    
+
     if new_loras is not None:
         update_fields.append("loras = ?")
         new_loras_list = new_loras[:25] if isinstance(new_loras, list) else [new_loras]
         update_values.append(json.dumps(new_loras_list))
-    
+
     if new_upscale_factor is not None:
         update_fields.append("upscale_factor = ?")
         update_values.append(new_upscale_factor)
-    
+
     if update_fields:
         update_query = f"UPDATE image_history SET {', '.join(update_fields)} WHERE image_filename = ?"
         update_values.append(image_filename)
-        
+
         c.execute(update_query, tuple(update_values))
         conn.commit()
-        
+
         logger.debug(f"Updated image info for {image_filename}: prompt={new_prompt}, resolution={new_resolution}, loras={new_loras}, upscale_factor={new_upscale_factor}")
     else:
         logger.debug(f"No updates provided for {image_filename}")
-    
+
     conn.close()
 
 def get_banned_words():
@@ -192,13 +217,13 @@ def add_banned_word(word: str):
     """Add a new banned word to both database and JSON file"""
     # Normalize the word before storing
     normalized_word = normalize_text(word)
-    
+
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute("INSERT OR IGNORE INTO banned_words (word) VALUES (?)", (normalized_word,))
     conn.commit()
     conn.close()
-    
+
     # Update JSON file
     current_words = get_banned_words()
     save_banned_words_to_json(current_words)
@@ -208,13 +233,13 @@ def remove_banned_word(word: str):
     """Remove a banned word from both database and JSON file"""
     # Normalize the word before removing
     normalized_word = normalize_text(word)
-    
+
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute("DELETE FROM banned_words WHERE word = ?", (normalized_word,))
     conn.commit()
     conn.close()
-    
+
     # Update JSON file
     current_words = get_banned_words()
     save_banned_words_to_json(current_words)
@@ -232,16 +257,16 @@ def remove_user_warnings(user_id: str):
     """Remove all warnings for a specific user"""
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    
+
     try:
         # Check if user has warnings
         c.execute("SELECT COUNT(*) FROM user_warnings WHERE user_id = ?", (user_id,))
         warning_count = c.fetchone()[0]
-        
+
         if warning_count == 0:
             conn.close()
             return False, "User has no warnings to remove"
-            
+
         # Delete all warnings for the user
         c.execute("DELETE FROM user_warnings WHERE user_id = ?", (user_id,))
         conn.commit()
@@ -263,20 +288,20 @@ def get_all_warnings():
     """Get all warnings from the database, grouped by user"""
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    
+
     try:
         # Get all warnings with user info
         c.execute("""
-            SELECT user_id, prompt, word, warned_at 
-            FROM user_warnings 
+            SELECT user_id, prompt, word, warned_at
+            FROM user_warnings
             ORDER BY user_id, warned_at DESC
         """)
         warnings = c.fetchall()
-        
+
         if not warnings:
             conn.close()
             return False, "No warnings found in the database"
-        
+
         # Group warnings by user
         warning_dict = {}
         for warning in warnings:
@@ -284,7 +309,7 @@ def get_all_warnings():
             if user_id not in warning_dict:
                 warning_dict[user_id] = []
             warning_dict[user_id].append((prompt, word, warned_at))
-        
+
         conn.close()
         return True, warning_dict
     except Exception as e:
@@ -298,12 +323,12 @@ def delete_image_info(image_filename):
     deleted_count = c.rowcount
     conn.commit()
     conn.close()
-    
+
     if deleted_count > 0:
         logger.debug(f"Deleted image info for {image_filename}")
     else:
         logger.warning(f"No image info found to delete for {image_filename}")
-    
+
     return deleted_count > 0
 
 def ban_user(user_id, reason):

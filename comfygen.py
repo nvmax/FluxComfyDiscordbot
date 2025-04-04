@@ -14,8 +14,8 @@ import re
 from dotenv import load_dotenv
 from config import server_address, BOT_SERVER
 from Main.custom_commands.workflow_utils import (
-    update_workflow, 
-    update_reduxprompt_workflow,  
+    update_workflow,
+    update_reduxprompt_workflow,
     validate_workflow
 )
 
@@ -32,15 +32,15 @@ def open_workflow(workflow_filename):
     try:
         workflow_path = f"Main/DataSets/{workflow_filename}"
         logger.debug(f"Opening workflow file: {workflow_path}")
-        
+
         with open(workflow_path, "r", encoding="utf-8") as f:
             # Read the file content
             content = f.read().strip()
-            
+
             # Remove any BOM characters that might be present
             if content.startswith('\ufeff'):
                 content = content[1:]
-                
+
             # Parse the JSON carefully
             try:
                 workflow = json.loads(content)
@@ -52,7 +52,7 @@ def open_workflow(workflow_filename):
 
             logger.debug(f"Successfully loaded workflow with {len(workflow)} nodes")
             return workflow
-            
+
     except FileNotFoundError:
         logger.error(f"Workflow file not found: {workflow_path}")
         raise
@@ -65,12 +65,12 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
     try:
         # Create a deep copy to avoid modifying original
         workflow = json.loads(json.dumps(workflow))
-        
+
         # Update prompt
         if '69' in workflow:
             workflow['69']['inputs']['prompt'] = prompt
             logger.debug(f"Updated prompt in workflow")
-        
+
         # Update resolution
         if '258' in workflow:
             workflow['258']['inputs']['ratio_selected'] = resolution
@@ -79,7 +79,7 @@ def update_workflow(workflow, prompt, resolution, loras, upscale_factor, seed):
         # Update LoRAs
         if '271' in workflow:
             lora_loader = workflow['271']['inputs']
-            
+
             # Load lora config
             lora_config = load_json('lora.json')
             lora_info = {lora['file']: lora for lora in lora_config['available_loras']}
@@ -133,10 +133,10 @@ def queue_prompt(workflow):
             "prompt": workflow,
             "client_id": client_id
         }
-        
+
         # Convert to JSON with minimal whitespace
         json_str = json.dumps(request_data, ensure_ascii=False, separators=(',', ':'))
-        
+
         # Log the request data for debugging
         logger.debug(f"Sending request to ComfyUI prompt endpoint")
         logger.debug(f"Client ID: {client_id}")
@@ -144,7 +144,7 @@ def queue_prompt(workflow):
 
         # Encode as UTF-8
         data = json_str.encode('utf-8')
-        
+
         # Create and configure the request
         url = f"http://{server_address}:8188/prompt"
         headers = {
@@ -154,14 +154,14 @@ def queue_prompt(workflow):
 
         logger.debug(f"Sending request to URL: {url}")
         logger.debug(f"Headers: {headers}")
-        
+
         req = urllib.request.Request(
             url,
             data=data,
             method="POST",
             headers=headers
         )
-        
+
         # Send the request with error handling
         try:
             with urllib.request.urlopen(req, timeout=120) as response:
@@ -178,7 +178,7 @@ def queue_prompt(workflow):
         except urllib.error.URLError as e:
             logger.error(f"URL Error: {str(e)}")
             raise
-            
+
     except json.JSONDecodeError as e:
         logger.error(f"JSON encoding/decoding error: {str(e)}")
         logger.error(f"Problem data: {str(request_data)[:200]}...")
@@ -260,10 +260,14 @@ def send_progress_update(request_id, progress_data):
 
 def get_images(ws, workflow, progress_callback):
     try:
+        # Record the start time when we send the request to ComfyUI
+        generation_start_time = time.time()
+        logger.debug(f"Starting image generation at {generation_start_time}")
+
         prompt_response = queue_prompt(workflow)
         if 'prompt_id' not in prompt_response:
             raise ValueError("No prompt_id in response from queue_prompt")
-            
+
         prompt_id = prompt_response['prompt_id']
         output_images = {}
         last_milestone = 0
@@ -282,29 +286,35 @@ def get_images(ws, workflow, progress_callback):
                         "status": "execution",
                         "message": "Starting execution..."
                     })
-                
+
                 elif message['type'] == 'executing':
                     data = message['data']
-                    
+
                     if data['node'] is None and data['prompt_id'] == prompt_id:
+                        # Record the end time when generation is complete
+                        generation_end_time = time.time()
+                        generation_time = generation_end_time - generation_start_time
+                        logger.debug(f"Image generation completed in {generation_time:.2f} seconds")
+
                         progress_callback({
                             "status": "complete",
-                            "message": "Generation complete!"
+                            "message": "Generation complete!",
+                            "generation_time": generation_time
                         })
                         break
-                    
+
                     if "UNETLoader" in str(data) or "CLIPLoader" in str(data) or "VAELoader" in str(data):
                         progress_callback({
                             "status": "loading_models",
                             "message": "Loading models and preparing generation..."
                         })
-                
+
                 elif message['type'] == 'progress':
                     data = message['data']
                     current_step = data['value']
                     max_steps = data['max']
                     progress = int((current_step / max_steps) * 100)
-                    
+
                     current_milestone = (progress // 10) * 10
                     if current_milestone > last_milestone:
                         progress_callback({
@@ -315,14 +325,14 @@ def get_images(ws, workflow, progress_callback):
 
         history = get_history(prompt_id)[prompt_id]
         logger.debug(f"Got history for prompt {prompt_id}")
-        
+
         # Debug log the available outputs
         logger.debug(f"Available outputs in history: {list(history['outputs'].keys())}")
-        
+
         for node_id, node_output in history['outputs'].items():
             logger.debug(f"Processing output from node {node_id}")
             logger.debug(f"Node output keys: {list(node_output.keys())}")
-            
+
             # Special handling for node 42 (VHS_VideoCombine)
             if node_id == '42':
                 # Check all possible video output keys
@@ -332,7 +342,7 @@ def get_images(ws, workflow, progress_callback):
                         if gif['filename'].endswith('.mp4'):
                             video_data = gif
                             break
-                
+
                 if video_data:
                     logger.debug(f"Found video data in node 42: {video_data}")
                     video_bytes, filename = get_video(
@@ -342,7 +352,7 @@ def get_images(ws, workflow, progress_callback):
                     )
                     output_images[node_id] = [(video_bytes, filename)]
                     logger.debug(f"Successfully processed video: {filename}")
-            
+
             # Handle regular image outputs
             elif 'images' in node_output:
                 images_output = []
@@ -360,7 +370,13 @@ def get_images(ws, workflow, progress_callback):
             logger.error(f"History outputs: {history['outputs']}")
             raise ValueError("No outputs generated from workflow")
 
-        return output_images
+        # Calculate final generation time
+        generation_end_time = time.time()
+        generation_time = generation_end_time - generation_start_time
+        logger.debug(f"Total image processing completed in {generation_time:.2f} seconds")
+
+        # Return both the images and the generation time
+        return output_images, generation_time
 
     except Exception as e:
         logger.error(f"Error in get_images: {str(e)}")
@@ -373,17 +389,17 @@ def get_images(ws, workflow, progress_callback):
 def calculate_upscaled_resolution(resolution, upscale_factor):
     try:
         ratios_config = load_json('ratios.json')
-        
+
         if resolution not in ratios_config['ratios']:
             raise ValueError(f"Resolution {resolution} not found in ratios configuration")
-            
+
         base_res = ratios_config['ratios'][resolution]
         width = base_res['width']
         height = base_res['height']
-        
+
         final_width = width * upscale_factor
         final_height = height * upscale_factor
-        
+
         return f"{final_width}x{final_height}"
     except Exception as e:
         logger.error(f"Error calculating upscaled resolution: {str(e)}")
@@ -397,19 +413,19 @@ def cleanup_workflow_file(workflow_filename):
         if os.path.exists(file_path):
             os.remove(file_path)
             logger.debug(f"Successfully deleted workflow file: {workflow_filename}")
-            
+
         # Get the request ID from the workflow filename if it exists
         request_id = None
         if workflow_filename and ('_' in workflow_filename):
             request_id = workflow_filename.split('_', 1)[1].rsplit('.', 1)[0]
             logger.debug(f"Extracted request ID: {request_id}")
-            
+
         # Check both temp directory and main directory
         dirs_to_check = [
             os.path.join('Main', 'DataSets', 'temp'),
             os.path.join('Main', 'DataSets')
         ]
-        
+
         for dir_path in dirs_to_check:
             if os.path.exists(dir_path):
                 for file in os.listdir(dir_path):
@@ -429,14 +445,15 @@ def cleanup_workflow_file(workflow_filename):
                     except Exception as e:
                         logger.error(f"Error deleting file {file}: {str(e)}")
                         continue
-                        
+
     except Exception as e:
         logger.error(f"Error in cleanup_workflow_file: {str(e)}")
         # Don't raise the exception - we don't want cleanup failures to affect the main process
 
-def send_final_image(request_id, user_id, channel_id, interaction_id, original_message_id, 
-                    prompt, resolution, upscaled_resolution, loras, upscale_factor, 
-                    seed, image_data, filename, workflow_filename=None):
+def send_final_image(request_id, user_id, channel_id, interaction_id, original_message_id,
+                    prompt, resolution, upscaled_resolution, loras, upscale_factor,
+                    seed, image_data, filename, workflow_filename=None, generation_time=None,
+                    request_type="standard"):
     try:
         bot_server = os.getenv('BOT_SERVER', BOT_SERVER)
         retries = 3
@@ -444,7 +461,7 @@ def send_final_image(request_id, user_id, channel_id, interaction_id, original_m
 
         # Determine if this is a video file
         is_video = filename.lower().endswith('.mp4')
-        
+
         # For video files, we need to send the binary data directly
         if is_video:
             files = {
@@ -470,7 +487,9 @@ def send_final_image(request_id, user_id, channel_id, interaction_id, original_m
             'loras': json.dumps(loras),
             'upscale_factor': str(upscale_factor),
             'seed': str(seed),
-            'is_video': str(is_video)
+            'is_video': str(is_video),
+            'generation_time': str(generation_time) if generation_time is not None else '',
+            'request_type': str(request_type)
         }
 
         for attempt in range(retries):
@@ -506,11 +525,11 @@ if __name__ == "__main__":
     ws = None  # Define ws at the module level
     workflow_filename = None
     temp_workflow = None  # Track temporary workflow file
-    
+
     # Define retry-related constants at the module level
     max_retries = 3
     retry_delay = 2  # seconds
-    
+
     try:
         if len(sys.argv) < 7:
             raise ValueError(f"Expected at least 7 arguments, but got {len(sys.argv) - 1}")
@@ -534,7 +553,7 @@ if __name__ == "__main__":
             upscale_factor = int(sys.argv[10])
             workflow_filename = sys.argv[11]
             seed = sys.argv[12] if len(sys.argv) > 12 else None
-            
+
             # Send initial status
             send_progress_update(request_id, {
                 'status': 'starting',
@@ -542,7 +561,7 @@ if __name__ == "__main__":
             })
 
             workflow = open_workflow(workflow_filename)
-            
+
             # Process seed
             try:
                 seed = int(seed) if seed != "None" else generate_random_seed()
@@ -569,7 +588,7 @@ if __name__ == "__main__":
         elif request_type == 'redux':  # Redux command
             if len(sys.argv) < 13:
                 raise ValueError("Not enough arguments for redux request")
-                
+
             resolution = sys.argv[7]
             strength1 = float(sys.argv[8])
             strength2 = float(sys.argv[9])
@@ -608,7 +627,7 @@ if __name__ == "__main__":
         elif request_type == 'reduxprompt':  # ReduxPrompt command
             if len(sys.argv) < 12:
                 raise ValueError("Not enough arguments for reduxprompt request")
-                
+
             prompt = sys.argv[7]
             resolution = sys.argv[8]
             strength = sys.argv[9]
@@ -661,10 +680,10 @@ if __name__ == "__main__":
         elif request_type == 'video':  # Video generation command
             if len(sys.argv) < 9:
                 raise ValueError("Not enough arguments for video request")
-                
+
             prompt = sys.argv[7]
             workflow_filename = sys.argv[8]
-            
+
             # Send initial status
             send_progress_update(request_id, {
                 'status': 'starting',
@@ -672,16 +691,16 @@ if __name__ == "__main__":
             })
 
             workflow = open_workflow(workflow_filename)
-            
+
             # Generate random seed if not provided
             seed = generate_random_seed()
-            
+
             # Update workflow nodes
             if '3' in workflow:
                 workflow['3']['inputs']['seed'] = seed
             if '44' in workflow:
                 workflow['44']['inputs']['text'] = prompt
-                
+
             # Save the modified workflow
             save_json(workflow_filename, workflow)
             logger.debug(f"Updated video workflow file: {workflow_filename}")
@@ -724,14 +743,15 @@ if __name__ == "__main__":
         try:
             # Clear cache and prepare for generation
             clear_cache(ws)
-            
+
             send_progress_update(request_id, {
                 'status': 'loading_models',
                 'message': 'Loading models and preparing generation...'
             })
 
             # Generate images
-            images = get_images(ws, workflow, lambda data: send_progress_update(request_id, data))
+            images, generation_time = get_images(ws, workflow, lambda data: send_progress_update(request_id, data))
+            logger.info(f"Image generation completed in {generation_time:.2f} seconds")
 
             # Process output images
             final_image = None
@@ -759,9 +779,11 @@ if __name__ == "__main__":
                     seed=seed,
                     image_data=image_data,
                     filename=filename,
-                    workflow_filename=workflow_filename
+                    workflow_filename=workflow_filename,
+                    generation_time=generation_time,  # Pass the generation time
+                    request_type=request_type  # Pass the request type
                 )
-                
+
                 add_to_history(user_id, full_prompt, workflow, filename, resolution, loras, upscale_factor)
             else:
                 logger.error("No final image found to send.")
